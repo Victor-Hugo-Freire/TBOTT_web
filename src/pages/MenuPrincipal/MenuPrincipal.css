@@ -1,0 +1,40 @@
+.menu-principal {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+  animation: menu-surgir 350ms ease-out both; /* continua a transição da tela inicial */
+}
+
+/* O menu surge do escuro e os textos sobem um pouco.
+   Só os textos se movem: mover a página inteira criaria uma barra de rolagem. */
+.menu-principal > * {
+  animation: menu-subir 350ms ease-out both;
+}
+
+@keyframes menu-surgir {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes menu-subir {
+  from {
+    transform: translateY(0.75rem);
+  }
+}
+
+.menu-principal__titulo {
+  margin: 0;
+  font-size: clamp(1.75rem, 5vw, 3rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.menu-principal__status {
+  margin: 0;
+  color: var(--color-text-muted);
+}
