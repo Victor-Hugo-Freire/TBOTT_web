@@ -1,0 +1,85 @@
+/* A tela inicial ocupa exatamente a janela, sem rolagem */
+.inicial {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--color-background);
+}
+
+/* Transição para o menu: um clarão rápido, como a lâmpada piscando, e depois
+   a cena se aproxima do personagem enquanto escurece. Ao terminar, o
+   componente navega para o menu (veja handleAnimationEnd em Inicial.jsx). */
+.inicial--saindo {
+  animation: inicial-saida 550ms ease-in forwards;
+}
+
+/* O zoom é aplicado na cena, dentro da tela: como .inicial tem overflow
+   hidden, a cena ampliada é recortada e não aparece barra de rolagem */
+.inicial--saindo .title-scene {
+  transform-origin: 50% 55%;
+  animation: inicial-zoom 550ms ease-in forwards;
+}
+
+@keyframes inicial-saida {
+  0% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  20% {
+    opacity: 1;
+    filter: brightness(1.45);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(0.4);
+  }
+}
+
+@keyframes inicial-zoom {
+  20% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1.08);
+  }
+}
+
+.title-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  container-type: size; /* permite medir a cena com cqw/cqh */
+}
+
+/* O canvas tem poucos pixels; o CSS amplia sem borrar (efeito pixel art) */
+.title-scene__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* Área segura da cena (360x256), centralizada e na mesma escala do canvas */
+.title-scene__stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(100cqw, 100cqh * 360 / 256);
+  aspect-ratio: 360 / 256;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Brilho quente em volta do personagem (como na folha de sprites) e
+   respiração: sobe cerca de 1 pixel da cena (0,8% da altura) de tempos em tempos */
+.title-scene__character {
+  position: absolute;
+  filter: drop-shadow(0 0 0.4cqh rgb(255 130 40 / 0.35));
+  animation: respirar 1.6s steps(1) infinite;
+}
+
+@keyframes respirar {
+  50% {
+    transform: translateY(-0.8%);
+  }
+}

@@ -1,0 +1,8 @@
+.character-sprite {
+  background-repeat: no-repeat;
+}
+
+/* Sprites pequenos em pixel art: amplia sem borrar, cada pixel vira um bloco nítido */
+.character-sprite--pixel-art {
+  image-rendering: pixelated;
+}
