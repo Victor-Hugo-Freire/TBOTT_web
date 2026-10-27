@@ -3,4 +3,8 @@
 export const ROUTES = {
   inicial: '/',
   menuPrincipal: '/menu',
+  novaPartida: '/jogo',
+  ranking: '/ranking',
+  opcoes: '/opcoes',
+  perfil: '/perfil',
 }
