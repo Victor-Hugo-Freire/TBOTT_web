@@ -20,9 +20,12 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | Tela                                    | Rota    | Situação                            |
 | --------------------------------------- | ------- | ----------------------------------- |
 | Inicial                                 | `/`     | Pronta (Issue #6)                   |
-| Menu principal                          | `/menu` | Provisória: só confirma a navegação |
+| Menu principal                          | `/menu` | Protótipo implementado (Issue #7)    |
+| Nova partida                            | `/jogo` | Tela provisória                     |
+| Ranking                                 | `/ranking` | Tela provisória                  |
+| Opções                                  | `/opcoes` | Tela provisória                   |
+| Perfil do usuário                       | `/perfil` | Tela provisória                   |
 | Seleção de personagem                   | -       | A fazer                             |
-| Ranking                                 | -       | A fazer                             |
 | Cadastro e login                        | -       | A fazer                             |
 | Jogo (combate, salas, inimigos e itens) | -       | A fazer                             |
 | Vitória e derrota                       | -       | A fazer                             |
@@ -38,10 +41,10 @@ src/
   routes/            AppRoutes.jsx (lista de rotas) e paths.js (endereço de cada tela)
   pages/             uma pasta por tela, com nome em português (JSX + CSS)
     Inicial/         tela inicial; scene/ desenha a cena animada no canvas
-    MenuPrincipal/   menu provisório
+    MenuPrincipal/   menu principal e destinos provisórios das opções
   components/        componentes usados por várias telas (CharacterSprite)
   data/              characterSprites.js (arquivo, quadros e direções de cada sprite)
-  utils/             keyboard.js (teclas que avançam de tela) e pixelFont.js (fonte em pixel art)
+  utils/             keyboard.js (teclas que avançam de tela), menuKeyboard.js (controles do menu) e pixelFont.js (fonte em pixel art)
   services/api.js    endereço da API e função apiRequest
   styles/global.css  cores, fonte e classes usadas por todas as telas
 tests/               testes automatizados (node:test)
@@ -92,6 +95,18 @@ A regra das teclas fica em `src/utils/keyboard.js`. O listener existe só enquan
 
 - **Transição:** depois da tecla, a tela dá um clarão rápido e escurece com um leve zoom (cerca de 0,5 s); a navegação acontece quando essa animação termina, e o menu surge do escuro. Com "reduzir movimento", a troca é imediata.
 
+## Menu principal
+
+O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e **Options**, além dos controles de voltar à tela inicial e abrir o perfil do usuário. Como ainda não há salvamento de partidas, **Continue** permanece desabilitado. As opções de jogo, ranking, opções e perfil levam a telas provisórias enquanto as respectivas funcionalidades não são implementadas.
+
+- **W / ↑:** percorre as opções para cima.
+- **S / ↓:** percorre as opções para baixo. Ao sair do cartão do usuário ou do botão de voltar, retoma a última opção selecionada.
+- **D / →:** seleciona o cartão do usuário.
+- **A / ←:** seleciona o botão para voltar à tela inicial.
+- **Enter:** ativa a opção ou o controle selecionado.
+
+Também é possível usar o mouse ou outro dispositivo apontador para selecionar e ativar os botões. A lógica de mapeamento das teclas fica em `src/utils/menuKeyboard.js`.
+
 ## API
 
 `src/services/api.js` centraliza o endereço (`API_URL`) e a função `apiRequest`, que usa `fetch` e lança um erro com a mensagem e o status da API quando algo falha:
@@ -104,7 +119,7 @@ Nenhuma tela chama a API ainda. O navegador só conversa com a API; o banco nunc
 
 ## Pendências
 
-- Menu principal de verdade (iniciar jogo, ranking etc.): `MenuPrincipal` é só um destino provisório.
+- Implementar as telas e funcionalidades de nova partida, ranking, opções e perfil; atualmente são destinos provisórios do menu.
 - Cadastro, login e sessão dependem das issues de autenticação (veja o README da TBOTT_api).
 - Antes da primeira chamada à API, a TBOTT_api precisa liberar o CORS para o endereço do front-end. O pacote `cors` está instalado lá, mas ainda não é usado em `src/app.js`.
 - Em celular e tablet sem teclado não há como avançar, porque a Issue #6 pede uma tecla. Definir se o toque também deve avançar.
