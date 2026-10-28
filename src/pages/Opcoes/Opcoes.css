@@ -1,0 +1,84 @@
+.opcoes {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: #1b1b1b;
+}
+
+.opcoes__painel {
+  display: grid;
+  width: min(100%, 38rem);
+  gap: 1.5rem;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  border-radius: 0.5rem;
+  background: #333;
+}
+
+.opcoes__painel h1,
+.opcoes__painel h2,
+.opcoes__painel p {
+  margin: 0;
+}
+
+.opcoes__painel h1 {
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+}
+
+.opcoes__painel h2 {
+  font-size: 1.125rem;
+}
+
+.opcoes__linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.opcoes__linha p,
+.opcoes__aviso {
+  margin-top: 0.35rem;
+  color: #ccc;
+  font-size: 0.9rem;
+}
+
+.opcoes__alternancia,
+.opcoes__voltar {
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid #aaa;
+  border-radius: 0.35rem;
+  background: #444;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.opcoes__alternancia {
+  min-width: 7rem;
+}
+
+.opcoes__alternancia[aria-checked='true'] {
+  border-color: #b6d6ad;
+}
+
+.opcoes__alternancia[aria-checked='false'] {
+  border-color: #d3aaaa;
+}
+
+.opcoes__voltar {
+  justify-self: start;
+}
+
+.opcoes__alternancia:hover,
+.opcoes__voltar:hover {
+  background: #555;
+}
+
+.opcoes__alternancia:focus-visible,
+.opcoes__voltar:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
