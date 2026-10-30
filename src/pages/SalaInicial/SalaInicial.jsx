@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import CharacterSprite from '../../components/CharacterSprite/CharacterSprite.jsx'
 import { CHARACTER_SPRITES } from '../../data/characterSprites.js'
 import { ROUTES } from '../../routes/paths.js'
@@ -30,11 +30,18 @@ function getFacingDirection(movement, currentDirection) {
 
 export default function SalaInicial() {
   const navigate = useNavigate()
+  const location = useLocation()
   const roomRef = useRef(null)
   const pressedKeysRef = useRef(new Set())
   const [position, setPosition] = useState(INITIAL_POSITION)
   const [direction, setDirection] = useState('down')
   const [isMoving, setIsMoving] = useState(false)
+
+  const selectedCharacter = location.state?.character ?? {
+    id: 'tung-tung-sahur',
+    name: 'Tung Tung Sahur',
+    description: 'Personagem principal do jogo.',
+  }
 
   useEffect(() => {
     roomRef.current?.focus()
@@ -119,7 +126,7 @@ export default function SalaInicial() {
           direction={direction}
           animated={isMoving}
           fps={8}
-          label="Tung Tung Sahur"
+          label={selectedCharacter.name || 'Tung Tung Sahur'}
           className="sala-inicial__personagem"
           style={{
             left: `${(position.x / ROOM_SIZE.width) * 100}%`,

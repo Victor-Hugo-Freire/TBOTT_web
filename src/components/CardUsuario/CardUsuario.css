@@ -4,23 +4,23 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 1.5rem 0.25rem 0.35rem;
-  border-radius: 0.5rem;
-  background: #777;
-  color: #111;
-  font-weight: 700;
-  font-size: clamp(0.9rem, 1.7vw, 1.125rem);
-  font-family: inherit;
-  text-align: left;
   border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-card-user);
+  color: var(--color-card-user-text);
+  font-family: inherit;
+  font-size: clamp(0.9rem, 1.7vw, 1.125rem);
+  font-weight: 700;
+  text-align: left;
   cursor: pointer;
 }
 
 .card-usuario:hover {
-  background: #858585;
+  background: var(--color-card-user-hover);
 }
 
 .card-usuario:focus-visible {
-  outline: 3px solid #fff;
+  outline: 3px solid var(--color-text-light);
   outline-offset: 4px;
 }
 
@@ -32,10 +32,10 @@
   place-items: center;
   overflow: hidden;
   border-radius: 50%;
-  background: #bbb;
+  background: var(--color-card-user-avatar);
 }
 
 .card-usuario__avatar svg {
   width: 100%;
-  fill: #eee;
+  fill: var(--color-card-user-avatar-icon);
 }

@@ -3,6 +3,7 @@ import Inicial from '../pages/Inicial/Inicial.jsx'
 import MenuPrincipal from '../pages/MenuPrincipal/MenuPrincipal.jsx'
 import MenuDestino from '../pages/MenuPrincipal/MenuDestino.jsx'
 import Opcoes from '../pages/Opcoes/Opcoes.jsx'
+import SessaoPersonagem from '../pages/sessaoPersonagem/SessaoPersonagem.jsx'
 import SalaInicial from '../pages/SalaInicial/SalaInicial.jsx'
 import { ROUTES } from './paths.js'
 
@@ -13,10 +14,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path={ROUTES.inicial} element={<Inicial />} />
       <Route path={ROUTES.menuPrincipal} element={<MenuPrincipal />} />
-      <Route
-        path={ROUTES.selecaoPersonagem}
-        element={<MenuDestino titulo="Seleção de personagem" proximaRota={ROUTES.novaPartida} textoProxima="Começar partida" />}
-      />
+      <Route path={ROUTES.selecaoPersonagem} element={<SessaoPersonagem />} />
       <Route path={ROUTES.novaPartida} element={<SalaInicial />} />
       <Route path={ROUTES.ranking} element={<MenuDestino titulo="Ranks" />} />
       <Route path={ROUTES.opcoes} element={<Opcoes />} />
