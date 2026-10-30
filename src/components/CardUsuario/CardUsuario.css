@@ -1,0 +1,41 @@
+.card-usuario {
+  display: flex;
+  min-height: clamp(3.5rem, 9.5vh, 4.125rem);
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 1.5rem 0.25rem 0.35rem;
+  border-radius: 0.5rem;
+  background: #777;
+  color: #111;
+  font-weight: 700;
+  font-size: clamp(0.9rem, 1.7vw, 1.125rem);
+  font-family: inherit;
+  text-align: left;
+  border: 0;
+  cursor: pointer;
+}
+
+.card-usuario:hover {
+  background: #858585;
+}
+
+.card-usuario:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+
+.card-usuario__avatar {
+  display: grid;
+  width: clamp(3.5rem, 7vw, 4.5rem);
+  height: clamp(3.5rem, 7vw, 4.5rem);
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #bbb;
+}
+
+.card-usuario__avatar svg {
+  width: 100%;
+  fill: #eee;
+}

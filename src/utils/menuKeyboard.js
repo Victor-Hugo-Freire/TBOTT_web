@@ -1,11 +1,12 @@
+// WASD e as setas navegam pelo menu
 const MENU_KEYS = new Map([
   ['w', 'up'],
-  ['arrowup', 'up'],
   ['s', 'down'],
-  ['arrowdown', 'down'],
   ['d', 'user'],
-  ['arrowright', 'user'],
   ['a', 'back'],
+  ['arrowup', 'up'],
+  ['arrowdown', 'down'],
+  ['arrowright', 'user'],
   ['arrowleft', 'back'],
 ])
 

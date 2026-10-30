@@ -21,11 +21,11 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | --------------------------------------- | ------- | ----------------------------------- |
 | Inicial                                 | `/`     | Pronta (Issue #6)                   |
 | Menu principal                          | `/menu` | Protótipo implementado (Issue #7)    |
-| Nova partida                            | `/jogo` | Tela provisória                     |
+| Sala inicial / nova partida             | `/jogo` | Protótipo implementado (Issue #10)   |
 | Ranking                                 | `/ranking` | Tela provisória                  |
 | Opções                                  | `/opcoes` | Tela provisória                   |
 | Perfil do usuário                       | `/perfil` | Tela provisória                   |
-| Seleção de personagem                   | -       | A fazer                             |
+| Seleção de personagem                   | `/selecao-personagem` | Tela provisória (leva ao jogo) |
 | Cadastro e login                        | -       | A fazer                             |
 | Jogo (combate, salas, inimigos e itens) | -       | A fazer                             |
 | Vitória e derrota                       | -       | A fazer                             |
@@ -41,16 +41,18 @@ src/
   routes/            AppRoutes.jsx (lista de rotas) e paths.js (endereço de cada tela)
   pages/             uma pasta por tela, com nome em português (JSX + CSS)
     Inicial/         tela inicial; scene/ desenha a cena animada no canvas
-    MenuPrincipal/   menu principal e destinos provisórios das opções
+    MenuPrincipal/   menu principal e telas provisórias (MenuDestino)
+    Opcoes/          tela de opções (ainda sem configurações)
+    SalaInicial/     sala inicial e movimentação do personagem
   components/        componentes usados por várias telas (CharacterSprite)
   data/              characterSprites.js (arquivo, quadros e direções de cada sprite)
-  utils/             keyboard.js (teclas que avançam de tela), menuKeyboard.js (controles do menu) e pixelFont.js (fonte em pixel art)
+  utils/             keyboard.js (teclas que avançam de tela), menuKeyboard.js (controles do menu), roomMovement.js (movimentação e limites da sala) e pixelFont.js (fonte em pixel art)
   services/api.js    endereço da API e função apiRequest
   styles/global.css  cores, fonte e classes usadas por todas as telas
 tests/               testes automatizados (node:test)
 ```
 
-Componentes usados por mais de uma tela ficam em `src/components/` (por exemplo, `CharacterSprite`, que mostra um personagem a partir da folha de sprites). Os dados de cada sprite (arquivo, tamanho do quadro e direções) ficam em `src/data/characterSprites.js`.
+Componentes ficam em `src/components/`, cada um em sua pasta com o CSS (por exemplo, `CharacterSprite`, que mostra um personagem a partir da folha de sprites, e `CardUsuario`, o cartão com avatar e nome do menu principal). Os dados de cada sprite (arquivo, tamanho do quadro e direções) ficam em `src/data/characterSprites.js`.
 
 Sprites ficam em `public/sprites/characters/` e são acessados por um endereço fixo, como `/sprites/characters/tung-tung-sahur.png`. Esse é o valor que o banco pode guardar em `sprite_path`; a imagem em si nunca vai para o banco.
 
@@ -97,15 +99,28 @@ A regra das teclas fica em `src/utils/keyboard.js`. O listener existe só enquan
 
 ## Menu principal
 
-O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e **Options**, além dos controles de voltar à tela inicial e abrir o perfil do usuário. Como ainda não há salvamento de partidas, **Continue** permanece desabilitado. As opções de jogo, ranking, opções e perfil levam a telas provisórias enquanto as respectivas funcionalidades não são implementadas.
+O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e **Options**, além dos controles de voltar à tela inicial e abrir o perfil do usuário. Como ainda não há salvamento de partidas, **Continue** permanece desabilitado. **New game** leva à seleção de personagem, tela provisória que tem o botão para começar a partida. Ranking e perfil levam a telas provisórias; **Options** abre a tela de opções, que ainda não tem configurações.
 
-- **W / ↑:** percorre as opções para cima.
-- **S / ↓:** percorre as opções para baixo. Ao sair do cartão do usuário ou do botão de voltar, retoma a última opção selecionada.
-- **D / →:** seleciona o cartão do usuário.
-- **A / ←:** seleciona o botão para voltar à tela inicial.
+- **W:** percorre as opções para cima.
+- **S:** percorre as opções para baixo. Ao sair do cartão do usuário ou do botão de voltar, retoma a última opção selecionada.
+- **D:** seleciona o cartão do usuário.
+- **A:** seleciona o botão para voltar à tela inicial.
 - **Enter:** ativa a opção ou o controle selecionado.
 
+As setas não têm função no menu nem na sala.
+
 Também é possível usar o mouse ou outro dispositivo apontador para selecionar e ativar os botões. A lógica de mapeamento das teclas fica em `src/utils/menuKeyboard.js`.
+
+## Sala inicial
+
+Depois da seleção de personagem, `/jogo` renderiza a sala de madeira da referência e o personagem sobre ela. Como a tela de seleção ainda não foi implementada, o protótipo usa o Tung Tung Sahur, único personagem com sprite disponível.
+
+- **W**, **A**, **S** e **D** movem o personagem nas quatro direções; segurar uma tecla mantém o movimento e as diagonais também são aceitas. As setas não movem o personagem.
+- **Esc:** retorna provisoriamente ao menu principal.
+- A animação e a direção do sprite acompanham o movimento.
+- Os limites da área caminhável impedem que o personagem atravesse as bordas da sala. A movimentação não requer uma biblioteca de jogo adicional.
+
+A imagem de fundo fica em `public/rooms/sala-inicial-vazia.png`; os limites e a velocidade do movimento estão em `src/utils/roomMovement.js`.
 
 ## API
 
@@ -119,7 +134,7 @@ Nenhuma tela chama a API ainda. O navegador só conversa com a API; o banco nunc
 
 ## Pendências
 
-- Implementar as telas e funcionalidades de nova partida, ranking, opções e perfil; atualmente são destinos provisórios do menu.
+- Integrar a seleção de personagem à sala inicial e implementar as funcionalidades de ranking e perfil, que ainda são provisórias.
 - Cadastro, login e sessão dependem das issues de autenticação (veja o README da TBOTT_api).
 - Antes da primeira chamada à API, a TBOTT_api precisa liberar o CORS para o endereço do front-end. O pacote `cors` está instalado lá, mas ainda não é usado em `src/app.js`.
 - Em celular e tablet sem teclado não há como avançar, porque a Issue #6 pede uma tecla. Definir se o toque também deve avançar.

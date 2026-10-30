@@ -46,7 +46,6 @@
 }
 
 .menu-principal__voltar:focus-visible,
-.menu-principal__usuario:focus-visible,
 .menu-principal__item:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 4px;
@@ -61,44 +60,11 @@
   stroke-width: 2.5;
 }
 
+/* Aparência do cartão fica em CardUsuario.css; aqui só a posição no menu */
 .menu-principal__usuario {
   position: absolute;
   top: clamp(0.5rem, 0.85vw, 0.75rem);
   right: clamp(0.75rem, 2vw, 1.5rem);
-  display: flex;
-  min-height: clamp(3.5rem, 9.5vh, 4.125rem);
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 1.5rem 0.25rem 0.35rem;
-  border-radius: 0.5rem;
-  background: #777;
-  color: #111;
-  font-weight: 700;
-  font-size: clamp(0.9rem, 1.7vw, 1.125rem);
-  font-family: inherit;
-  text-align: left;
-  border: 0;
-  cursor: pointer;
-}
-
-.menu-principal__usuario:hover {
-  background: #858585;
-}
-
-.menu-principal__avatar {
-  display: grid;
-  width: clamp(3.5rem, 7vw, 4.5rem);
-  height: clamp(3.5rem, 7vw, 4.5rem);
-  flex: 0 0 auto;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 50%;
-  background: #bbb;
-}
-
-.menu-principal__avatar svg {
-  width: 100%;
-  fill: #eee;
 }
 
 .menu-principal__painel {

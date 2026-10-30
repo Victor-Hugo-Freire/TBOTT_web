@@ -3,27 +3,30 @@ import { describe, test } from 'node:test'
 import { getMenuNavigationAction } from '../src/utils/menuKeyboard.js'
 
 describe('getMenuNavigationAction (menu principal)', () => {
-  test('W e seta para cima navegam pelas opções para cima', () => {
+  test('W navega pelas opções para cima', () => {
     assert.equal(getMenuNavigationAction('w'), 'up')
     assert.equal(getMenuNavigationAction('W'), 'up')
-    assert.equal(getMenuNavigationAction('ArrowUp'), 'up')
   })
 
-  test('S e seta para baixo navegam pelas opções para baixo', () => {
+  test('S navega pelas opções para baixo', () => {
     assert.equal(getMenuNavigationAction('s'), 'down')
     assert.equal(getMenuNavigationAction('S'), 'down')
-    assert.equal(getMenuNavigationAction('ArrowDown'), 'down')
   })
 
-  test('D e seta para direita selecionam o cartão do usuário', () => {
+  test('D seleciona o cartão do usuário', () => {
     assert.equal(getMenuNavigationAction('d'), 'user')
     assert.equal(getMenuNavigationAction('D'), 'user')
-    assert.equal(getMenuNavigationAction('ArrowRight'), 'user')
   })
 
-  test('A e seta para esquerda selecionam o botão de voltar', () => {
+  test('A seleciona o botão de voltar', () => {
     assert.equal(getMenuNavigationAction('a'), 'back')
     assert.equal(getMenuNavigationAction('A'), 'back')
+  })
+
+  test('as setas navegam como o WASD', () => {
+    assert.equal(getMenuNavigationAction('ArrowUp'), 'up')
+    assert.equal(getMenuNavigationAction('ArrowDown'), 'down')
+    assert.equal(getMenuNavigationAction('ArrowRight'), 'user')
     assert.equal(getMenuNavigationAction('ArrowLeft'), 'back')
   })
 

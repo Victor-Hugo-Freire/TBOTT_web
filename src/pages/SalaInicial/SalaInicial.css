@@ -1,0 +1,28 @@
+.sala-inicial {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #100b09;
+  outline: none;
+  cursor: none;
+}
+
+.sala-inicial__cenario {
+  position: relative;
+  width: min(100vw, 150dvh);
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background-image: url('/rooms/sala-inicial-vazia.png');
+  background-position: center;
+  background-size: 100% 100%;
+}
+
+.sala-inicial__personagem {
+  position: absolute;
+  width: 11%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
