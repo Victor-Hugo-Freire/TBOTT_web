@@ -13,6 +13,10 @@ export default function AppRoutes() {
     <Routes>
       <Route path={ROUTES.inicial} element={<Inicial />} />
       <Route path={ROUTES.menuPrincipal} element={<MenuPrincipal />} />
+      <Route
+        path={ROUTES.selecaoPersonagem}
+        element={<MenuDestino titulo="Seleção de personagem" proximaRota={ROUTES.novaPartida} textoProxima="Começar partida" />}
+      />
       <Route path={ROUTES.novaPartida} element={<SalaInicial />} />
       <Route path={ROUTES.ranking} element={<MenuDestino titulo="Ranks" />} />
       <Route path={ROUTES.opcoes} element={<Opcoes />} />

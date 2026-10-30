@@ -1,5 +1,4 @@
 import { BrowserRouter } from 'react-router-dom'
-import { BackgroundMusicProvider } from './context/BackgroundMusicContext.jsx'
 import AppRoutes from './routes/AppRoutes.jsx'
 
 // Componente raiz: liga o sistema de rotas. Recursos usados por todas as
@@ -7,9 +6,7 @@ import AppRoutes from './routes/AppRoutes.jsx'
 export default function App() {
   return (
     <BrowserRouter>
-      <BackgroundMusicProvider>
-        <AppRoutes />
-      </BackgroundMusicProvider>
+      <AppRoutes />
     </BrowserRouter>
   )
 }

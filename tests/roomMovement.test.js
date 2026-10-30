@@ -22,12 +22,16 @@ describe('shouldReturnToMenu (tecla de retorno provisório)', () => {
 })
 
 describe('getRoomMovement (controles da sala)', () => {
-  test('WASD e setas produzem o movimento nas quatro direções', () => {
+  test('WASD produzem o movimento nas quatro direções', () => {
     assert.deepEqual(getRoomMovement(new Set(['w'])), { x: 0, y: -1 })
-    assert.deepEqual(getRoomMovement(new Set(['arrowup'])), { x: 0, y: -1 })
     assert.deepEqual(getRoomMovement(new Set(['a'])), { x: -1, y: 0 })
     assert.deepEqual(getRoomMovement(new Set(['s'])), { x: 0, y: 1 })
     assert.deepEqual(getRoomMovement(new Set(['d'])), { x: 1, y: 0 })
+  })
+
+  test('as setas não movem o personagem', () => {
+    assert.deepEqual(getRoomMovement(new Set(['arrowup', 'arrowleft'])), { x: 0, y: 0 })
+    assert.deepEqual(getRoomMovement(new Set(['arrowdown', 'arrowright'])), { x: 0, y: 0 })
   })
 
   test('combina teclas diagonais sem aumentar a velocidade', () => {
@@ -38,7 +42,7 @@ describe('getRoomMovement (controles da sala)', () => {
   })
 
   test('teclas opostas se anulam', () => {
-    assert.deepEqual(getRoomMovement(new Set(['w', 'arrowdown'])), { x: 0, y: 0 })
+    assert.deepEqual(getRoomMovement(new Set(['w', 's'])), { x: 0, y: 0 })
     assert.deepEqual(getRoomMovement(new Set(['a', 'd'])), { x: 0, y: 0 })
   })
 })

@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import CardUsuario from '../../components/CardUsuario/CardUsuario.jsx'
 import { ROUTES } from '../../routes/paths.js'
 import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
 import './MenuPrincipal.css'
 
 const MENU_ITEMS = [
   { label: 'Continue', route: null, disabled: true },
-  { label: 'New game', route: ROUTES.novaPartida },
+  { label: 'New game', route: ROUTES.selecaoPersonagem },
   { label: 'Ranks', route: ROUTES.ranking },
   { label: 'Options', route: ROUTES.opcoes },
 ]
@@ -73,21 +74,12 @@ export default function MenuPrincipal() {
           </svg>
         </button>
 
-        <button
+        <CardUsuario
           className="menu-principal__usuario"
           ref={userRef}
-          type="button"
-          aria-label="Perfil do usuário"
+          nome="(nome do usuário)"
           onClick={() => navigate(ROUTES.perfil)}
-        >
-          <span className="menu-principal__avatar" aria-hidden="true">
-            <svg viewBox="0 0 48 48">
-              <circle cx="24" cy="16" r="9" />
-              <path d="M7 43c1-10 7-15 17-15s16 5 17 15" />
-            </svg>
-          </span>
-          <span>(nome do usuário)</span>
-        </button>
+        />
 
         <nav className="menu-principal__painel" aria-label="Opções do jogo">
           <h1 className="visually-hidden">Menu principal</h1>

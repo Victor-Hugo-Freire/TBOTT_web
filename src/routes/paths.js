@@ -3,6 +3,7 @@
 export const ROUTES = {
   inicial: '/',
   menuPrincipal: '/menu',
+  selecaoPersonagem: '/selecao-personagem',
   novaPartida: '/jogo',
   ranking: '/ranking',
   opcoes: '/opcoes',

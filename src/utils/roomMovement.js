@@ -9,11 +9,12 @@ export const ROOM_PLAYER_BOUNDS = {
 
 export const ROOM_PLAYER_SPEED = 260
 
+// Só WASD movem o personagem; as setas não fazem nada na sala
 const MOVEMENT_KEYS = {
-  up: ['w', 'arrowup'],
-  down: ['s', 'arrowdown'],
-  left: ['a', 'arrowleft'],
-  right: ['d', 'arrowright'],
+  up: ['w'],
+  down: ['s'],
+  left: ['a'],
+  right: ['d'],
 }
 
 export function shouldReturnToMenu(key) {

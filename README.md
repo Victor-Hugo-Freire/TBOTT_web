@@ -23,9 +23,9 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | Menu principal                          | `/menu` | Protótipo implementado (Issue #7)    |
 | Sala inicial / nova partida             | `/jogo` | Protótipo implementado (Issue #10)   |
 | Ranking                                 | `/ranking` | Tela provisória                  |
-| Opções                                  | `/opcoes` | Controle de música implementado   |
+| Opções                                  | `/opcoes` | Tela provisória                   |
 | Perfil do usuário                       | `/perfil` | Tela provisória                   |
-| Seleção de personagem                   | -       | A fazer                             |
+| Seleção de personagem                   | `/selecao-personagem` | Tela provisória (leva ao jogo) |
 | Cadastro e login                        | -       | A fazer                             |
 | Jogo (combate, salas, inimigos e itens) | -       | A fazer                             |
 | Vitória e derrota                       | -       | A fazer                             |
@@ -41,10 +41,9 @@ src/
   routes/            AppRoutes.jsx (lista de rotas) e paths.js (endereço de cada tela)
   pages/             uma pasta por tela, com nome em português (JSX + CSS)
     Inicial/         tela inicial; scene/ desenha a cena animada no canvas
-    MenuPrincipal/   menu principal e destinos provisórios das opções
-    Opcoes/          configuração de áudio do jogo
+    MenuPrincipal/   menu principal e telas provisórias (MenuDestino)
+    Opcoes/          tela de opções (ainda sem configurações)
     SalaInicial/     sala inicial e movimentação do personagem
-  context/           BackgroundMusicContext.jsx (preferência e reprodução da música)
   components/        componentes usados por várias telas (CharacterSprite)
   data/              characterSprites.js (arquivo, quadros e direções de cada sprite)
   utils/             keyboard.js (teclas que avançam de tela), menuKeyboard.js (controles do menu), roomMovement.js (movimentação e limites da sala) e pixelFont.js (fonte em pixel art)
@@ -53,7 +52,7 @@ src/
 tests/               testes automatizados (node:test)
 ```
 
-Componentes usados por mais de uma tela ficam em `src/components/` (por exemplo, `CharacterSprite`, que mostra um personagem a partir da folha de sprites). Os dados de cada sprite (arquivo, tamanho do quadro e direções) ficam em `src/data/characterSprites.js`.
+Componentes ficam em `src/components/`, cada um em sua pasta com o CSS (por exemplo, `CharacterSprite`, que mostra um personagem a partir da folha de sprites, e `CardUsuario`, o cartão com avatar e nome do menu principal). Os dados de cada sprite (arquivo, tamanho do quadro e direções) ficam em `src/data/characterSprites.js`.
 
 Sprites ficam em `public/sprites/characters/` e são acessados por um endereço fixo, como `/sprites/characters/tung-tung-sahur.png`. Esse é o valor que o banco pode guardar em `sprite_path`; a imagem em si nunca vai para o banco.
 
@@ -100,27 +99,28 @@ A regra das teclas fica em `src/utils/keyboard.js`. O listener existe só enquan
 
 ## Menu principal
 
-O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e **Options**, além dos controles de voltar à tela inicial e abrir o perfil do usuário. Como ainda não há salvamento de partidas, **Continue** permanece desabilitado. Nova partida, ranking e perfil levam a telas provisórias; **Options** permite ligar ou desligar a música de fundo.
+O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e **Options**, além dos controles de voltar à tela inicial e abrir o perfil do usuário. Como ainda não há salvamento de partidas, **Continue** permanece desabilitado. **New game** leva à seleção de personagem, tela provisória que tem o botão para começar a partida. Ranking e perfil levam a telas provisórias; **Options** abre a tela de opções, que ainda não tem configurações.
 
-- **W / ↑:** percorre as opções para cima.
-- **S / ↓:** percorre as opções para baixo. Ao sair do cartão do usuário ou do botão de voltar, retoma a última opção selecionada.
-- **D / →:** seleciona o cartão do usuário.
-- **A / ←:** seleciona o botão para voltar à tela inicial.
+- **W:** percorre as opções para cima.
+- **S:** percorre as opções para baixo. Ao sair do cartão do usuário ou do botão de voltar, retoma a última opção selecionada.
+- **D:** seleciona o cartão do usuário.
+- **A:** seleciona o botão para voltar à tela inicial.
 - **Enter:** ativa a opção ou o controle selecionado.
+
+As setas não têm função no menu nem na sala.
 
 Também é possível usar o mouse ou outro dispositivo apontador para selecionar e ativar os botões. A lógica de mapeamento das teclas fica em `src/utils/menuKeyboard.js`.
 
 ## Sala inicial
 
-A opção **New game** abre `/jogo`, que renderiza a sala de madeira da referência e o personagem sobre ela. Como a tela de seleção ainda não foi implementada, o protótipo usa o Tung Tung Sahur, único personagem com sprite disponível.
+Depois da seleção de personagem, `/jogo` renderiza a sala de madeira da referência e o personagem sobre ela. Como a tela de seleção ainda não foi implementada, o protótipo usa o Tung Tung Sahur, único personagem com sprite disponível.
 
-- **W / ↑**, **A / ←**, **S / ↓** e **D / →** movem o personagem nas quatro direções; segurar uma tecla mantém o movimento e as diagonais também são aceitas.
+- **W**, **A**, **S** e **D** movem o personagem nas quatro direções; segurar uma tecla mantém o movimento e as diagonais também são aceitas. As setas não movem o personagem.
 - **Esc:** retorna provisoriamente ao menu principal.
 - A animação e a direção do sprite acompanham o movimento.
-- A música de fundo toca em loop na sala inicial. Acesse **Options** no menu principal para ligar ou desligar a música; a preferência permanece ao navegar entre as telas durante a sessão.
 - Os limites da área caminhável impedem que o personagem atravesse as bordas da sala. A movimentação não requer uma biblioteca de jogo adicional.
 
-A imagem de fundo fica em `public/rooms/sala-inicial-vazia.png`, e a música em `public/audio/sala-inicial.mp3`; os limites e a velocidade do movimento estão em `src/utils/roomMovement.js`.
+A imagem de fundo fica em `public/rooms/sala-inicial-vazia.png`; os limites e a velocidade do movimento estão em `src/utils/roomMovement.js`.
 
 ## API
 

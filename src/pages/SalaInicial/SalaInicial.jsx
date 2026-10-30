@@ -13,6 +13,13 @@ import './SalaInicial.css'
 
 const INITIAL_POSITION = { x: ROOM_SIZE.width / 2, y: 460 }
 
+// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
+const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
+
+function blockMouse(event) {
+  event.preventDefault()
+}
+
 function getFacingDirection(movement, currentDirection) {
   if (movement.y < 0) return 'up'
   if (movement.y > 0) return 'down'
@@ -62,6 +69,7 @@ export default function SalaInicial() {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
     window.addEventListener('blur', clearPressedKeys)
+    BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
 
     let previousTime
     let animationFrame
@@ -87,6 +95,7 @@ export default function SalaInicial() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', clearPressedKeys)
+      BLOCKED_MOUSE_EVENTS.forEach((name) => window.removeEventListener(name, blockMouse))
       window.cancelAnimationFrame(animationFrame)
     }
   }, [navigate])
@@ -101,7 +110,7 @@ export default function SalaInicial() {
       <title>Sala inicial | The Binding of Tung Tung</title>
       <h1 className="visually-hidden">Sala inicial</h1>
       <p className="visually-hidden">
-        Use as teclas W, A, S, D ou as setas para mover o personagem pela sala.
+        Use as teclas W, A, S e D para mover o personagem pela sala.
       </p>
 
       <div className="sala-inicial__cenario">
