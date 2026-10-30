@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CardUsuario from '../../components/CardUsuario/CardUsuario.jsx'
 import { apiRequest } from '../../services/api.js'
@@ -12,25 +12,29 @@ const EMPTY_STATE = {
 function getVisibleCharacters(characters, currentIndex) {
   if (characters.length === 0) return []
 
-  const positions = [
-    { position: 'left', offset: -1 },
-    { position: 'center', offset: 0 },
-    { position: 'right', offset: 1 },
+  const visibleCount = Math.min(characters.length, 3)
+
+  if (visibleCount === 1) {
+    return [{ character: characters[currentIndex], position: 'center', index: currentIndex }]
+  }
+
+  if (visibleCount === 2) {
+    return [
+      { character: characters[(currentIndex - 1 + characters.length) % characters.length], position: 'left', index: (currentIndex - 1 + characters.length) % characters.length },
+      { character: characters[currentIndex], position: 'center', index: currentIndex },
+    ]
+  }
+
+  return [
+    { character: characters[(currentIndex - 1 + characters.length) % characters.length], position: 'left', index: (currentIndex - 1 + characters.length) % characters.length },
+    { character: characters[currentIndex], position: 'center', index: currentIndex },
+    { character: characters[(currentIndex + 1) % characters.length], position: 'right', index: (currentIndex + 1) % characters.length },
   ]
-
-  return positions.map(({ position, offset }) => {
-    const index = characters.length === 1 ? 0 : (currentIndex + offset + characters.length) % characters.length
-
-    return {
-      character: characters[index],
-      position,
-      index,
-    }
-  })
 }
 
 export default function SessaoPersonagem() {
   const navigate = useNavigate()
+  const backRef = useRef(null)
   const [characters, setCharacters] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedCharacterId, setSelectedCharacterId] = useState(null)
@@ -38,6 +42,8 @@ export default function SessaoPersonagem() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    backRef.current?.focus()
+
     let isActive = true
 
     async function loadCharacters() {
@@ -83,14 +89,13 @@ export default function SessaoPersonagem() {
     }
   }, [])
 
-  const currentCharacter = characters[currentIndex] ?? null
   const selectedCharacter = characters.find((character) => character.id === selectedCharacterId) ?? null
-  const activeCharacter = selectedCharacter ?? currentCharacter
   const visibleCharacters = useMemo(() => getVisibleCharacters(characters, currentIndex), [characters, currentIndex])
 
-  const selectionIndicators = characters.map((character, index) => ({
+  const selectionIndicators = visibleCharacters.map(({ character, index }) => ({
     ...character,
-    isActive: selectedCharacterId ? character.id === selectedCharacterId : index === currentIndex,
+    index,
+    isActive: selectedCharacterId ? character.id === selectedCharacterId : false,
   }))
 
   function moveCarousel(direction) {
@@ -108,8 +113,8 @@ export default function SessaoPersonagem() {
   }
 
   function handleStartGame() {
-    if (!activeCharacter) return
-    navigate(ROUTES.novaPartida, { state: { character: activeCharacter } })
+    if (!selectedCharacter) return
+    navigate(ROUTES.novaPartida, { state: { character: selectedCharacter } })
   }
 
   return (
@@ -119,13 +124,16 @@ export default function SessaoPersonagem() {
       <div className="sessao-personagem__layout">
         <header className="sessao-personagem__header">
           <button
-            type="button"
-            className="sessao-personagem__voltar"
-            aria-label="Voltar ao menu principal"
-            onClick={() => navigate(ROUTES.menuPrincipal)}
-          >
-            &lt;
-          </button>
+          className="menu-principal__voltar"
+          ref={backRef}
+          type="button"
+          aria-label="Voltar para a tela inicial"
+          onClick={() => navigate(ROUTES.menuPrincipal)}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M15 5 8 12l7 7" />
+          </svg>
+        </button>
 
           <CardUsuario
             className="sessao-personagem__usuario"
@@ -160,7 +168,7 @@ export default function SessaoPersonagem() {
                       <button
                         key={`${character.id}-${position}`}
                         type="button"
-                        className={`sessao-personagem__preview sessao-personagem__preview--${position} ${currentCharacter?.id === character.id ? 'sessao-personagem__preview--selecionado' : ''}`}
+                        className={`sessao-personagem__preview sessao-personagem__preview--${position} ${selectedCharacterId === character.id ? 'sessao-personagem__preview--selecionado' : ''}`}
                         style={
                           position === 'center'
                             ? { '--offset-x': '0%', '--scale': '1', '--lift': '0rem', '--z-index': '3' }
@@ -204,7 +212,7 @@ export default function SessaoPersonagem() {
                       type="button"
                       className={`sessao-personagem__indicador ${character.isActive ? 'sessao-personagem__indicador--ativo' : ''}`}
                       aria-label={`Selecionar ${character.name}`}
-                      onClick={() => handleSelectCharacter(characters.findIndex((item) => item.id === character.id))}
+                      onClick={() => handleSelectCharacter(character.index)}
                       aria-pressed={character.isActive}
                     />
                   ))}
@@ -227,7 +235,7 @@ export default function SessaoPersonagem() {
         <button
           type="button"
           className="sessao-personagem__inicio"
-          disabled={!activeCharacter}
+          disabled={!selectedCharacter}
           onClick={handleStartGame}
         >
           Começar Jogo
