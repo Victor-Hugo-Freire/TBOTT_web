@@ -5,6 +5,8 @@ import {
   moveRoomPlayer,
   ROOM_PLAYER_BOUNDS,
   ROOM_PLAYER_SPEED,
+  ROOM_PLAYER_START,
+  ROOM_SIZE,
   shouldReturnToMenu,
 } from '../src/utils/roomMovement.js'
 
@@ -48,13 +50,19 @@ describe('getRoomMovement (controles da sala)', () => {
 })
 
 describe('moveRoomPlayer (colisão com as bordas)', () => {
-  test('mantém o personagem dentro do piso sem entrar nas paredes laterais ou no rodapé', () => {
+  test('mantém os pés dentro do piso da sala de 1080x768', () => {
+    assert.deepEqual(ROOM_SIZE, { width: 1080, height: 768 })
     assert.deepEqual(ROOM_PLAYER_BOUNDS, {
       minX: 25,
       maxX: 1050,
-      minY: 200,
-      maxY: 570,
+      minY: 261,
+      maxY: 656,
     })
+  })
+
+  test('o personagem começa no meio da sala, dentro dos limites', () => {
+    assert.ok(ROOM_PLAYER_START.x >= ROOM_PLAYER_BOUNDS.minX && ROOM_PLAYER_START.x <= ROOM_PLAYER_BOUNDS.maxX)
+    assert.ok(ROOM_PLAYER_START.y >= ROOM_PLAYER_BOUNDS.minY && ROOM_PLAYER_START.y <= ROOM_PLAYER_BOUNDS.maxY)
   })
 
   test('move respeitando velocidade e tempo transcorrido', () => {

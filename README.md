@@ -120,7 +120,7 @@ Depois da seleção de personagem, `/jogo` renderiza a sala de madeira da refer�
 - A animação e a direção do sprite acompanham o movimento.
 - Os limites da área caminhável impedem que o personagem atravesse as bordas da sala. A movimentação não requer uma biblioteca de jogo adicional.
 
-A imagem de fundo fica em `public/rooms/sala-inicial-vazia.png`; os limites e a velocidade do movimento estão em `src/utils/roomMovement.js`.
+A sala é desenhada por código em um canvas de tela cheia (`src/pages/SalaInicial/scene/`), com escala uniforme e faixa na cor de fundo. A imagem `docs/referencias/sala-inicial-vazia.png` é só referência de arte e não é carregada pelo jogo. Os limites e a velocidade do movimento estão em `src/utils/roomMovement.js`.
 
 ## API
 

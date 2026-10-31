@@ -1,20 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import CharacterSprite from '../../components/CharacterSprite/CharacterSprite.jsx'
 import { CHARACTER_SPRITES } from '../../data/characterSprites.js'
 import { ROUTES } from '../../routes/paths.js'
 import {
   getRoomMovement,
   moveRoomPlayer,
-  ROOM_SIZE,
+  ROOM_PLAYER_START,
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
+import { drawRoom } from './scene/drawRoom.js'
+import { drawSprite } from './scene/drawSprite.js'
+import { getRoomView } from './scene/view.js'
 import './SalaInicial.css'
-
-const INITIAL_POSITION = { x: ROOM_SIZE.width / 2, y: 460 }
 
 // A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
+
+const WALK_FPS = 8
 
 function blockMouse(event) {
   event.preventDefault()
@@ -28,23 +30,44 @@ function getFacingDirection(movement, currentDirection) {
   return currentDirection
 }
 
+// A sala é um canvas em tela cheia. O jogo (posição, direção, animação) fica em
+// variáveis do efeito e é desenhado a cada quadro: o React não renderiza de novo
+// enquanto o personagem anda.
 export default function SalaInicial() {
   const navigate = useNavigate()
   const roomRef = useRef(null)
-  const pressedKeysRef = useRef(new Set())
-  const [position, setPosition] = useState(INITIAL_POSITION)
-  const [direction, setDirection] = useState('down')
-  const [isMoving, setIsMoving] = useState(false)
+  const canvasRef = useRef(null)
 
   useEffect(() => {
     roomRef.current?.focus()
+
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const sprite = CHARACTER_SPRITES.tungTungSahur
+    const image = new Image()
+    image.src = sprite.src
+    // Quem pede "reduzir movimento" no sistema vê o personagem sempre no quadro 0
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    const pressedKeys = new Set()
+    const player = { x: ROOM_PLAYER_START.x, y: ROOM_PLAYER_START.y, direction: 'down', walkTime: 0 }
+    let view = getRoomView(0, 0)
+    let pixelRatio = 1
+
+    // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
+    function resize() {
+      pixelRatio = window.devicePixelRatio || 1
+      canvas.width = Math.round(canvas.clientWidth * pixelRatio)
+      canvas.height = Math.round(canvas.clientHeight * pixelRatio)
+      view = getRoomView(canvas.clientWidth, canvas.clientHeight)
+    }
 
     function handleKeyDown(event) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
 
       if (shouldReturnToMenu(event.key)) {
         event.preventDefault()
-        pressedKeysRef.current.clear()
+        pressedKeys.clear()
         navigate(ROUTES.menuPrincipal)
         return
       }
@@ -54,22 +77,16 @@ export default function SalaInicial() {
       if (movement.x === 0 && movement.y === 0) return
 
       event.preventDefault()
-      pressedKeysRef.current.add(key)
+      pressedKeys.add(key)
     }
 
     function handleKeyUp(event) {
-      pressedKeysRef.current.delete(event.key.toLowerCase())
+      pressedKeys.delete(event.key.toLowerCase())
     }
 
     function clearPressedKeys() {
-      pressedKeysRef.current.clear()
-      setIsMoving(false)
+      pressedKeys.clear()
     }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', clearPressedKeys)
-    BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
 
     let previousTime
     let animationFrame
@@ -78,20 +95,43 @@ export default function SalaInicial() {
       const deltaSeconds = previousTime === undefined ? 0 : (time - previousTime) / 1000
       previousTime = time
 
-      const movement = getRoomMovement(pressedKeysRef.current)
-      const moving = movement.x !== 0 || movement.y !== 0
-      setIsMoving((current) => (current === moving ? current : moving))
-
-      if (moving) {
-        setDirection((current) => getFacingDirection(movement, current))
-        setPosition((current) => moveRoomPlayer(current, movement, deltaSeconds))
+      const movement = getRoomMovement(pressedKeys)
+      if (movement.x !== 0 || movement.y !== 0) {
+        player.direction = getFacingDirection(movement, player.direction)
+        const next = moveRoomPlayer(player, movement, deltaSeconds)
+        player.x = next.x
+        player.y = next.y
+        player.walkTime += deltaSeconds
+      } else {
+        player.walkTime = 0
       }
 
+      draw()
       animationFrame = window.requestAnimationFrame(update)
     }
 
+    function draw() {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      // A partir daqui, tudo é desenhado em unidades da sala
+      const scale = view.scale * pixelRatio
+      ctx.setTransform(scale, 0, 0, scale, view.offsetX * pixelRatio, view.offsetY * pixelRatio)
+      drawRoom(ctx)
+
+      const frame = reduceMotion ? 0 : Math.floor(player.walkTime * WALK_FPS) % sprite.framesPerRow
+      drawSprite(ctx, image, sprite, player.direction, frame, player)
+    }
+
+    resize()
+    window.addEventListener('resize', resize)
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', clearPressedKeys)
+    BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
     animationFrame = window.requestAnimationFrame(update)
+
     return () => {
+      window.removeEventListener('resize', resize)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', clearPressedKeys)
@@ -113,20 +153,7 @@ export default function SalaInicial() {
         Use as teclas W, A, S e D para mover o personagem pela sala.
       </p>
 
-      <div className="sala-inicial__cenario">
-        <CharacterSprite
-          sprite={CHARACTER_SPRITES.tungTungSahur}
-          direction={direction}
-          animated={isMoving}
-          fps={8}
-          label="Tung Tung Sahur"
-          className="sala-inicial__personagem"
-          style={{
-            left: `${(position.x / ROOM_SIZE.width) * 100}%`,
-            top: `${(position.y / ROOM_SIZE.height) * 100}%`,
-          }}
-        />
-      </div>
+      <canvas ref={canvasRef} className="sala-inicial__canvas" aria-hidden="true" />
     </main>
   )
 }

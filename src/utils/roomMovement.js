@@ -1,11 +1,16 @@
-export const ROOM_SIZE = { width: 1080, height: 720 }
+// Tamanho da sala em unidades (mesma proporção da imagem de referência, 1080x768)
+export const ROOM_SIZE = { width: 1080, height: 768 }
 
+// A posição do personagem é o centro dos pés. Limites onde os pés podem ficar.
 export const ROOM_PLAYER_BOUNDS = {
   minX: 25,
   maxX: 1050,
-  minY: 200,
-  maxY: 570,
+  minY: 261,
+  maxY: 656,
 }
+
+// Onde o personagem começa (pés)
+export const ROOM_PLAYER_START = { x: ROOM_SIZE.width / 2, y: 538 }
 
 export const ROOM_PLAYER_SPEED = 260
 
