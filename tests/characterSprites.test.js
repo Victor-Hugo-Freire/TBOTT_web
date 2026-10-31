@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import { CHARACTER_SPRITES, getFramePosition } from '../src/data/characterSprites.js'
 
@@ -36,5 +37,32 @@ describe('getFramePosition (quadro dentro da folha de sprites)', () => {
       assert.ok(step.frame >= 0 && step.frame < piscar.framesPerRow)
       assert.ok(step.ms > 0)
     }
+  })
+})
+
+// Largura e altura de um PNG, lidas do cabeçalho (bytes 16 a 23)
+function pngSize(src) {
+  const bytes = readFileSync(new URL(`../public${src}`, import.meta.url))
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }
+}
+
+describe('folhas do personagem na sala', () => {
+  test('o tamanho de cada folha bate com a grade declarada (quadro x quadros por linha x linhas)', () => {
+    for (const name of ['tungTungSahurAndar']) {
+      const sprite = CHARACTER_SPRITES[name]
+      assert.deepEqual(pngSize(sprite.src), {
+        width: sprite.frameWidth * sprite.framesPerRow,
+        height: sprite.frameHeight * Object.keys(sprite.rows).length,
+      }, name)
+    }
+  })
+
+  test('o pivô (pés) do andar fica em (148, 241), o mesmo da folha original', () => {
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    const original = CHARACTER_SPRITES.tungTungSahur
+    assert.equal(walk.frameWidth / 2, 148)
+    assert.equal(walk.frameHeight - walk.feetPadding, 241)
+    assert.equal(walk.feetPadding, original.feetPadding)
+    assert.deepEqual(walk.rows, original.rows)
   })
 })

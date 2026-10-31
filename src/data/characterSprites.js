@@ -14,6 +14,17 @@ export const CHARACTER_SPRITES = {
     framesPerRow: 4,
     rows: { down: 0, left: 1, right: 2, up: 3 },
   },
+  // Sala: andar com 4 quadros por direção (original, original, pernas trocadas, pernas trocadas).
+  // Os quadros de pernas trocadas são gerados do original por recorte e espelho; o rosto não muda.
+  // Os pés ficam no mesmo ponto de todos os quadros (feetPadding), então não há "pulo".
+  tungTungSahurAndar: {
+    src: '/sprites/characters/tung-tung-sahur/andar.png',
+    frameWidth: 296,
+    frameHeight: 259,
+    feetPadding: 18,
+    framesPerRow: 4,
+    rows: { down: 0, left: 1, right: 2, up: 3 },
+  },
   // Tela inicial: corpo inteiro piscando (quadros: aberto, meio, fechado, meio)
   tungTungSahurPiscar: {
     src: '/sprites/characters/tung-tung-sahur-piscar.png',

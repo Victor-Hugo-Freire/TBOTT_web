@@ -8,15 +8,15 @@ import {
   ROOM_PLAYER_START,
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
+import { getWalkFrame, updateWalkDistance } from '../../utils/spriteAnimation.js'
 import { drawRoom } from './scene/drawRoom.js'
+import { drawShadow } from './scene/drawShadow.js'
 import { drawSprite } from './scene/drawSprite.js'
 import { getRoomView } from './scene/view.js'
 import './SalaInicial.css'
 
 // A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
-
-const WALK_FPS = 8
 
 function blockMouse(event) {
   event.preventDefault()
@@ -43,14 +43,14 @@ export default function SalaInicial() {
 
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-    const sprite = CHARACTER_SPRITES.tungTungSahur
+    const sprite = CHARACTER_SPRITES.tungTungSahurAndar
     const image = new Image()
     image.src = sprite.src
     // Quem pede "reduzir movimento" no sistema vê o personagem sempre no quadro 0
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     const pressedKeys = new Set()
-    const player = { x: ROOM_PLAYER_START.x, y: ROOM_PLAYER_START.y, direction: 'down', walkTime: 0 }
+    const player = { x: ROOM_PLAYER_START.x, y: ROOM_PLAYER_START.y, direction: 'down', walkDistance: 0 }
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
@@ -96,15 +96,12 @@ export default function SalaInicial() {
       previousTime = time
 
       const movement = getRoomMovement(pressedKeys)
-      if (movement.x !== 0 || movement.y !== 0) {
-        player.direction = getFacingDirection(movement, player.direction)
-        const next = moveRoomPlayer(player, movement, deltaSeconds)
-        player.x = next.x
-        player.y = next.y
-        player.walkTime += deltaSeconds
-      } else {
-        player.walkTime = 0
-      }
+      if (movement.x !== 0 || movement.y !== 0) player.direction = getFacingDirection(movement, player.direction)
+
+      const next = moveRoomPlayer(player, movement, deltaSeconds)
+      player.walkDistance = updateWalkDistance(player.walkDistance, Math.hypot(next.x - player.x, next.y - player.y))
+      player.x = next.x
+      player.y = next.y
 
       draw()
       animationFrame = window.requestAnimationFrame(update)
@@ -118,7 +115,8 @@ export default function SalaInicial() {
       ctx.setTransform(scale, 0, 0, scale, view.offsetX * pixelRatio, view.offsetY * pixelRatio)
       drawRoom(ctx)
 
-      const frame = reduceMotion ? 0 : Math.floor(player.walkTime * WALK_FPS) % sprite.framesPerRow
+      const frame = reduceMotion ? 0 : getWalkFrame(player.walkDistance, sprite.framesPerRow)
+      drawShadow(ctx, player)
       drawSprite(ctx, image, sprite, player.direction, frame, player)
     }
 
