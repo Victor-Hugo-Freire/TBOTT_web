@@ -4,6 +4,7 @@ import { CHARACTER_SPRITES } from '../../data/characterSprites.js'
 import { ROUTES } from '../../routes/paths.js'
 import {
   getRoomMovement,
+  isRoomKey,
   moveRoomPlayer,
   ROOM_PLAYER_START,
   shouldReturnToMenu,
@@ -72,16 +73,15 @@ export default function SalaInicial() {
         return
       }
 
-      const key = event.key.toLowerCase()
-      const movement = getRoomMovement(new Set([key]))
-      if (movement.x === 0 && movement.y === 0) return
+      // preventDefault também nas setas, para a página não rolar
+      if (!isRoomKey(event.code)) return
 
       event.preventDefault()
-      pressedKeys.add(key)
+      pressedKeys.add(event.code)
     }
 
     function handleKeyUp(event) {
-      pressedKeys.delete(event.key.toLowerCase())
+      pressedKeys.delete(event.code)
     }
 
     function clearPressedKeys() {
@@ -148,7 +148,7 @@ export default function SalaInicial() {
       <title>Sala inicial | The Binding of Tung Tung</title>
       <h1 className="visually-hidden">Sala inicial</h1>
       <p className="visually-hidden">
-        Use as teclas W, A, S e D para mover o personagem pela sala.
+        Use as teclas W, A, S e D para mover o personagem pela sala e as setas para atacar.
       </p>
 
       <canvas ref={canvasRef} className="sala-inicial__canvas" aria-hidden="true" />

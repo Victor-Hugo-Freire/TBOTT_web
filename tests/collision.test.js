@@ -71,7 +71,7 @@ describe('colisão com as paredes da sala', () => {
   })
 
   test('na diagonal contra a parede, desliza pela parede sem tremer', () => {
-    const movement = getRoomMovement(new Set(['d', 's']))
+    const movement = getRoomMovement(new Set(['KeyD', 'KeyS']))
     let position = { x: ROOM_PLAYER_BOUNDS.maxX, y: 300 }
     for (let frame = 0; frame < 30; frame++) {
       const next = moveRoomPlayer(position, movement, 1 / 60)

@@ -47,13 +47,13 @@ describe('animação com a colisão', () => {
 
   test('andando livre, o quadro muda com a distância', () => {
     // 15 quadros de 1/60 s a 260 u/s = 65 u andadas = 2 passos
-    const { distance } = walk({ x: 100, y: 400 }, ['d'], 15)
+    const { distance } = walk({ x: 100, y: 400 }, ['KeyD'], 15)
     assert.ok(Math.abs(distance - 65) < 0.0001)
     assert.equal(getWalkFrame(distance + 0.001), 2)
   })
 
   test('empurrando a parede, a animação para no quadro 0', () => {
-    const { distance } = walk({ x: ROOM_PLAYER_BOUNDS.maxX, y: 400 }, ['d'], 30)
+    const { distance } = walk({ x: ROOM_PLAYER_BOUNDS.maxX, y: 400 }, ['KeyD'], 30)
     assert.equal(distance, 0)
     assert.equal(getWalkFrame(distance), 0)
   })

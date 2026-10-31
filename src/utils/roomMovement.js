@@ -29,12 +29,32 @@ export const ROOM_PLAYER_START = { x: ROOM_SIZE.width / 2, y: 538 }
 
 export const ROOM_PLAYER_SPEED = 260
 
-// Só WASD movem o personagem; as setas não fazem nada na sala
+// Teclas pelo código físico (event.code), que não muda com o layout do teclado.
+// WASD movem o personagem; as setas atacam na direção delas.
 const MOVEMENT_KEYS = {
-  up: ['w'],
-  down: ['s'],
-  left: ['a'],
-  right: ['d'],
+  up: ['KeyW'],
+  down: ['KeyS'],
+  left: ['KeyA'],
+  right: ['KeyD'],
+}
+
+const ATTACK_KEYS = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+}
+
+// A tecla faz parte dos controles da sala? (a página usa para decidir o preventDefault)
+export function isRoomKey(code) {
+  return code in ATTACK_KEYS || Object.values(MOVEMENT_KEYS).some((codes) => codes.includes(code))
+}
+
+// Direção do ataque: a última seta pressionada que ainda está segurada.
+// O Set guarda as teclas na ordem em que foram apertadas, então basta olhar de trás para a frente.
+export function getAttackDirection(keys) {
+  const held = [...keys].reverse().find((code) => code in ATTACK_KEYS)
+  return held ? ATTACK_KEYS[held] : null
 }
 
 export function shouldReturnToMenu(key) {
