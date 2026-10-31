@@ -10,6 +10,7 @@ import {
   ROOM_PLAYER_START,
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
+import { drawDebug } from './scene/drawDebug.js'
 import { drawRoom } from './scene/drawRoom.js'
 import { drawShadow } from './scene/drawShadow.js'
 import { drawSprite } from './scene/drawSprite.js'
@@ -51,6 +52,7 @@ export default function SalaInicial() {
 
     const pressedKeys = new Set()
     let player = createPlayer(ROOM_PLAYER_START)
+    let showDebug = false // F3, só no npm run dev
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
@@ -69,6 +71,13 @@ export default function SalaInicial() {
         event.preventDefault()
         pressedKeys.clear()
         navigate(ROUTES.menuPrincipal)
+        return
+      }
+
+      // import.meta.env.DEV é false no build: este trecho e o drawDebug saem do pacote
+      if (import.meta.env.DEV && event.code === 'F3') {
+        event.preventDefault()
+        showDebug = !showDebug
         return
       }
 
@@ -116,6 +125,7 @@ export default function SalaInicial() {
       const { sprite, image } = sheets[pose.sheet]
       drawShadow(ctx, player)
       drawSprite(ctx, image, sprite, pose.direction, pose.frame, player)
+      if (import.meta.env.DEV && showDebug) drawDebug(ctx, player)
     }
 
     resize()
