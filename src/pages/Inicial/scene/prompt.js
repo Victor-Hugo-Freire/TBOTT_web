@@ -1,6 +1,6 @@
 import { drawPixelText, getTextWidth, SMALL_FONT } from '../../../utils/pixelFont.js'
 import { COLORS } from './colors.js'
-import { noise, rect } from './draw.js'
+import { noise, rect } from '../../../utils/canvas.js'
 
 // Mensagem do protótipo, uma linha por item
 const LINES = ['CLIQUE QUALQUER TECLA', 'PARA INICIAR']

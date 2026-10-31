@@ -1,5 +1,5 @@
 import { COLORS } from './colors.js'
-import { noise } from './draw.js'
+import { noise } from '../../../utils/canvas.js'
 
 // Vaga-lumes: cada um passeia em volta de um ponto e acende e apaga devagar
 const FIREFLIES = Array.from({ length: 12 }, (_, i) => ({
