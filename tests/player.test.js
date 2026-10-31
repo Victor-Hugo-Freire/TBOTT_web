@@ -7,6 +7,9 @@ import {
   createPlayer,
   getAttackHitbox,
   getPlayerPose,
+  HURT_DURATION_MS,
+  hurtPlayer,
+  INVINCIBILITY_MS,
   isAttackHitActive,
   startAttack,
   updatePlayer,
@@ -172,5 +175,62 @@ describe('getPlayerPose (o que desenhar)', () => {
     assert.equal(getPlayerPose({ ...createPlayer(START), walkDistance: 70 }, true).frame, 0)
     const attacking = { ...createPlayer(START), attack: { direction: 'down', elapsed: 180 } }
     assert.equal(getPlayerPose(attacking, true).frame, 2)
+  })
+})
+
+describe('dano (só o estado: nada dispara o dano no jogo ainda)', () => {
+  test('a animação dura 410 ms e a invencibilidade 1000 ms', () => {
+    assert.equal(HURT_DURATION_MS, 410)
+    assert.equal(INVINCIBILITY_MS, 1000)
+  })
+
+  test('levar dano liga a animação e a invencibilidade, na direção atual', () => {
+    const player = hurtPlayer({ ...createPlayer(START), direction: 'left' })
+    assert.deepEqual(player.hurt, { direction: 'left', elapsed: 0 })
+    assert.equal(player.invincibleMs, 1000)
+  })
+
+  test('o dano interrompe o golpe', () => {
+    const attacking = updatePlayer(createPlayer(START), { ...NO_INPUT, attackDirection: 'up' }, FRAME)
+    assert.ok(attacking.attack)
+    const hurt = hurtPlayer(attacking)
+    assert.equal(hurt.attack, null)
+    assert.ok(hurt.hurt)
+  })
+
+  test('durante o dano não anda e não ataca, mesmo com as teclas apertadas', () => {
+    const input = { movement: { x: 1, y: 0 }, attackDirection: 'right' }
+    const { player } = run(hurtPlayer(createPlayer(START)), input, 400)
+    assert.ok(player.hurt)
+    assert.equal(player.attack, null)
+    assert.deepEqual({ x: player.x, y: player.y }, START)
+  })
+
+  test('depois dos 410 ms o personagem volta a andar e a atacar', () => {
+    let player = run(hurtPlayer(createPlayer(START)), NO_INPUT, 430).player
+    assert.equal(player.hurt, null)
+    player = updatePlayer(player, { movement: { x: 1, y: 0 }, attackDirection: null }, 0.02)
+    assert.ok(player.x > START.x)
+    player = updatePlayer(player, { ...NO_INPUT, attackDirection: 'down' }, FRAME)
+    assert.ok(player.attack)
+  })
+
+  test('invencível por 1000 ms: outro dano é ignorado e depois vale de novo', () => {
+    let player = run(hurtPlayer(createPlayer(START)), NO_INPUT, 500).player
+    assert.equal(player.hurt, null)
+    assert.ok(player.invincibleMs > 0)
+    assert.equal(hurtPlayer(player), player, 'a 500 ms ainda está invencível')
+
+    player = run(player, NO_INPUT, 520).player
+    assert.equal(player.invincibleMs, 0)
+    assert.ok(hurtPlayer(player).hurt, 'depois de 1000 ms leva dano de novo')
+  })
+
+  test('prioridade da pose: dano > ataque > andar', () => {
+    const base = { ...createPlayer(START), walkDistance: 40 }
+    const both = { ...base, attack: { direction: 'up', elapsed: 100 }, hurt: { direction: 'down', elapsed: 80 } }
+    assert.deepEqual(getPlayerPose(both), { sheet: 'hurt', direction: 'down', frame: 1 })
+    assert.equal(getPlayerPose({ ...base, attack: both.attack }).sheet, 'attack')
+    assert.equal(getPlayerPose(base).sheet, 'walk')
   })
 })

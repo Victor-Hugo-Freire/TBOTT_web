@@ -48,7 +48,7 @@ function pngSize(src) {
 
 describe('folhas do personagem na sala', () => {
   test('o tamanho de cada folha bate com a grade declarada (quadro x quadros por linha x linhas)', () => {
-    for (const name of ['tungTungSahurAndar', 'tungTungSahurAtaque']) {
+    for (const name of ['tungTungSahurAndar', 'tungTungSahurAtaque', 'tungTungSahurDano']) {
       const sprite = CHARACTER_SPRITES[name]
       assert.deepEqual(pngSize(sprite.src), {
         width: sprite.frameWidth * sprite.framesPerRow,
@@ -84,5 +84,14 @@ describe('folhas do personagem na sala', () => {
     const start = durations.slice(0, hitFrames[0]).reduce((a, b) => a + b, 0)
     const end = durations.slice(0, hitFrames.at(-1) + 1).reduce((a, b) => a + b, 0)
     assert.deepEqual([start, end], [160, 350])
+  })
+
+  test('o dano tem 4 quadros de 410 ms e os pés no mesmo ponto do andar', () => {
+    const hurt = CHARACTER_SPRITES.tungTungSahurDano
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    assert.deepEqual(hurt.durations, [70, 110, 110, 120])
+    assert.equal(hurt.durations.length, hurt.framesPerRow)
+    assert.deepEqual([hurt.frameWidth, hurt.frameHeight, hurt.feetPadding], [walk.frameWidth, walk.frameHeight, walk.feetPadding])
+    assert.deepEqual(hurt.rows, walk.rows)
   })
 })

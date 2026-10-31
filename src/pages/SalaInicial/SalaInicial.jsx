@@ -40,6 +40,7 @@ export default function SalaInicial() {
     const sheets = {
       walk: { sprite: CHARACTER_SPRITES.tungTungSahurAndar },
       attack: { sprite: CHARACTER_SPRITES.tungTungSahurAtaque },
+      hurt: { sprite: CHARACTER_SPRITES.tungTungSahurDano },
     }
     for (const sheet of Object.values(sheets)) {
       sheet.image = new Image()

@@ -41,6 +41,17 @@ export const CHARACTER_SPRITES = {
     durations: [70, 90, 40, 40, 110, 80, 90, 110],
     hitFrames: [2, 3, 4],
   },
+  // Sala: dano, 4 quadros por direção (impacto, recuo, recuperação, volta ao normal; 410 ms).
+  // O recuo já está desenhado nos quadros: os pés se mexem alguns pixels e voltam ao ponto original.
+  tungTungSahurDano: {
+    src: '/sprites/characters/tung-tung-sahur/dano.png',
+    frameWidth: 296,
+    frameHeight: 259,
+    feetPadding: 18,
+    framesPerRow: 4,
+    rows: { down: 0, left: 1, right: 2, up: 3 },
+    durations: [70, 110, 110, 120],
+  },
   // Tela inicial: corpo inteiro piscando (quadros: aberto, meio, fechado, meio)
   tungTungSahurPiscar: {
     src: '/sprites/characters/tung-tung-sahur-piscar.png',
