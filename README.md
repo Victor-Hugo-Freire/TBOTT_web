@@ -25,7 +25,7 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | Ranking                                 | `/ranking` | Tela provisória                  |
 | Opções                                  | `/opcoes` | Tela provisória                   |
 | Perfil do usuário                       | `/perfil` | Tela provisória                   |
-| Seleção de personagem                   | `/selecao-personagem` | Tela provisória (leva ao jogo) |
+| Seleção de personagem                   | `/selecao-personagem` | Protótipo implementado (Issue #8) |
 | Cadastro e login                        | -       | A fazer                             |
 | Jogo (combate, salas, inimigos e itens) | -       | A fazer                             |
 | Vitória e derrota                       | -       | A fazer                             |
@@ -43,6 +43,7 @@ src/
     Inicial/         tela inicial; scene/ desenha a cena animada no canvas
     MenuPrincipal/   menu principal e telas provisórias (MenuDestino)
     Opcoes/          tela de opções (ainda sem configurações)
+    sessaoPersonagem/ seleção de personagem: carrossel com os personagens vindos da API
     SalaInicial/     sala inicial em canvas; scene/ desenha a sala, o personagem, o arco do golpe e o debug
   components/        componentes usados por várias telas (CharacterSprite)
   data/              characterSprites.js (arquivo, quadros e direções de cada sprite)
@@ -99,7 +100,7 @@ A regra das teclas fica em `src/utils/keyboard.js`. O listener existe só enquan
 
 ## Menu principal
 
-O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e **Options**, além dos controles de voltar à tela inicial e abrir o perfil do usuário. Como ainda não há salvamento de partidas, **Continue** permanece desabilitado. **New game** leva à seleção de personagem, tela provisória que tem o botão para começar a partida. Ranking e perfil levam a telas provisórias; **Options** abre a tela de opções, que ainda não tem configurações.
+O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e **Options**, além dos controles de voltar à tela inicial e abrir o perfil do usuário. Como ainda não há salvamento de partidas, **Continue** permanece desabilitado. **New game** leva à seleção de personagem (veja a seção Seleção de personagem). Ranking e perfil levam a telas provisórias; **Options** abre a tela de opções, que ainda não tem configurações.
 
 - **W:** percorre as opções para cima.
 - **S:** percorre as opções para baixo. Ao sair do cartão do usuário ou do botão de voltar, retoma a última opção selecionada.
@@ -111,9 +112,15 @@ Na sala, as setas atacam (veja a seção Sala inicial).
 
 Também é possível usar o mouse ou outro dispositivo apontador para selecionar e ativar os botões. A lógica de mapeamento das teclas fica em `src/utils/menuKeyboard.js`.
 
+## Seleção de personagem
+
+A tela `/selecao-personagem` busca os personagens em `GET /api/characters` (pelo `apiRequest`) e os mostra em um carrossel de até três cartões: o do meio é o atual e os laterais ficam ao fundo. As setas `<` e `>` e os indicadores trocam de personagem, e clicar no cartão do meio o seleciona. O botão **Começar Jogo** só habilita depois de selecionar e leva a `/jogo`, enviando o personagem escolhido em `location.state.character`. Enquanto a API responde aparece "Carregando personagens..."; se ela falhar ou vier vazia, a tela mostra a mensagem de erro ou "Sem personagens disponíveis no momento." Também há o botão de voltar ao menu e o cartão do usuário, que leva ao perfil.
+
+O código fica em `src/pages/sessaoPersonagem/`. Os cartões ainda não mostram o sprite do personagem.
+
 ## Sala inicial
 
-Depois da seleção de personagem, `/jogo` mostra a sala de madeira e o personagem. Como a tela de seleção ainda não foi implementada, o protótipo usa o Tung Tung Sahur, único personagem com sprite disponível.
+Depois da seleção de personagem, `/jogo` mostra a sala de madeira e o personagem. A sala já recebe o personagem escolhido em `location.state.character` (sem ele, usa o Tung Tung Sahur), mas só aproveita o nome, no `aria-label` do canvas. O desenho é sempre o do Tung Tung Sahur, único personagem com sprite disponível. **Aviso:** quando os outros personagens ganharem sprite, é em `SalaInicial.jsx` e em `scene/` (`sheets.js` e `drawPlayer.js`) que o desenho deve passar a seguir o personagem escolhido.
 
 **Controles**
 
@@ -164,11 +171,11 @@ Valores para calibrar: `PLAYER_FEET_BOX`, `ROOM_WALLS`, `ATTACK_HITBOXES`, o coo
 const { characters } = await apiRequest("/api/characters");
 ```
 
-Nenhuma tela chama a API ainda. O navegador só conversa com a API; o banco nunca é acessado direto do front-end.
+Por enquanto só a seleção de personagem chama a API (`/api/characters`). O navegador só conversa com a API; o banco nunca é acessado direto do front-end.
 
 ## Pendências
 
-- Integrar a seleção de personagem à sala inicial e implementar as funcionalidades de ranking e perfil, que ainda são provisórias.
+- Fazer a sala inicial usar o personagem escolhido na seleção (hoje ela sempre desenha o Tung Tung Sahur) e implementar as funcionalidades de ranking e perfil, que ainda são provisórias.
 - Cadastro, login e sessão dependem das issues de autenticação (veja o README da TBOTT_api).
 - Antes da primeira chamada à API, a TBOTT_api precisa liberar o CORS para o endereço do front-end. O pacote `cors` está instalado lá, mas ainda não é usado em `src/app.js`.
 - Em celular e tablet sem teclado não há como avançar, porque a Issue #6 pede uma tecla. Definir se o toque também deve avançar.
