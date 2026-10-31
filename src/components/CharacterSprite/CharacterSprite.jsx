@@ -38,7 +38,7 @@ export default function CharacterSprite({ sprite, direction = 'down', frame = 0,
 
   return (
     <div
-      className={`character-sprite ${sprite.pixelArt ? 'character-sprite--pixel-art' : ''} ${className}`}
+      className={`character-sprite ${className}`}
       role={label ? 'img' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}

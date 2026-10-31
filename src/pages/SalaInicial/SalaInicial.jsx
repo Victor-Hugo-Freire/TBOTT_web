@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import CharacterSprite from '../../components/CharacterSprite/CharacterSprite.jsx'
-import { CHARACTER_SPRITES } from '../../data/characterSprites.js'
 import { ROUTES } from '../../routes/paths.js'
+import { createPlayer, updatePlayer } from '../../utils/player.js'
 import {
+  getAttackDirection,
   getRoomMovement,
-  moveRoomPlayer,
-  ROOM_SIZE,
+  isRoomKey,
+  ROOM_PLAYER_START,
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
+import { drawDebug } from './scene/drawDebug.js'
+import { drawPlayer } from './scene/drawPlayer.js'
+import { drawRoom } from './scene/drawRoom.js'
+import { loadSheets } from './scene/sheets.js'
+import { getRoomView, getVisibleRoom } from './scene/view.js'
 import './SalaInicial.css'
-
-const INITIAL_POSITION = { x: ROOM_SIZE.width / 2, y: 460 }
 
 // A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
@@ -20,56 +23,70 @@ function blockMouse(event) {
   event.preventDefault()
 }
 
-function getFacingDirection(movement, currentDirection) {
-  if (movement.y < 0) return 'up'
-  if (movement.y > 0) return 'down'
-  if (movement.x < 0) return 'left'
-  if (movement.x > 0) return 'right'
-  return currentDirection
-}
-
+// A sala é um canvas em tela cheia. O jogo (posição, direção, animação) fica em
+// variáveis do efeito e é desenhado a cada quadro: o React não renderiza de novo
+// enquanto o personagem anda.
 export default function SalaInicial() {
   const navigate = useNavigate()
   const roomRef = useRef(null)
-  const pressedKeysRef = useRef(new Set())
-  const [position, setPosition] = useState(INITIAL_POSITION)
-  const [direction, setDirection] = useState('down')
-  const [isMoving, setIsMoving] = useState(false)
+  const canvasRef = useRef(null)
 
   useEffect(() => {
     roomRef.current?.focus()
+
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const sheets = loadSheets()
+    // Quem pede "reduzir movimento" no sistema vê o andar parado no quadro 0
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    const pressedKeys = new Set()
+    let player = createPlayer(ROOM_PLAYER_START)
+    let showDebug = false // F3, só no npm run dev
+    let view = getRoomView(0, 0)
+    let visibleRoom // parte da sala que aparece na tela: o fundo é desenhado até as bordas dela
+    let pixelRatio = 1
+
+    // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
+    function resize() {
+      pixelRatio = window.devicePixelRatio || 1
+      canvas.width = Math.round(canvas.clientWidth * pixelRatio)
+      canvas.height = Math.round(canvas.clientHeight * pixelRatio)
+      view = getRoomView(canvas.clientWidth, canvas.clientHeight)
+      visibleRoom = getVisibleRoom(view, canvas.clientWidth, canvas.clientHeight)
+    }
 
     function handleKeyDown(event) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
 
       if (shouldReturnToMenu(event.key)) {
         event.preventDefault()
-        pressedKeysRef.current.clear()
+        pressedKeys.clear()
         navigate(ROUTES.menuPrincipal)
         return
       }
 
-      const key = event.key.toLowerCase()
-      const movement = getRoomMovement(new Set([key]))
-      if (movement.x === 0 && movement.y === 0) return
+      // import.meta.env.DEV é false no build: este trecho e o drawDebug saem do pacote
+      if (import.meta.env.DEV && event.code === 'F3') {
+        event.preventDefault()
+        showDebug = !showDebug
+        return
+      }
+
+      // preventDefault também nas setas, para a página não rolar
+      if (!isRoomKey(event.code)) return
 
       event.preventDefault()
-      pressedKeysRef.current.add(key)
+      pressedKeys.add(event.code)
     }
 
     function handleKeyUp(event) {
-      pressedKeysRef.current.delete(event.key.toLowerCase())
+      pressedKeys.delete(event.code)
     }
 
     function clearPressedKeys() {
-      pressedKeysRef.current.clear()
-      setIsMoving(false)
+      pressedKeys.clear()
     }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', clearPressedKeys)
-    BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
 
     let previousTime
     let animationFrame
@@ -78,20 +95,38 @@ export default function SalaInicial() {
       const deltaSeconds = previousTime === undefined ? 0 : (time - previousTime) / 1000
       previousTime = time
 
-      const movement = getRoomMovement(pressedKeysRef.current)
-      const moving = movement.x !== 0 || movement.y !== 0
-      setIsMoving((current) => (current === moving ? current : moving))
+      player = updatePlayer(
+        player,
+        { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
+        deltaSeconds,
+      )
 
-      if (moving) {
-        setDirection((current) => getFacingDirection(movement, current))
-        setPosition((current) => moveRoomPlayer(current, movement, deltaSeconds))
-      }
-
+      draw()
       animationFrame = window.requestAnimationFrame(update)
     }
 
+    function draw() {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      // A partir daqui, tudo é desenhado em unidades da sala
+      const scale = view.scale * pixelRatio
+      ctx.setTransform(scale, 0, 0, scale, view.offsetX * pixelRatio, view.offsetY * pixelRatio)
+      drawRoom(ctx, visibleRoom)
+
+      drawPlayer(ctx, sheets, player, reduceMotion)
+      if (import.meta.env.DEV && showDebug) drawDebug(ctx, player)
+    }
+
+    resize()
+    window.addEventListener('resize', resize)
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', clearPressedKeys)
+    BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
     animationFrame = window.requestAnimationFrame(update)
+
     return () => {
+      window.removeEventListener('resize', resize)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', clearPressedKeys)
@@ -110,23 +145,10 @@ export default function SalaInicial() {
       <title>Sala inicial | The Binding of Tung Tung</title>
       <h1 className="visually-hidden">Sala inicial</h1>
       <p className="visually-hidden">
-        Use as teclas W, A, S e D para mover o personagem pela sala.
+        Use as teclas W, A, S e D para mover o personagem pela sala e as setas para atacar.
       </p>
 
-      <div className="sala-inicial__cenario">
-        <CharacterSprite
-          sprite={CHARACTER_SPRITES.tungTungSahur}
-          direction={direction}
-          animated={isMoving}
-          fps={8}
-          label="Tung Tung Sahur"
-          className="sala-inicial__personagem"
-          style={{
-            left: `${(position.x / ROOM_SIZE.width) * 100}%`,
-            top: `${(position.y / ROOM_SIZE.height) * 100}%`,
-          }}
-        />
-      </div>
+      <canvas ref={canvasRef} className="sala-inicial__canvas" aria-hidden="true" />
     </main>
   )
 }

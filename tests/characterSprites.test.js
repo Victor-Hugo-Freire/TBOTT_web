@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import { CHARACTER_SPRITES, getFramePosition } from '../src/data/characterSprites.js'
 
-const sprite = CHARACTER_SPRITES.tungTungSahur
+const sprite = CHARACTER_SPRITES.tungTungSahurDano // grade de 4 colunas x 4 linhas
 
 describe('getFramePosition (quadro dentro da folha de sprites)', () => {
   test('primeiro quadro de frente fica no canto superior esquerdo', () => {
@@ -21,7 +22,7 @@ describe('getFramePosition (quadro dentro da folha de sprites)', () => {
   })
 
   test('o sprite fica em um caminho público estável', () => {
-    assert.equal(sprite.src, '/sprites/characters/tung-tung-sahur.png')
+    assert.equal(sprite.src, '/sprites/characters/tung-tung-sahur/dano.png')
   })
 
   test('folha de uma linha só (piscar) usa a altura toda', () => {
@@ -36,5 +37,69 @@ describe('getFramePosition (quadro dentro da folha de sprites)', () => {
       assert.ok(step.frame >= 0 && step.frame < piscar.framesPerRow)
       assert.ok(step.ms > 0)
     }
+  })
+})
+
+// Largura e altura de um PNG, lidas do cabeçalho (bytes 16 a 23)
+function pngSize(src) {
+  const bytes = readFileSync(new URL(`../public${src}`, import.meta.url))
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }
+}
+
+describe('folhas do personagem na sala', () => {
+  test('o tamanho de cada folha bate com a grade declarada (quadro x quadros por linha x linhas)', () => {
+    for (const name of ['tungTungSahurPernas', 'tungTungSahurAndar', 'tungTungSahurAtaque', 'tungTungSahurDano']) {
+      const sprite = CHARACTER_SPRITES[name]
+      assert.deepEqual(pngSize(sprite.src), {
+        width: sprite.frameWidth * sprite.framesPerRow,
+        height: sprite.frameHeight * Object.keys(sprite.rows).length,
+      }, name)
+    }
+  })
+
+  test('o pivô (pés) do andar fica em (148, 241)', () => {
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    assert.equal(walk.frameWidth / 2, 148)
+    assert.equal(walk.frameHeight - walk.feetPadding, 241)
+    assert.deepEqual(walk.rows, { down: 0, left: 1, right: 2, up: 3 })
+  })
+
+  test('pernas e tronco do andar têm a mesma célula e os pés no mesmo ponto; o ciclo tem 12 quadros mais o parado', () => {
+    const legs = CHARACTER_SPRITES.tungTungSahurPernas
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    assert.deepEqual([legs.frameWidth, legs.frameHeight, legs.feetPadding], [walk.frameWidth, walk.frameHeight, walk.feetPadding])
+    assert.deepEqual(legs.rows, walk.rows)
+    assert.equal(walk.framesPerRow, 12)
+    assert.equal(legs.framesPerRow, walk.framesPerRow + 1)
+    assert.equal(legs.idleFrame, walk.framesPerRow) // o quadro parado é o último
+  })
+
+  test('o ataque tem os pés no mesmo ponto do andar: o quadro original fica em (62, 60) da célula', () => {
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    const attack = CHARACTER_SPRITES.tungTungSahurAtaque
+    const feetX = 62 + walk.frameWidth / 2
+    const feetY = 60 + (walk.frameHeight - walk.feetPadding)
+    assert.equal(attack.feetX, feetX)
+    assert.equal(attack.frameHeight - attack.feetPadding, feetY)
+    assert.deepEqual([feetX, feetY], [210, 301])
+    assert.deepEqual(attack.rows, walk.rows)
+  })
+
+  test('o golpe dura 630 ms e acerta de 160 a 350 ms (quadros 2 a 4)', () => {
+    const { durations, hitFrames, framesPerRow } = CHARACTER_SPRITES.tungTungSahurAtaque
+    assert.equal(durations.length, framesPerRow)
+    assert.equal(durations.reduce((a, b) => a + b, 0), 630)
+    const start = durations.slice(0, hitFrames[0]).reduce((a, b) => a + b, 0)
+    const end = durations.slice(0, hitFrames.at(-1) + 1).reduce((a, b) => a + b, 0)
+    assert.deepEqual([start, end], [160, 350])
+  })
+
+  test('o dano tem 4 quadros de 410 ms e os pés no mesmo ponto do andar', () => {
+    const hurt = CHARACTER_SPRITES.tungTungSahurDano
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    assert.deepEqual(hurt.durations, [70, 110, 110, 120])
+    assert.equal(hurt.durations.length, hurt.framesPerRow)
+    assert.deepEqual([hurt.frameWidth, hurt.frameHeight, hurt.feetPadding], [walk.frameWidth, walk.frameHeight, walk.feetPadding])
+    assert.deepEqual(hurt.rows, walk.rows)
   })
 })

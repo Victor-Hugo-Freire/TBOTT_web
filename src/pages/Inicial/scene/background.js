@@ -1,6 +1,7 @@
 import { drawPixelText, SMALL_FONT } from '../../../utils/pixelFont.js'
 import { COLORS } from './colors.js'
-import { drawShape, ellipsePath, noise, polygonPath, rect, strokeLine } from './draw.js'
+import { noise, rect } from '../../../utils/canvas.js'
+import { drawShape, ellipsePath, polygonPath, strokeLine } from './draw.js'
 
 // Linha onde o chão encontra as casas
 const HORIZON_Y = 172
