@@ -1,5 +1,5 @@
-// Escala "contain": a sala inteira (1080x768) cabe na tela sem distorcer.
-// Sobra faixa na cor de fundo do jogo, em cima/embaixo ou nas laterais.
+// Escala "contain": a sala inteira (1200x853) cabe na tela sem distorcer.
+// O que sobra em cima/embaixo ou nas laterais é preenchido pelo fundo, que se estende (getVisibleRoom).
 // A área jogável tem sempre o mesmo tamanho, porque as paredes são colisão.
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 
@@ -16,12 +16,15 @@ export function getRoomView(screenWidth, screenHeight) {
   }
 }
 
+// Parte da sala que aparece na tela, em unidades da sala (pode passar de 0..1080 e 0..768).
+// O fundo é desenhado até essas bordas, então a tela inteira fica coberta e não sobra faixa.
+export function getVisibleRoom(view, screenWidth, screenHeight) {
+  const topLeft = screenToRoom(view, 0, 0)
+  const bottomRight = screenToRoom(view, screenWidth, screenHeight)
+  return { left: topLeft.x, top: topLeft.y, right: bottomRight.x, bottom: bottomRight.y }
+}
+
 // Ponto da tela (pixels CSS) -> ponto da sala (unidades da sala).
 export function screenToRoom(view, x, y) {
   return { x: (x - view.offsetX) / view.scale, y: (y - view.offsetY) / view.scale }
-}
-
-// Ponto da sala -> ponto da tela. É a volta exata de screenToRoom.
-export function roomToScreen(view, x, y) {
-  return { x: x * view.scale + view.offsetX, y: y * view.scale + view.offsetY }
 }

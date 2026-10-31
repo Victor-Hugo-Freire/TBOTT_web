@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import { CHARACTER_SPRITES, getFramePosition } from '../src/data/characterSprites.js'
 
-const sprite = CHARACTER_SPRITES.tungTungSahur
+const sprite = CHARACTER_SPRITES.tungTungSahurDano // grade de 4 colunas x 4 linhas
 
 describe('getFramePosition (quadro dentro da folha de sprites)', () => {
   test('primeiro quadro de frente fica no canto superior esquerdo', () => {
@@ -22,7 +22,7 @@ describe('getFramePosition (quadro dentro da folha de sprites)', () => {
   })
 
   test('o sprite fica em um caminho público estável', () => {
-    assert.equal(sprite.src, '/sprites/characters/tung-tung-sahur.png')
+    assert.equal(sprite.src, '/sprites/characters/tung-tung-sahur/dano.png')
   })
 
   test('folha de uma linha só (piscar) usa a altura toda', () => {
@@ -48,7 +48,7 @@ function pngSize(src) {
 
 describe('folhas do personagem na sala', () => {
   test('o tamanho de cada folha bate com a grade declarada (quadro x quadros por linha x linhas)', () => {
-    for (const name of ['tungTungSahurAndar', 'tungTungSahurAtaque', 'tungTungSahurDano']) {
+    for (const name of ['tungTungSahurPernas', 'tungTungSahurAndar', 'tungTungSahurAtaque', 'tungTungSahurDano']) {
       const sprite = CHARACTER_SPRITES[name]
       assert.deepEqual(pngSize(sprite.src), {
         width: sprite.frameWidth * sprite.framesPerRow,
@@ -57,13 +57,21 @@ describe('folhas do personagem na sala', () => {
     }
   })
 
-  test('o pivô (pés) do andar fica em (148, 241), o mesmo da folha original', () => {
+  test('o pivô (pés) do andar fica em (148, 241)', () => {
     const walk = CHARACTER_SPRITES.tungTungSahurAndar
-    const original = CHARACTER_SPRITES.tungTungSahur
     assert.equal(walk.frameWidth / 2, 148)
     assert.equal(walk.frameHeight - walk.feetPadding, 241)
-    assert.equal(walk.feetPadding, original.feetPadding)
-    assert.deepEqual(walk.rows, original.rows)
+    assert.deepEqual(walk.rows, { down: 0, left: 1, right: 2, up: 3 })
+  })
+
+  test('pernas e tronco do andar têm a mesma célula e os pés no mesmo ponto; o ciclo tem 12 quadros mais o parado', () => {
+    const legs = CHARACTER_SPRITES.tungTungSahurPernas
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    assert.deepEqual([legs.frameWidth, legs.frameHeight, legs.feetPadding], [walk.frameWidth, walk.frameHeight, walk.feetPadding])
+    assert.deepEqual(legs.rows, walk.rows)
+    assert.equal(walk.framesPerRow, 12)
+    assert.equal(legs.framesPerRow, walk.framesPerRow + 1)
+    assert.equal(legs.idleFrame, walk.framesPerRow) // o quadro parado é o último
   })
 
   test('o ataque tem os pés no mesmo ponto do andar: o quadro original fica em (62, 60) da célula', () => {

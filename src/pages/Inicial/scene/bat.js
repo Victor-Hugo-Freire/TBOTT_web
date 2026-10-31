@@ -1,5 +1,6 @@
 import { COLORS } from './colors.js'
-import { drawShape, ellipsePath, rect, strokeLine } from './draw.js'
+import { rect } from '../../../utils/canvas.js'
+import { drawShape, ellipsePath, strokeLine } from './draw.js'
 
 // Desenha um taco de madeira, fino no cabo e largo na ponta.
 // É usado pelo personagem e pelos dois tacos do título.

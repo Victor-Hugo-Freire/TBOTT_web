@@ -1,21 +1,31 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance, WALK_STEP_DISTANCE } from '../src/utils/spriteAnimation.js'
+import {
+  getTimedFrame,
+  getTotalDuration,
+  getWalkFrame,
+  updateWalkDistance,
+  WALK_CYCLE_DISTANCE,
+  WALK_FRAME_COUNT,
+  WALK_STEP_DISTANCE,
+} from '../src/utils/spriteAnimation.js'
 import { getRoomMovement, moveRoomPlayer, ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 
 describe('getWalkFrame (distância andada -> quadro)', () => {
-  test('um quadro a cada 32,5 u andadas', () => {
-    assert.equal(WALK_STEP_DISTANCE, 32.5)
+  test('um quadro a cada 130/12 u andadas, em um ciclo de 12 quadros', () => {
+    assert.equal(WALK_CYCLE_DISTANCE, 130)
+    assert.equal(WALK_FRAME_COUNT, 12)
+    assert.ok(Math.abs(WALK_STEP_DISTANCE - 10.8333) < 0.001)
     assert.equal(getWalkFrame(0), 0)
-    assert.equal(getWalkFrame(32.4), 0)
-    assert.equal(getWalkFrame(32.5), 1)
-    assert.equal(getWalkFrame(65), 2)
-    assert.equal(getWalkFrame(97.5), 3)
+    assert.equal(getWalkFrame(10.8), 0)
+    assert.equal(getWalkFrame(10.9), 1)
+    assert.equal(getWalkFrame(65.1), 6)
+    assert.equal(getWalkFrame(129.9), 11)
   })
 
   test('depois do último quadro volta ao primeiro (ciclo de 130 u)', () => {
-    assert.equal(getWalkFrame(130), 0)
-    assert.equal(getWalkFrame(162.5), 1)
+    assert.equal(getWalkFrame(130.1), 0)
+    assert.equal(getWalkFrame(141), 1)
   })
 })
 
@@ -46,10 +56,10 @@ describe('animação com a colisão', () => {
   }
 
   test('andando livre, o quadro muda com a distância', () => {
-    // 15 quadros de 1/60 s a 260 u/s = 65 u andadas = 2 passos
+    // 15 quadros de 1/60 s a 260 u/s = 65 u andadas = metade do ciclo (quadro 6)
     const { distance } = walk({ x: 100, y: 400 }, ['KeyD'], 15)
     assert.ok(Math.abs(distance - 65) < 0.0001)
-    assert.equal(getWalkFrame(distance + 0.001), 2)
+    assert.equal(getWalkFrame(distance + 0.001), 6)
   })
 
   test('empurrando a parede, a animação para no quadro 0', () => {

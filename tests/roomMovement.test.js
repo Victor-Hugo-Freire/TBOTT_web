@@ -106,13 +106,13 @@ describe('getAttackDirection (setas)', () => {
 })
 
 describe('moveRoomPlayer (colisão com as bordas)', () => {
-  test('mantém os pés dentro do piso da sala de 1080x768', () => {
-    assert.deepEqual(ROOM_SIZE, { width: 1080, height: 768 })
+  test('mantém os pés dentro do piso da sala de 1200x853', () => {
+    assert.deepEqual(ROOM_SIZE, { width: 1200, height: 853 })
     assert.deepEqual(ROOM_PLAYER_BOUNDS, {
       minX: 25,
-      maxX: 1050,
+      maxX: 1170,
       minY: 261,
-      maxY: 656,
+      maxY: 741,
     })
   })
 

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CHARACTER_SPRITES } from '../../data/characterSprites.js'
 import { ROUTES } from '../../routes/paths.js'
-import { createPlayer, getPlayerPose, updatePlayer } from '../../utils/player.js'
+import { createPlayer, updatePlayer } from '../../utils/player.js'
 import {
   getAttackDirection,
   getRoomMovement,
@@ -11,10 +10,10 @@ import {
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
 import { drawDebug } from './scene/drawDebug.js'
+import { drawPlayer } from './scene/drawPlayer.js'
 import { drawRoom } from './scene/drawRoom.js'
-import { drawShadow } from './scene/drawShadow.js'
-import { drawSprite } from './scene/drawSprite.js'
-import { getRoomView } from './scene/view.js'
+import { loadSheets } from './scene/sheets.js'
+import { getRoomView, getVisibleRoom } from './scene/view.js'
 import './SalaInicial.css'
 
 // A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
@@ -37,16 +36,7 @@ export default function SalaInicial() {
 
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-    // Cada folha tem o seu sprite (grade e pés) e a sua imagem
-    const sheets = {
-      walk: { sprite: CHARACTER_SPRITES.tungTungSahurAndar },
-      attack: { sprite: CHARACTER_SPRITES.tungTungSahurAtaque },
-      hurt: { sprite: CHARACTER_SPRITES.tungTungSahurDano },
-    }
-    for (const sheet of Object.values(sheets)) {
-      sheet.image = new Image()
-      sheet.image.src = sheet.sprite.src
-    }
+    const sheets = loadSheets()
     // Quem pede "reduzir movimento" no sistema vê o andar parado no quadro 0
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -54,6 +44,7 @@ export default function SalaInicial() {
     let player = createPlayer(ROOM_PLAYER_START)
     let showDebug = false // F3, só no npm run dev
     let view = getRoomView(0, 0)
+    let visibleRoom // parte da sala que aparece na tela: o fundo é desenhado até as bordas dela
     let pixelRatio = 1
 
     // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
@@ -62,6 +53,7 @@ export default function SalaInicial() {
       canvas.width = Math.round(canvas.clientWidth * pixelRatio)
       canvas.height = Math.round(canvas.clientHeight * pixelRatio)
       view = getRoomView(canvas.clientWidth, canvas.clientHeight)
+      visibleRoom = getVisibleRoom(view, canvas.clientWidth, canvas.clientHeight)
     }
 
     function handleKeyDown(event) {
@@ -119,12 +111,9 @@ export default function SalaInicial() {
       // A partir daqui, tudo é desenhado em unidades da sala
       const scale = view.scale * pixelRatio
       ctx.setTransform(scale, 0, 0, scale, view.offsetX * pixelRatio, view.offsetY * pixelRatio)
-      drawRoom(ctx)
+      drawRoom(ctx, visibleRoom)
 
-      const pose = getPlayerPose(player, reduceMotion)
-      const { sprite, image } = sheets[pose.sheet]
-      drawShadow(ctx, player)
-      drawSprite(ctx, image, sprite, pose.direction, pose.frame, player)
+      drawPlayer(ctx, sheets, player, reduceMotion)
       if (import.meta.env.DEV && showDebug) drawDebug(ctx, player)
     }
 

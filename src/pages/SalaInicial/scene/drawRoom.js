@@ -1,4 +1,4 @@
-import { noise, rect } from '../../Inicial/scene/draw.js'
+import { noise, rect } from '../../../utils/canvas.js'
 import { COLORS, FLOOR_LIGHT } from './colors.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 
@@ -9,8 +9,7 @@ const BEAM_TOP = 84
 const BRICKS_TOP = 116
 const BRICKS_END = 201
 const FLOOR_TOP = 235
-const FLOOR_END = 662
-const BASEBOARD_END = 715
+const FLOOR_END = 747 // o piso é mais fundo que na imagem de referência (662): a sala é maior
 
 const BRICK_ROW_HEIGHT = 24
 const BRICK_WIDTH = 76
@@ -25,56 +24,68 @@ function pick(colors, seed) {
 }
 
 // Desenha a sala inteira. O ctx já vem com a escala e o deslocamento da tela.
-export function drawRoom(ctx) {
-  const { width, height } = ROOM_SIZE
-  // Tijolos e tábuas começam um pouco fora da sala; o recorte evita que vazem para a faixa
+// visible = parte da sala que aparece na tela (veja getVisibleRoom): em tela mais larga ou mais alta
+// que a sala, as paredes, o piso e o chão se estendem até a borda da tela, sem faixa vazia.
+export function drawRoom(ctx, visible = { left: 0, top: 0, right: ROOM_SIZE.width, bottom: ROOM_SIZE.height }) {
+  // Nunca menor que a sala, e com 1 unidade de folga para não aparecer fresta na borda da tela
+  const area = {
+    left: Math.min(0, visible.left) - 1,
+    top: Math.min(0, visible.top) - 1,
+    right: Math.max(ROOM_SIZE.width, visible.right) + 1,
+    bottom: Math.max(ROOM_SIZE.height, visible.bottom) + 1,
+  }
+  // Tijolos e tábuas começam um pouco fora da área; o recorte evita que vazem
   ctx.save()
   ctx.beginPath()
-  ctx.rect(0, 0, width, height)
+  ctx.rect(area.left, area.top, area.right - area.left, area.bottom - area.top)
   ctx.clip()
-  drawTopWall(ctx, width)
-  drawBricks(ctx, width)
-  drawLowerBeam(ctx, width)
-  drawFloor(ctx, width)
-  drawBaseboard(ctx, width)
+  drawTopWall(ctx, area)
+  drawBricks(ctx, area)
+  drawLowerBeam(ctx, area)
+  drawFloor(ctx, area)
+  drawBaseboard(ctx, area)
   ctx.restore()
 }
 
 // Parede escura de cima, com painéis, e a viga que separa dos tijolos
-function drawTopWall(ctx, width) {
-  rect(ctx, COLORS.topWall, 0, 0, width, TOP_WALL_END)
-  for (let i = 0, x = 20; x < width; i++, x += 68) {
+function drawTopWall(ctx, { left, top, right }) {
+  const width = right - left
+  rect(ctx, COLORS.topWall, left, top, width, TOP_WALL_END - top)
+  for (let i = Math.floor((left - 20) / 68), x = 20 + i * 68; x < right; i++, x += 68) {
     rect(ctx, i % 2 ? COLORS.topPanelB : COLORS.topPanelA, x, 12, 46, TOP_WALL_END - 12)
   }
-  rect(ctx, COLORS.beam, 0, TOP_WALL_END, width, BRICKS_TOP - TOP_WALL_END)
-  rect(ctx, COLORS.beamLight, 0, BEAM_TOP, width, 3)
+  rect(ctx, COLORS.beam, left, TOP_WALL_END, width, BRICKS_TOP - TOP_WALL_END)
+  rect(ctx, COLORS.beamLight, left, BEAM_TOP, width, 3)
 }
 
 // Parede de tijolos: fiadas de 24 px, cada uma deslocada meio tijolo
-function drawBricks(ctx, width) {
-  rect(ctx, COLORS.brickC, 0, BRICKS_TOP, width, BRICKS_END - BRICKS_TOP)
+function drawBricks(ctx, { left, right }) {
+  const width = right - left
+  rect(ctx, COLORS.brickC, left, BRICKS_TOP, width, BRICKS_END - BRICKS_TOP)
   for (let row = 0, y = BRICKS_TOP + 13 - BRICK_ROW_HEIGHT; y < BRICKS_END; row++, y += BRICK_ROW_HEIGHT) {
     const top = Math.max(y, BRICKS_TOP)
     const height = Math.min(y + BRICK_ROW_HEIGHT, BRICKS_END) - top
     const shift = (row % 2) * (BRICK_WIDTH / 2)
-    for (let x = -shift, col = 0; x < width; x += BRICK_WIDTH, col++) {
+    // col pode ser negativo (tijolos à esquerda da sala): só serve de semente da cor
+    for (let col = Math.floor((left + shift) / BRICK_WIDTH), x = col * BRICK_WIDTH - shift; x < right; x += BRICK_WIDTH, col++) {
       rect(ctx, pick(BRICK_COLORS, row * 31 + col + 1), x + 1, top + 1, BRICK_WIDTH - 2, height - 2)
     }
-    rect(ctx, COLORS.mortar, 0, y + BRICK_ROW_HEIGHT - 2, width, 3)
+    rect(ctx, COLORS.mortar, left, y + BRICK_ROW_HEIGHT - 2, width, 3)
   }
 }
 
-function drawLowerBeam(ctx, width) {
-  rect(ctx, COLORS.beamBase, 0, BRICKS_END, width, FLOOR_TOP - BRICKS_END)
-  rect(ctx, COLORS.beamShadow, 0, 209, width, 5)
+function drawLowerBeam(ctx, { left, right }) {
+  rect(ctx, COLORS.beamBase, left, BRICKS_END, right - left, FLOOR_TOP - BRICKS_END)
+  rect(ctx, COLORS.beamShadow, left, 209, right - left, 5)
 }
 
 // Piso de tábuas verticais com juntas escuras e uma luz quente no meio
-function drawFloor(ctx, width) {
+function drawFloor(ctx, { left: areaLeft, right }) {
+  const width = right - areaLeft
   const height = FLOOR_END - FLOOR_TOP
-  for (let plank = -1; ; plank++) {
+  for (let plank = Math.floor((areaLeft - FIRST_JOINT_X) / PLANK_WIDTH) - 1; ; plank++) {
     const x = FIRST_JOINT_X + plank * PLANK_WIDTH
-    if (x > width) break
+    if (x > right) break
     const left = Math.round(x)
     rect(ctx, pick(FLOOR_COLORS, plank + 40), left, FLOOR_TOP, Math.round(x + PLANK_WIDTH) - left, height)
     // Uma emenda horizontal por tábua, em alturas diferentes
@@ -84,29 +95,30 @@ function drawFloor(ctx, width) {
 
   ctx.save()
   ctx.beginPath()
-  ctx.rect(0, FLOOR_TOP, width, height)
+  ctx.rect(areaLeft, FLOOR_TOP, width, height)
   ctx.clip()
 
+  // A luz e a sombra continuam centradas na sala, e não na tela
   const light = ctx.createRadialGradient(FLOOR_LIGHT.x, FLOOR_LIGHT.y, 10, FLOOR_LIGHT.x, FLOOR_LIGHT.y, FLOOR_LIGHT.radius)
   light.addColorStop(0, 'rgba(170, 118, 70, 0.30)')
   light.addColorStop(1, 'rgba(170, 118, 70, 0)')
   ctx.fillStyle = light
-  ctx.fillRect(0, FLOOR_TOP, width, height)
+  ctx.fillRect(areaLeft, FLOOR_TOP, width, height)
 
-  const shade = ctx.createRadialGradient(width / 2, 430, 220, width / 2, 430, 720)
+  const shade = ctx.createRadialGradient(ROOM_SIZE.width / 2, 475, 245, ROOM_SIZE.width / 2, 475, 800)
   shade.addColorStop(0, 'rgba(0, 0, 0, 0)')
   shade.addColorStop(1, 'rgba(0, 0, 0, 0.40)')
   ctx.fillStyle = shade
-  ctx.fillRect(0, FLOOR_TOP, width, height)
+  ctx.fillRect(areaLeft, FLOOR_TOP, width, height)
   ctx.restore()
 }
 
-// Rodapé de lajotas e a faixa escura da base
-function drawBaseboard(ctx, width) {
-  rect(ctx, COLORS.baseboard, 0, FLOOR_END, width, BASEBOARD_END - FLOOR_END)
-  for (let x = 0; x < width; x += 80) {
-    rect(ctx, COLORS.baseboardLine, x, FLOOR_END, 2, BASEBOARD_END - FLOOR_END)
+// Rodapé de lajotas, que desce até a borda da tela (sem faixa escura embaixo)
+function drawBaseboard(ctx, { left, right, bottom }) {
+  const width = right - left
+  rect(ctx, COLORS.baseboard, left, FLOOR_END, width, bottom - FLOOR_END)
+  for (let x = Math.floor(left / 80) * 80; x < right; x += 80) {
+    rect(ctx, COLORS.baseboardLine, x, FLOOR_END, 2, bottom - FLOOR_END)
   }
-  rect(ctx, COLORS.beamShadow, 0, FLOOR_END, width, 3)
-  rect(ctx, COLORS.baseWall, 0, BASEBOARD_END, width, ROOM_SIZE.height - BASEBOARD_END)
+  rect(ctx, COLORS.beamShadow, left, FLOOR_END, width, 3)
 }

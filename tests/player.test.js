@@ -4,7 +4,9 @@ import {
   ATTACK_COOLDOWN_MS,
   ATTACK_DURATION_MS,
   ATTACK_HITBOXES,
+  ATTACK_MOVE_SPEED,
   createPlayer,
+  getAttackArc,
   getAttackHitbox,
   getPlayerPose,
   HURT_DURATION_MS,
@@ -15,6 +17,7 @@ import {
   updatePlayer,
 } from '../src/utils/player.js'
 import { ROOM_PLAYER_SPEED } from '../src/utils/roomMovement.js'
+import { getWalkFrame } from '../src/utils/spriteAnimation.js'
 
 const START = { x: 500, y: 400 }
 const NO_INPUT = { movement: { x: 0, y: 0 }, attackDirection: null }
@@ -54,12 +57,37 @@ describe('ataque: começo e direção', () => {
   })
 })
 
-describe('ataque: o golpe trava o movimento e não é cortado', () => {
-  test('durante o golpe o personagem não sai do lugar, mesmo com WASD apertado', () => {
-    const input = { movement: { x: 1, y: 0 }, attackDirection: 'up' }
-    const { player } = run(createPlayer(START), input, 600)
-    assert.ok(player.attack)
-    assert.deepEqual({ x: player.x, y: player.y }, START)
+describe('ataque: o golpe deixa o personagem mais lento e não é cortado', () => {
+  test('durante o golpe o personagem anda na metade da velocidade, e não trava', () => {
+    assert.equal(ATTACK_MOVE_SPEED, 0.5)
+    const normal = updatePlayer(createPlayer(START), { movement: { x: 1, y: 0 }, attackDirection: null }, 0.02)
+    const attacking = updatePlayer(createPlayer(START), { movement: { x: 1, y: 0 }, attackDirection: 'up' }, 0.02)
+    assert.ok(attacking.attack)
+    // tolerância: 260 * 0,5 * 0,02 e 260 * 0,02 * 0,5 diferem na última casa decimal
+    assert.ok(Math.abs(attacking.x - START.x - (normal.x - START.x) * ATTACK_MOVE_SPEED) < 1e-9)
+    assert.ok(attacking.x > START.x)
+  })
+
+  test('andando durante o golpe, a direção do golpe não muda e as pernas continuam andando', () => {
+    const { player } = run(createPlayer(START), { movement: { x: 1, y: 0 }, attackDirection: 'up' }, 300)
+    assert.equal(player.attack.direction, 'up')
+    assert.equal(player.direction, 'up')
+    // andou na metade da velocidade: a distância soma e vira o quadro das pernas
+    assert.ok(player.walkDistance > 0)
+    const pose = getPlayerPose(player)
+    assert.equal(pose.sheet, 'attack')
+    assert.deepEqual(pose.legs, { direction: 'up', frame: getWalkFrame(player.walkDistance) })
+  })
+
+  test('começar o golpe andando não reinicia o ciclo das pernas', () => {
+    const walking = { ...createPlayer(START), walkDistance: 50 }
+    const attacking = startAttack(walking, 'right')
+    assert.equal(attacking.walkDistance, 50)
+  })
+
+  test('golpe parado: as pernas ficam no quadro parado', () => {
+    const player = updatePlayer(createPlayer(START), { ...NO_INPUT, attackDirection: 'left' }, FRAME)
+    assert.deepEqual(getPlayerPose(player).legs, { direction: 'left', frame: 12 })
   })
 
   test('o golpe dura 630 ms inteiros, mesmo se a seta for solta logo no começo', () => {
@@ -143,6 +171,40 @@ describe('ataque: janela do golpe (hitbox)', () => {
   })
 })
 
+describe('ataque: arco branco', () => {
+  const arcAt = (elapsed, direction = 'right') =>
+    getAttackArc({ ...createPlayer(START), attack: { direction, elapsed } })
+
+  test('só existe de 160 a 450 ms: sobe até 200, fica cheio até 350 e some até 450', () => {
+    assert.equal(arcAt(0), null)
+    assert.equal(arcAt(159), null)
+    assert.equal(arcAt(160).opacity, 0)
+    assert.equal(arcAt(180).opacity, 0.5)
+    assert.equal(arcAt(200).opacity, 1)
+    assert.equal(arcAt(350).opacity, 1)
+    assert.equal(arcAt(400).opacity, 0.5)
+    assert.equal(arcAt(449).opacity < 0.02, true)
+    assert.equal(arcAt(450), null)
+    assert.equal(arcAt(629), null)
+  })
+
+  test('sem golpe não há arco', () => {
+    assert.equal(getAttackArc(createPlayer(START)), null)
+  })
+
+  test('o arco usa a mesma caixa do golpe, nas 4 direções (visual e acerto combinam)', () => {
+    for (const direction of ['up', 'down', 'left', 'right']) {
+      const arc = arcAt(250, direction)
+      assert.deepEqual(
+        { x: arc.x, y: arc.y, width: arc.width, height: arc.height },
+        getAttackHitbox({ ...createPlayer(START), attack: { direction, elapsed: 250 } }),
+        direction,
+      )
+      assert.equal(arc.direction, direction)
+    }
+  })
+})
+
 describe('passo de lógica', () => {
   test('um quadro muito longo (aba escondida) conta no máximo 50 ms', () => {
     const player = updatePlayer(createPlayer(START), { ...NO_INPUT, attackDirection: 'up' }, 5)
@@ -153,26 +215,39 @@ describe('passo de lógica', () => {
 })
 
 describe('getPlayerPose (o que desenhar)', () => {
-  test('parado: andar, quadro 0, na direção atual', () => {
-    assert.deepEqual(getPlayerPose(createPlayer(START)), { sheet: 'walk', direction: 'down', frame: 0 })
-  })
-
-  test('andando, o quadro vem da distância', () => {
-    assert.deepEqual(getPlayerPose({ ...createPlayer(START), direction: 'left', walkDistance: 40 }), {
+  test('parado: tronco no quadro 0 e pernas no quadro parado, na direção atual', () => {
+    assert.deepEqual(getPlayerPose(createPlayer(START)), {
       sheet: 'walk',
-      direction: 'left',
-      frame: 1,
+      direction: 'down',
+      frame: 0,
+      legs: { direction: 'down', frame: 12 },
     })
   })
 
-  test('golpe: folha de ataque, direção do golpe, quadro pelo tempo', () => {
+  test('andando, o quadro do tronco e o das pernas vêm da mesma distância', () => {
+    // 40 u / 10,83 u por quadro = quadro 3
+    assert.deepEqual(getPlayerPose({ ...createPlayer(START), direction: 'left', walkDistance: 40 }), {
+      sheet: 'walk',
+      direction: 'left',
+      frame: 3,
+      legs: { direction: 'left', frame: 3 },
+    })
+  })
+
+  test('golpe: folha de ataque, direção do golpe, quadro pelo tempo; pernas na mesma direção', () => {
     const player = { ...createPlayer(START), attack: { direction: 'up', elapsed: 180 } }
-    assert.deepEqual(getPlayerPose(player), { sheet: 'attack', direction: 'up', frame: 2 })
+    assert.deepEqual(getPlayerPose(player), {
+      sheet: 'attack',
+      direction: 'up',
+      frame: 2,
+      legs: { direction: 'up', frame: 12 },
+    })
     assert.equal(getPlayerPose({ ...player, attack: { direction: 'up', elapsed: 629 } }).frame, 7)
   })
 
-  test('reduzir movimento: o andar fica no quadro 0, mas o golpe anima', () => {
-    assert.equal(getPlayerPose({ ...createPlayer(START), walkDistance: 70 }, true).frame, 0)
+  test('reduzir movimento: o andar fica parado (pernas no quadro parado), mas o golpe anima', () => {
+    const still = getPlayerPose({ ...createPlayer(START), walkDistance: 70 }, true)
+    assert.deepEqual([still.frame, still.legs.frame], [0, 12])
     const attacking = { ...createPlayer(START), attack: { direction: 'down', elapsed: 180 } }
     assert.equal(getPlayerPose(attacking, true).frame, 2)
   })
@@ -229,7 +304,8 @@ describe('dano (só o estado: nada dispara o dano no jogo ainda)', () => {
   test('prioridade da pose: dano > ataque > andar', () => {
     const base = { ...createPlayer(START), walkDistance: 40 }
     const both = { ...base, attack: { direction: 'up', elapsed: 100 }, hurt: { direction: 'down', elapsed: 80 } }
-    assert.deepEqual(getPlayerPose(both), { sheet: 'hurt', direction: 'down', frame: 1 })
+    // no dano o corpo inteiro vem de uma folha só, sem a camada das pernas
+    assert.deepEqual(getPlayerPose(both), { sheet: 'hurt', direction: 'down', frame: 1, legs: null })
     assert.equal(getPlayerPose({ ...base, attack: both.attack }).sheet, 'attack')
     assert.equal(getPlayerPose(base).sheet, 'walk')
   })

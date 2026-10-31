@@ -1,5 +1,5 @@
 // Escala do personagem na sala: 11% da largura da sala (118,8 u) para o quadro de 296 px
-export const PLAYER_SPRITE_SCALE = 118.8 / 296
+const PLAYER_SPRITE_SCALE = 118.8 / 296
 
 // Desenha um quadro da folha com os pés (o pivô do quadro) na posição feet, em unidades da sala.
 // Assim trocar de folha (andar 296x259, ataque 420x380) não faz o personagem "pular".

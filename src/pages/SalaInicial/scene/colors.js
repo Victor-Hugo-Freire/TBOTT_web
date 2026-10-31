@@ -10,7 +10,6 @@ export const COLORS = {
   beamBase: '#281b17',
   baseboard: '#302018',
   baseboardLine: '#181010',
-  baseWall: '#0a0707',
 
   // Tijolos
   brickA: '#503028',
@@ -26,4 +25,4 @@ export const COLORS = {
 }
 
 // Luz do piso: centro (em unidades da sala) e raio
-export const FLOOR_LIGHT = { x: 588, y: 305, radius: 520 }
+export const FLOOR_LIGHT = { x: 650, y: 335, radius: 570 }

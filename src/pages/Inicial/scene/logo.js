@@ -1,7 +1,7 @@
 import { forEachTextPixel, getTextWidth, SMALL_FONT } from '../../../utils/pixelFont.js'
 import { drawBat } from './bat.js'
 import { COLORS } from './colors.js'
-import { noise, rect } from './draw.js'
+import { noise, rect } from '../../../utils/canvas.js'
 
 // Letras grandes do título: cada '#' vira um bloco de 4x4 pixels
 const TITLE_FONT = {

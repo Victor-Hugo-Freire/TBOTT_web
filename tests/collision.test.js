@@ -48,7 +48,7 @@ describe('moveAndCollide', () => {
 describe('colisão com as paredes da sala', () => {
   test('os limites dos pés vêm das paredes e da caixa de 44x18', () => {
     assert.deepEqual(PLAYER_FEET_BOX, { width: 44, height: 18 })
-    assert.deepEqual(ROOM_PLAYER_BOUNDS, { minX: 25, maxX: 1050, minY: 261, maxY: 656 })
+    assert.deepEqual(ROOM_PLAYER_BOUNDS, { minX: 25, maxX: 1170, minY: 261, maxY: 741 })
   })
 
   test('as paredes são bem mais grossas que o passo máximo de um quadro', () => {

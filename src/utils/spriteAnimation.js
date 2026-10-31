@@ -1,9 +1,12 @@
-// Um quadro do andar a cada 32,5 u andadas (260 u/s a 8 quadros por segundo).
+// O ciclo do andar tem 12 quadros e se repete a cada 130 u andadas (um quadro a cada 10,83 u:
+// 24 quadros por segundo a 260 u/s).
 // O quadro depende da distância, e não do tempo: se o personagem para, ou empurra a
 // parede sem sair do lugar, as pernas param junto.
-export const WALK_STEP_DISTANCE = 32.5
+export const WALK_CYCLE_DISTANCE = 130
+export const WALK_FRAME_COUNT = 12
+export const WALK_STEP_DISTANCE = WALK_CYCLE_DISTANCE / WALK_FRAME_COUNT
 
-export function getWalkFrame(distance, frameCount = 4) {
+export function getWalkFrame(distance, frameCount = WALK_FRAME_COUNT) {
   return Math.floor(distance / WALK_STEP_DISTANCE) % frameCount
 }
 

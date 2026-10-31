@@ -1,6 +1,6 @@
 // Sombra sob os pés: uma elipse fixa. Só desenho, não participa da colisão.
 // Valores em unidades da sala; ajuste aqui se ficar grande ou escura demais.
-export const SHADOW = { width: 52, height: 14, color: 'rgba(0, 0, 0, 0.35)' }
+const SHADOW = { width: 52, height: 14, color: 'rgba(0, 0, 0, 0.35)' }
 
 export function drawShadow(ctx, feet) {
   ctx.fillStyle = SHADOW.color
