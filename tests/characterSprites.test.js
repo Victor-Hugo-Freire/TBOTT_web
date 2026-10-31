@@ -48,7 +48,7 @@ function pngSize(src) {
 
 describe('folhas do personagem na sala', () => {
   test('o tamanho de cada folha bate com a grade declarada (quadro x quadros por linha x linhas)', () => {
-    for (const name of ['tungTungSahurAndar']) {
+    for (const name of ['tungTungSahurAndar', 'tungTungSahurAtaque']) {
       const sprite = CHARACTER_SPRITES[name]
       assert.deepEqual(pngSize(sprite.src), {
         width: sprite.frameWidth * sprite.framesPerRow,
@@ -64,5 +64,25 @@ describe('folhas do personagem na sala', () => {
     assert.equal(walk.frameHeight - walk.feetPadding, 241)
     assert.equal(walk.feetPadding, original.feetPadding)
     assert.deepEqual(walk.rows, original.rows)
+  })
+
+  test('o ataque tem os pés no mesmo ponto do andar: o quadro original fica em (62, 60) da célula', () => {
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    const attack = CHARACTER_SPRITES.tungTungSahurAtaque
+    const feetX = 62 + walk.frameWidth / 2
+    const feetY = 60 + (walk.frameHeight - walk.feetPadding)
+    assert.equal(attack.feetX, feetX)
+    assert.equal(attack.frameHeight - attack.feetPadding, feetY)
+    assert.deepEqual([feetX, feetY], [210, 301])
+    assert.deepEqual(attack.rows, walk.rows)
+  })
+
+  test('o golpe dura 630 ms e acerta de 160 a 350 ms (quadros 2 a 4)', () => {
+    const { durations, hitFrames, framesPerRow } = CHARACTER_SPRITES.tungTungSahurAtaque
+    assert.equal(durations.length, framesPerRow)
+    assert.equal(durations.reduce((a, b) => a + b, 0), 630)
+    const start = durations.slice(0, hitFrames[0]).reduce((a, b) => a + b, 0)
+    const end = durations.slice(0, hitFrames.at(-1) + 1).reduce((a, b) => a + b, 0)
+    assert.deepEqual([start, end], [160, 350])
   })
 })

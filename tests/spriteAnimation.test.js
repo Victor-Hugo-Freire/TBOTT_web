@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { getWalkFrame, updateWalkDistance, WALK_STEP_DISTANCE } from '../src/utils/spriteAnimation.js'
+import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance, WALK_STEP_DISTANCE } from '../src/utils/spriteAnimation.js'
 import { getRoomMovement, moveRoomPlayer, ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 
 describe('getWalkFrame (distância andada -> quadro)', () => {
@@ -56,5 +56,26 @@ describe('animação com a colisão', () => {
     const { distance } = walk({ x: ROOM_PLAYER_BOUNDS.maxX, y: 400 }, ['KeyD'], 30)
     assert.equal(distance, 0)
     assert.equal(getWalkFrame(distance), 0)
+  })
+})
+
+describe('getTimedFrame (tempos diferentes por quadro)', () => {
+  const durations = [70, 90, 40]
+
+  test('devolve o quadro que está no ar naquele instante', () => {
+    assert.equal(getTimedFrame(durations, 0), 0)
+    assert.equal(getTimedFrame(durations, 69), 0)
+    assert.equal(getTimedFrame(durations, 70), 1)
+    assert.equal(getTimedFrame(durations, 159), 1)
+    assert.equal(getTimedFrame(durations, 160), 2)
+    assert.equal(getTimedFrame(durations, 199), 2)
+  })
+
+  test('depois do fim devolve -1', () => {
+    assert.equal(getTimedFrame(durations, 200), -1)
+  })
+
+  test('getTotalDuration soma os tempos', () => {
+    assert.equal(getTotalDuration(durations), 200)
   })
 })

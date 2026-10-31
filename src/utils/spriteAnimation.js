@@ -12,3 +12,18 @@ export function getWalkFrame(distance, frameCount = 4) {
 export function updateWalkDistance(distance, traveled) {
   return traveled > 0 ? distance + traveled : 0
 }
+
+// Quadro de uma animação com tempo diferente por quadro (durations, em ms).
+// Devolve -1 quando a animação já acabou.
+export function getTimedFrame(durations, ms) {
+  let end = 0
+  for (let frame = 0; frame < durations.length; frame++) {
+    end += durations[frame]
+    if (ms < end) return frame
+  }
+  return -1
+}
+
+export function getTotalDuration(durations) {
+  return durations.reduce((total, ms) => total + ms, 0)
+}

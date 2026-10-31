@@ -25,6 +25,22 @@ export const CHARACTER_SPRITES = {
     framesPerRow: 4,
     rows: { down: 0, left: 1, right: 2, up: 3 },
   },
+  // Sala: golpe com o bastão, 8 quadros por direção (preparação, arco, impacto e volta).
+  // A célula é maior (420x380) porque o bastão sai do quadro de 296x259. O quadro original fica em
+  // (62, 60) da célula, então os pés ficam em (210, 301): o mesmo ponto do andar, sem "pulo".
+  // - durations: ms de cada quadro (630 ms no total)
+  // - hitFrames: quadros em que o golpe acerta (160 a 350 ms)
+  tungTungSahurAtaque: {
+    src: '/sprites/characters/tung-tung-sahur/ataque.png',
+    frameWidth: 420,
+    frameHeight: 380,
+    feetX: 210,
+    feetPadding: 79,
+    framesPerRow: 8,
+    rows: { down: 0, left: 1, right: 2, up: 3 },
+    durations: [70, 90, 40, 40, 110, 80, 90, 110],
+    hitFrames: [2, 3, 4],
+  },
   // Tela inicial: corpo inteiro piscando (quadros: aberto, meio, fechado, meio)
   tungTungSahurPiscar: {
     src: '/sprites/characters/tung-tung-sahur-piscar.png',
