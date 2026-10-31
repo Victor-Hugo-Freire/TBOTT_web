@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ROUTES } from '../../routes/paths.js'
 import { createPlayer, updatePlayer } from '../../utils/player.js'
 import {
@@ -28,8 +28,17 @@ function blockMouse(event) {
 // enquanto o personagem anda.
 export default function SalaInicial() {
   const navigate = useNavigate()
+  const location = useLocation()
   const roomRef = useRef(null)
   const canvasRef = useRef(null)
+
+  // Personagem escolhido na seleção. Por enquanto só o nome é usado: o canvas
+  // desenha o Tung Tung Sahur, o único com sprite (os outros virão depois)
+  const selectedCharacter = location.state?.character ?? {
+    id: 'tung-tung-sahur',
+    name: 'Tung Tung Sahur',
+    description: 'Personagem principal do jogo.',
+  }
 
   useEffect(() => {
     roomRef.current?.focus()
@@ -148,7 +157,12 @@ export default function SalaInicial() {
         Use as teclas W, A, S e D para mover o personagem pela sala e as setas para atacar.
       </p>
 
-      <canvas ref={canvasRef} className="sala-inicial__canvas" aria-hidden="true" />
+      <canvas
+        ref={canvasRef}
+        className="sala-inicial__canvas"
+        role="img"
+        aria-label={`Sala inicial com ${selectedCharacter.name || 'Tung Tung Sahur'}`}
+      />
     </main>
   )
 }
