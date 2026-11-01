@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { useSession } from '../../context/useSession.js'
 import { ROUTES } from '../../routes/paths.js'
@@ -88,17 +89,7 @@ export default function Ranking() {
     <main className="ranking">
       <title>Ranking | The Binding of Tung Tung</title>
 
-      <button
-        className="ranking__voltar"
-        ref={backRef}
-        type="button"
-        aria-label="Voltar para o menu"
-        onClick={() => navigate(ROUTES.menuPrincipal)}
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M15 5 8 12l7 7" />
-        </svg>
-      </button>
+      <BotaoVoltar ref={backRef} label="Voltar para o menu" onClick={() => navigate(ROUTES.menuPrincipal)} />
 
       <Login className="ranking__usuario" />
 

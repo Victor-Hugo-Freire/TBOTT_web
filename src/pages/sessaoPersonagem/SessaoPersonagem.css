@@ -23,26 +23,6 @@
   gap: 1rem;
 }
 
-.sessao-personagem__voltar {
-  position: absolute;
-  top: clamp(0.75rem, 1.3vw, 1.25rem);
-  left: clamp(0.75rem, 2vw, 1.5rem);
-  display: grid;
-  width: 3rem;
-  height: 3rem;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-light);
-  font-size: 2rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.sessao-personagem__voltar:hover,
-.sessao-personagem__voltar:focus-visible,
 .sessao-personagem__arrow:hover,
 .sessao-personagem__arrow:focus-visible,
 .sessao-personagem__inicio:hover,

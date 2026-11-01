@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
-import { getMenuNavigationAction, isTypingTarget } from '../../utils/menuKeyboard.js'
+import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './MenuPrincipal.css'
 
 const MENU_ITEMS = [
@@ -50,8 +51,7 @@ export default function MenuPrincipal() {
         return
       }
 
-      const direction = action === 'down' ? 1 : -1
-      const nextIndex = (currentIndex + direction + NAVIGABLE_ITEMS.length) % NAVIGABLE_ITEMS.length
+      const nextIndex = getNextIndex(currentIndex, action, NAVIGABLE_ITEMS.length)
       itemRefs.current.get(NAVIGABLE_ITEMS[nextIndex].label)?.focus()
     }
 
@@ -64,17 +64,7 @@ export default function MenuPrincipal() {
       <title>Menu principal | The Binding of Tung Tung</title>
 
       <div className="menu-principal__stage">
-        <button
-          className="menu-principal__voltar"
-          ref={backRef}
-          type="button"
-          aria-label="Voltar para a tela inicial"
-          onClick={() => navigate(ROUTES.inicial)}
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M15 5 8 12l7 7" />
-          </svg>
-        </button>
+        <BotaoVoltar ref={backRef} label="Voltar para a tela inicial" onClick={() => navigate(ROUTES.inicial)} />
 
         <Login className="menu-principal__usuario" ref={userRef} />
 

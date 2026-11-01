@@ -45,7 +45,7 @@ src/
     Opcoes/          volumes, tela cheia e controles do jogo
     sessaoPersonagem/ seleção de personagem: carrossel com os personagens vindos da API
     SalaInicial/     sala inicial em canvas; scene/ desenha a sala, o personagem, o arco do golpe e o debug
-  components/        componentes usados por várias telas (CharacterSprite)
+  components/        componentes usados por várias telas (CharacterSprite, BotaoVoltar)
   data/              characterSprites.js (arquivo, quadros e direções de cada sprite)
   utils/             teclado (keyboard.js, menuKeyboard.js), sala (roomMovement.js, collision.js), personagem (player.js, spriteAnimation.js) e canvas.js e pixelFont.js (desenho)
   services/api.js    endereço da API e função apiRequest
@@ -112,12 +112,14 @@ Na sala, as setas atacam (veja a seção Sala inicial).
 
 Também é possível usar o mouse ou outro dispositivo apontador para selecionar e ativar os botões. A lógica de mapeamento das teclas fica em `src/utils/menuKeyboard.js`.
 
+Em todas as telas com a seta de voltar (`BotaoVoltar`), a tecla **Esc** volta para a tela anterior; com o formulário de login aberto, o Esc é ignorado.
+
 ## Opções
 
 A tela `/opcoes`, acessível pelo item **Options** do menu principal, permite ajustar o volume da música e dos efeitos sonoros, alternar a tela cheia e consultar os controles do jogo.
 
-- **Volume da música** e **efeitos sonoros:** controles deslizantes de 0% a 100%. As preferências são salvas neste navegador em `localStorage` (`tbott.options`) e restauradas ao abrir a tela novamente. Se o navegador não permitir ler ou gravar o armazenamento, a tela informa o erro.
-- **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual.
+- **Volume da música** e **efeitos sonoros:** controles deslizantes de 0% a 100%. As preferências são salvas neste navegador em `localStorage` (`tbott.options`), com a leitura e a validação em `src/utils/options.js` e restauradas ao abrir a tela novamente. Se o navegador não permitir ler ou gravar o armazenamento, a tela informa o erro.
+- **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual. A tela cheia ativada pelo F11 do navegador não é detectada e aparece como "Off".
 - **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar e **Esc** para voltar ao menu.
 - **Teclado:** **W/S** ou **↑/↓** percorrem os itens; **Enter** ativa botões; **←/→** ajustam o volume quando o controle deslizante está selecionado. **A/←** seleciona o botão de voltar e **D/→** seleciona o cartão do usuário. Também é possível operar a tela com mouse ou outro dispositivo apontador.
 
