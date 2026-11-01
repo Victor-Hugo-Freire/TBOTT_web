@@ -55,7 +55,6 @@ export default function Opcoes() {
 
     function handleKeyDown(event) {
       const isRangeInput = event.target instanceof HTMLInputElement && event.target.type === 'range'
-      if (document.body.classList.contains('auth-form-open')) return
       if (isTypingTarget(event.target) && !isRangeInput) return
       if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
 

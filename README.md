@@ -26,9 +26,11 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | Opções                                  | `/opcoes` | Implementada (Issue #15)           |
 | Perfil do usuário                       | `/perfil` | Tela provisória                   |
 | Seleção de personagem                   | `/selecao-personagem` | Protótipo implementado (Issue #8) |
-| Cadastro e login                        | -       | A fazer                             |
+| Entrar (login e cadastro)               | `/entrar` | Implementada (Issue #14)          |
 | Jogo (combate, salas, inimigos e itens) | -       | A fazer                             |
 | Vitória e derrota                       | -       | A fazer                             |
+
+Só a Inicial e a tela de entrar são públicas: as demais exigem login e levam para `/entrar` quem não está logado (`RotaProtegida`). Se a API responder 401 no meio do jogo, o jogador volta para `/entrar` com o aviso de sessão expirada.
 
 Endereços desconhecidos voltam para a tela inicial.
 

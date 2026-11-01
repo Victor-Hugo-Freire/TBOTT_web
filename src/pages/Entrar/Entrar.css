@@ -1,0 +1,31 @@
+.entrar {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 5rem clamp(1rem, 6vw, 6rem) 2rem;
+  background: #181818;
+  color: var(--color-text-light);
+}
+
+.entrar__painel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.entrar__titulo {
+  margin: 0;
+}
+
+.entrar__aviso {
+  margin: 0;
+}
+
+.entrar__aviso {
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: #444;
+}

@@ -2,6 +2,7 @@
 // assim um erro de digitação vira erro de código, não um link quebrado.
 export const ROUTES = {
   inicial: '/',
+  entrar: '/entrar',
   menuPrincipal: '/menu',
   selecaoPersonagem: '/selecao-personagem',
   novaPartida: '/jogo',

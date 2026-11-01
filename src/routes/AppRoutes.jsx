@@ -6,6 +6,8 @@ import Opcoes from '../pages/Opcoes/Opcoes.jsx'
 import SessaoPersonagem from '../pages/sessaoPersonagem/SessaoPersonagem.jsx'
 import SalaInicial from '../pages/SalaInicial/SalaInicial.jsx'
 import Ranking from '../pages/Ranking/Ranking.jsx'
+import Entrar from '../pages/Entrar/Entrar.jsx'
+import RotaProtegida from './RotaProtegida.jsx'
 import { ROUTES } from './paths.js'
 
 // Para adicionar uma tela: crie a pasta dela em src/pages (com nome em
@@ -13,13 +15,18 @@ import { ROUTES } from './paths.js'
 export default function AppRoutes() {
   return (
     <Routes>
+      {/* Telas públicas */}
       <Route path={ROUTES.inicial} element={<Inicial />} />
-      <Route path={ROUTES.menuPrincipal} element={<MenuPrincipal />} />
-      <Route path={ROUTES.selecaoPersonagem} element={<SessaoPersonagem />} />
-      <Route path={ROUTES.novaPartida} element={<SalaInicial />} />
-      <Route path={ROUTES.ranking} element={<Ranking />} />
-      <Route path={ROUTES.opcoes} element={<Opcoes />} />
-      <Route path={ROUTES.perfil} element={<MenuDestino titulo="Perfil do usuário" />} />
+      <Route path={ROUTES.entrar} element={<Entrar />} />
+      {/* Telas que exigem login: sem sessão, RotaProtegida leva para a tela de entrar */}
+      <Route element={<RotaProtegida />}>
+        <Route path={ROUTES.menuPrincipal} element={<MenuPrincipal />} />
+        <Route path={ROUTES.selecaoPersonagem} element={<SessaoPersonagem />} />
+        <Route path={ROUTES.novaPartida} element={<SalaInicial />} />
+        <Route path={ROUTES.ranking} element={<Ranking />} />
+        <Route path={ROUTES.opcoes} element={<Opcoes />} />
+        <Route path={ROUTES.perfil} element={<MenuDestino titulo="Perfil do usuário" />} />
+      </Route>
       {/* Endereço desconhecido volta para a tela inicial */}
       <Route path="*" element={<Navigate to={ROUTES.inicial} replace />} />
     </Routes>

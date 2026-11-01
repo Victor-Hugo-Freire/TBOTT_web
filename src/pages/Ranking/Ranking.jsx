@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
-import { useSession } from '../../context/useSession.js'
 import { ROUTES } from '../../routes/paths.js'
 import { apiRequest } from '../../services/api.js'
 import { formatDuration } from '../../utils/formatDuration.js'
@@ -25,7 +24,6 @@ function Avatar() {
 export default function Ranking() {
   const navigate = useNavigate()
   const backRef = useRef(null)
-  const { isAuthenticated, isLoading: isSessionLoading } = useSession()
   const [entries, setEntries] = useState([])
   const [hasMore, setHasMore] = useState(false)
   // attempt muda a cada clique em "Carregar mais", para tentar de novo mesmo com o mesmo offset
@@ -37,10 +35,8 @@ export default function Ranking() {
     backRef.current?.focus()
   }, [])
 
-  // Busca a página atual. Ao logar ou pedir "carregar mais", o efeito roda de novo.
+  // Busca a página atual. Ao pedir "carregar mais", o efeito roda de novo.
   useEffect(() => {
-    if (!isAuthenticated) return
-
     const { offset } = request
     let isActive = true
 
@@ -53,7 +49,7 @@ export default function Ranking() {
         if (!isActive) return
 
         const page = Array.isArray(response?.ranking) ? response.ranking : []
-        // slice evita linhas repetidas se a mesma página for buscada de novo (nova tentativa, novo login)
+        // slice evita linhas repetidas se a mesma página for buscada de novo (nova tentativa)
         setEntries((previous) => [...previous.slice(0, offset), ...page])
         // A API não informa o total: página cheia significa que talvez haja mais
         setHasMore(page.length === PAGE_SIZE)
@@ -70,16 +66,12 @@ export default function Ranking() {
     return () => {
       isActive = false
     }
-  }, [isAuthenticated, request])
-
-  // Depois do logout, a lista antiga some da tela
-  const rows = isAuthenticated ? entries : []
+  }, [request])
 
   function getMessage() {
-    if (isSessionLoading || (isAuthenticated && isLoading && rows.length === 0)) return 'Carregando ranking...'
-    if (!isAuthenticated) return 'Faça login para ver o ranking.'
-    if (error && rows.length === 0) return error
-    if (rows.length === 0) return 'Ninguém completou uma run ainda.'
+    if (isLoading && entries.length === 0) return 'Carregando ranking...'
+    if (error && entries.length === 0) return error
+    if (entries.length === 0) return 'Ninguém completou uma run ainda.'
     return ''
   }
 
@@ -104,7 +96,7 @@ export default function Ranking() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((entry) => (
+              {entries.map((entry) => (
                 <tr key={entry.username}>
                   <td>
                     <span className="ranking__usuario-celula">
@@ -122,9 +114,9 @@ export default function Ranking() {
 
           {message && <p className="ranking__estado" aria-live="polite">{message}</p>}
 
-          {error && rows.length > 0 && <p className="ranking__estado" role="alert">{error}</p>}
+          {error && entries.length > 0 && <p className="ranking__estado" role="alert">{error}</p>}
 
-          {isAuthenticated && hasMore && (
+          {hasMore && (
             <button
               type="button"
               className="ranking__mais"
