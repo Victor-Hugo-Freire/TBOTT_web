@@ -23,7 +23,7 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | Menu principal                          | `/menu` | Protótipo implementado (Issue #7)    |
 | Sala inicial / nova partida             | `/jogo` | Protótipo implementado (Issue #10)   |
 | Ranking                                 | `/ranking` | Implementada                     |
-| Opções                                  | `/opcoes` | Tela provisória                   |
+| Opções                                  | `/opcoes` | Implementada (Issue #15)           |
 | Perfil do usuário                       | `/perfil` | Tela provisória                   |
 | Seleção de personagem                   | `/selecao-personagem` | Protótipo implementado (Issue #8) |
 | Cadastro e login                        | -       | A fazer                             |
@@ -42,7 +42,7 @@ src/
   pages/             uma pasta por tela, com nome em português (JSX + CSS)
     Inicial/         tela inicial; scene/ desenha a cena animada no canvas
     MenuPrincipal/   menu principal e telas provisórias (MenuDestino)
-    Opcoes/          tela de opções (ainda sem configurações)
+    Opcoes/          volumes, tela cheia e controles do jogo
     sessaoPersonagem/ seleção de personagem: carrossel com os personagens vindos da API
     SalaInicial/     sala inicial em canvas; scene/ desenha a sala, o personagem, o arco do golpe e o debug
   components/        componentes usados por várias telas (CharacterSprite)
@@ -111,6 +111,17 @@ O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e 
 Na sala, as setas atacam (veja a seção Sala inicial).
 
 Também é possível usar o mouse ou outro dispositivo apontador para selecionar e ativar os botões. A lógica de mapeamento das teclas fica em `src/utils/menuKeyboard.js`.
+
+## Opções
+
+A tela `/opcoes`, acessível pelo item **Options** do menu principal, permite ajustar o volume da música e dos efeitos sonoros, alternar a tela cheia e consultar os controles do jogo.
+
+- **Volume da música** e **efeitos sonoros:** controles deslizantes de 0% a 100%. As preferências são salvas neste navegador em `localStorage` (`tbott.options`) e restauradas ao abrir a tela novamente. Se o navegador não permitir ler ou gravar o armazenamento, a tela informa o erro.
+- **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual.
+- **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar e **Esc** para voltar ao menu.
+- **Teclado:** **W/S** ou **↑/↓** percorrem os itens; **Enter** ativa botões; **←/→** ajustam o volume quando o controle deslizante está selecionado. **A/←** seleciona o botão de voltar e **D/→** seleciona o cartão do usuário. Também é possível operar a tela com mouse ou outro dispositivo apontador.
+
+Os volumes ficam salvos localmente, mas ainda não alteram a reprodução de áudio: música e efeitos sonoros ainda não estão implementados no jogo.
 
 ## Seleção de personagem
 
