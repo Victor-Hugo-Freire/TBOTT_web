@@ -1,45 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
-import { getMenuNavigationAction, isTypingTarget } from '../../utils/menuKeyboard.js'
+import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
+import { OPTIONS_STORAGE_KEY, readOptions } from '../../utils/options.js'
 import './Opcoes.css'
 
-const STORAGE_KEY = 'tbott.options'
-const DEFAULT_OPTIONS = { musicVolume: 70, effectsVolume: 80 }
 const OPTION_ITEMS = ['music', 'effects', 'controls', 'fullscreen']
 
-function normalizeVolume(value, fallback) {
-  const volume = Number(value)
-  return Number.isFinite(volume) ? Math.min(100, Math.max(0, volume)) : fallback
-}
-
-function readOptions() {
-  try {
-    const savedOptions = window.localStorage.getItem(STORAGE_KEY)
-    if (!savedOptions) return { options: DEFAULT_OPTIONS, error: '' }
-
-    const parsedOptions = JSON.parse(savedOptions)
-    return {
-      options: {
-        musicVolume: normalizeVolume(parsedOptions?.musicVolume, DEFAULT_OPTIONS.musicVolume),
-        effectsVolume: normalizeVolume(parsedOptions?.effectsVolume, DEFAULT_OPTIONS.effectsVolume),
-      },
-      error: '',
-    }
-  } catch {
-    return {
-      options: DEFAULT_OPTIONS,
-      error: 'Não foi possível carregar as preferências salvas neste navegador.',
-    }
-  }
-}
+// name: chave em options (e no localStorage); item: nome usado no foco pelo teclado
+const VOLUME_ITEMS = [
+  { item: 'music', name: 'musicVolume', id: 'volume-musica', label: 'Music volume' },
+  { item: 'effects', name: 'effectsVolume', id: 'volume-efeitos', label: 'Sound effects' },
+]
 
 export default function Opcoes() {
   const navigate = useNavigate()
   const backRef = useRef(null)
+  const itemToFocusRef = useRef(OPTION_ITEMS[0])
   const userRef = useRef(null)
-  const itemRefs = useRef(new Map())
+  const [itemRefs] = useState(() => new Map())
   const [initialState] = useState(readOptions)
   const [options, setOptions] = useState(initialState.options)
   const [screen, setScreen] = useState('options')
@@ -52,7 +33,7 @@ export default function Opcoes() {
     setOptions(updatedOptions)
     setStatusMessage('')
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedOptions))
+      window.localStorage.setItem(OPTIONS_STORAGE_KEY, JSON.stringify(updatedOptions))
       setStorageError('')
     } catch {
       setStorageError('Não foi possível salvar as preferências neste navegador.')
@@ -69,8 +50,8 @@ export default function Opcoes() {
   }, [])
 
   useEffect(() => {
-    const firstItem = screen === 'options' ? OPTION_ITEMS[0] : 'back'
-    itemRefs.current.get(firstItem)?.focus()
+    // Ao voltar de Controls, o foco volta para o botão Controls
+    itemRefs.get(screen === 'options' ? itemToFocusRef.current : 'back')?.focus()
 
     function handleKeyDown(event) {
       const isRangeInput = event.target instanceof HTMLInputElement && event.target.type === 'range'
@@ -97,23 +78,16 @@ export default function Opcoes() {
 
       const navigableItems = screen === 'options' ? OPTION_ITEMS : ['back']
       const currentIndex = navigableItems.findIndex(
-        (item) => itemRefs.current.get(item) === document.activeElement,
+        (item) => itemRefs.get(item) === document.activeElement,
       )
 
-      if (currentIndex === -1) {
-        const index = action === 'down' ? 0 : navigableItems.length - 1
-        itemRefs.current.get(navigableItems[index])?.focus()
-        return
-      }
-
-      const direction = action === 'down' ? 1 : -1
-      const nextIndex = (currentIndex + direction + navigableItems.length) % navigableItems.length
-      itemRefs.current.get(navigableItems[nextIndex])?.focus()
+      const nextIndex = getNextIndex(currentIndex, action, navigableItems.length)
+      itemRefs.get(navigableItems[nextIndex])?.focus()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [screen])
+  }, [screen, itemRefs])
 
   async function toggleFullscreen() {
     setStatusMessage('')
@@ -131,8 +105,17 @@ export default function Opcoes() {
     }
   }
 
+  // Guarda cada elemento navegável pelo teclado no Map, pelo nome
+  function registerItem(name) {
+    return (element) => {
+      if (element) itemRefs.set(name, element)
+      else itemRefs.delete(name)
+    }
+  }
+
   function handleBack() {
     if (screen === 'controls') {
+      itemToFocusRef.current = 'controls'
       setScreen('options')
       return
     }
@@ -144,17 +127,11 @@ export default function Opcoes() {
     <main className="opcoes" aria-label="Options">
       <title>Options | The Binding of Tung Tung</title>
 
-      <button
-        className="opcoes__voltar"
+      <BotaoVoltar
         ref={backRef}
-        type="button"
-        aria-label={screen === 'controls' ? 'Voltar para opções' : 'Voltar para o menu'}
+        label={screen === 'controls' ? 'Voltar para opções' : 'Voltar para o menu'}
         onClick={handleBack}
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M15 5 8 12l7 7" />
-        </svg>
-      </button>
+      />
 
       <Login className="opcoes__usuario" ref={userRef} />
 
@@ -167,54 +144,28 @@ export default function Opcoes() {
               Use ↑/↓ or W/S to navigate, Enter to select, and ←/→ to adjust volume.
             </p>
             <div className="opcoes__lista">
-              <label className="opcoes__volume" htmlFor="volume-musica">
-                <span className="opcoes__rotulo">Music volume</span>
-                <span className="opcoes__controle-volume">
-                  <input
-                    id="volume-musica"
-                    ref={(element) => {
-                      if (element) itemRefs.current.set('music', element)
-                      else itemRefs.current.delete('music')
-                    }}
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={options.musicVolume}
-                    aria-label="Volume da música"
-                    onChange={(event) => updateOption('musicVolume', Number(event.target.value))}
-                  />
-                  <output htmlFor="volume-musica">{options.musicVolume}%</output>
-                </span>
-              </label>
-
-              <label className="opcoes__volume" htmlFor="volume-efeitos">
-                <span className="opcoes__rotulo">Sound effects</span>
-                <span className="opcoes__controle-volume">
-                  <input
-                    id="volume-efeitos"
-                    ref={(element) => {
-                      if (element) itemRefs.current.set('effects', element)
-                      else itemRefs.current.delete('effects')
-                    }}
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={options.effectsVolume}
-                    aria-label="Volume dos efeitos sonoros"
-                    onChange={(event) => updateOption('effectsVolume', Number(event.target.value))}
-                  />
-                  <output htmlFor="volume-efeitos">{options.effectsVolume}%</output>
-                </span>
-              </label>
+              {VOLUME_ITEMS.map(({ item, name, id, label }) => (
+                <label className="opcoes__volume" htmlFor={id} key={id}>
+                  <span className="opcoes__rotulo">{label}</span>
+                  <span className="opcoes__controle-volume">
+                    <input
+                      id={id}
+                      ref={registerItem(item)}
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={options[name]}
+                      onChange={(event) => updateOption(name, Number(event.target.value))}
+                    />
+                    <output htmlFor={id}>{options[name]}%</output>
+                  </span>
+                </label>
+              ))}
 
               <button
                 className="opcoes__item"
-                ref={(element) => {
-                  if (element) itemRefs.current.set('controls', element)
-                  else itemRefs.current.delete('controls')
-                }}
+                ref={registerItem('controls')}
                 type="button"
                 onClick={() => setScreen('controls')}
               >
@@ -223,10 +174,7 @@ export default function Opcoes() {
 
               <button
                 className="opcoes__item"
-                ref={(element) => {
-                  if (element) itemRefs.current.set('fullscreen', element)
-                  else itemRefs.current.delete('fullscreen')
-                }}
+                ref={registerItem('fullscreen')}
                 type="button"
                 aria-pressed={isFullscreen}
                 onClick={toggleFullscreen}
@@ -254,10 +202,7 @@ export default function Opcoes() {
             </dl>
             <button
               className="opcoes__item opcoes__item--voltar"
-              ref={(element) => {
-                if (element) itemRefs.current.set('back', element)
-                else itemRefs.current.delete('back')
-              }}
+              ref={registerItem('back')}
               type="button"
               onClick={handleBack}
             >

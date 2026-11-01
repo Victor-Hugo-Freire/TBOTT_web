@@ -11,35 +11,6 @@
   animation: opcoes-surgir 350ms ease-out both;
 }
 
-.opcoes__voltar {
-  position: absolute;
-  top: clamp(0.75rem, 1.3vw, 1.25rem);
-  left: clamp(0.75rem, 2vw, 1.5rem);
-  display: grid;
-  width: 3rem;
-  height: 3rem;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.opcoes__voltar:hover {
-  color: #ddd;
-}
-
-.opcoes__voltar svg {
-  width: 1.75rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.5;
-}
-
 .opcoes__usuario {
   position: absolute;
   top: clamp(0.5rem, 0.85vw, 0.75rem);
@@ -198,7 +169,6 @@
   line-height: 1.5;
 }
 
-.opcoes__voltar:focus-visible,
 .opcoes__item:focus-visible,
 .opcoes__controle-volume input:focus-visible {
   outline: 3px solid #fff;
