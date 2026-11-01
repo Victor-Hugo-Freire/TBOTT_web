@@ -22,7 +22,7 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | Inicial                                 | `/`     | Pronta (Issue #6)                   |
 | Menu principal                          | `/menu` | Protótipo implementado (Issue #7)    |
 | Sala inicial / nova partida             | `/jogo` | Protótipo implementado (Issue #10)   |
-| Ranking                                 | `/ranking` | Tela provisória                  |
+| Ranking                                 | `/ranking` | Implementada                     |
 | Opções                                  | `/opcoes` | Tela provisória                   |
 | Perfil do usuário                       | `/perfil` | Tela provisória                   |
 | Seleção de personagem                   | `/selecao-personagem` | Protótipo implementado (Issue #8) |
