@@ -10,6 +10,11 @@ const MENU_KEYS = new Map([
   ['arrowleft', 'back'],
 ])
 
+// Quem está digitando num campo não deve acionar os atalhos do teclado
+export function isTypingTarget(target) {
+  return Boolean(target?.isContentEditable) || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName)
+}
+
 export function getMenuNavigationAction(key) {
   if (typeof key !== 'string') return null
   return MENU_KEYS.get(key.toLowerCase()) ?? null

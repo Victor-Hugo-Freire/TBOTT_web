@@ -1,7 +1,17 @@
-import { forwardRef, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import CardUsuario from '../../components/CardUsuario/CardUsuario.jsx'
-import { useSession } from '../../context/SessionContext.jsx'
+import { useSession } from '../../context/useSession.js'
+import { ROUTES } from '../../routes/paths.js'
 import { apiRequest } from '../../services/api.js'
+import {
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  buildLoginPayload,
+  buildRegisterPayload,
+  validateLoginForm,
+  validateRegisterForm,
+} from '../../utils/authForm.js'
 import './Login.css'
 
 const AUTH_FORM_OPEN_CLASS = 'auth-form-open'
@@ -11,50 +21,6 @@ const initialForm = {
   email: '',
   password: '',
   confirmPassword: '',
-}
-
-export function buildRegisterPayload(form = {}) {
-  return {
-    username: String(form.username ?? '').trim(),
-    email: String(form.email ?? '').trim().toLowerCase(),
-    password: String(form.password ?? ''),
-  }
-}
-
-export function buildLoginPayload(form = {}) {
-  return {
-    email: String(form.email ?? '').trim().toLowerCase(),
-    password: String(form.password ?? ''),
-  }
-}
-
-export function validateRegisterForm(form = {}) {
-  const username = String(form.username ?? '').trim()
-  const email = String(form.email ?? '').trim().toLowerCase()
-  const password = String(form.password ?? '')
-  const confirmPassword = String(form.confirmPassword ?? '')
-
-  if (!username) return { isValid: false, message: 'Nome de usuário é obrigatório.' }
-  if (!email) return { isValid: false, message: 'E-mail é obrigatório.' }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { isValid: false, message: 'E-mail inválido.' }
-  if (!password) return { isValid: false, message: 'Senha é obrigatória.' }
-  if (password.trim().length === 0) return { isValid: false, message: 'Senha não pode conter apenas espaços.' }
-  if (!confirmPassword) return { isValid: false, message: 'Confirmação de senha é obrigatória.' }
-  if (password !== confirmPassword) return { isValid: false, message: 'As senhas não conferem.' }
-
-  return { isValid: true, message: '' }
-}
-
-export function validateLoginForm(form = {}) {
-  const email = String(form.email ?? '').trim().toLowerCase()
-  const password = String(form.password ?? '')
-
-  if (!email) return { isValid: false, message: 'E-mail é obrigatório.' }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { isValid: false, message: 'E-mail inválido.' }
-  if (!password) return { isValid: false, message: 'Senha é obrigatória.' }
-  if (password.trim().length === 0) return { isValid: false, message: 'Senha não pode conter apenas espaços.' }
-
-  return { isValid: true, message: '' }
 }
 
 function getLoginErrorMessage(error) {
@@ -71,7 +37,9 @@ function getLoginErrorMessage(error) {
   return message || 'Não foi possível entrar no momento.'
 }
 
-const Login = forwardRef(function Login({ className = '' }, ref) {
+// - ref: vai para o botão que o atalho de teclado do menu seleciona (o card, se logado, ou "Entrar")
+export default function Login({ ref, className = '' }) {
+  const navigate = useNavigate()
   const [screen, setScreen] = useState('options')
   const [form, setForm] = useState(initialForm)
   const [statusMessage, setStatusMessage] = useState('')
@@ -80,8 +48,6 @@ const Login = forwardRef(function Login({ className = '' }, ref) {
   const { profile, isAuthenticated, refreshSession, logoutSession } = useSession()
 
   useEffect(() => {
-    if (typeof document === 'undefined') return
-
     document.body.classList.toggle(AUTH_FORM_OPEN_CLASS, screen !== 'options')
     return () => {
       document.body.classList.remove(AUTH_FORM_OPEN_CLASS)
@@ -155,7 +121,14 @@ const Login = forwardRef(function Login({ className = '' }, ref) {
         body: JSON.stringify(payload),
       })
 
-      await refreshSession()
+      // O login deu certo, mas o perfil ainda precisa chegar pelo cookie. Se não chegar,
+      // o formulário fica aberto com o motivo, em vez de fechar sem ninguém logado.
+      const session = await refreshSession()
+      if (!session.isAuthenticated) {
+        setStatusMessage(session.error || 'Login feito, mas não foi possível iniciar a sessão.')
+        return
+      }
+
       setForm(initialForm)
       setScreen('options')
       setStatusMessage('')
@@ -169,25 +142,32 @@ const Login = forwardRef(function Login({ className = '' }, ref) {
   async function handleLogout() {
     try {
       await logoutSession()
-    } finally {
       setIsUserMenuOpen(false)
-      setScreen('options')
-      setForm(initialForm)
       setStatusMessage('')
+    } catch {
+      setStatusMessage('Não foi possível sair. Tente de novo.')
     }
   }
 
   function renderOptions() {
     if (isAuthenticated && profile?.username) {
       return (
-        <div className={`login ${className}`} ref={ref} tabIndex={0} role="group" aria-label="Perfil do usuário">
+        <div className={`login ${className}`} role="group" aria-label="Perfil do usuário">
           <div className="login__user-card">
-            <CardUsuario nome={profile.username} onClick={() => setIsUserMenuOpen((open) => !open)} />
+            <CardUsuario ref={ref} nome={profile.username} onClick={() => setIsUserMenuOpen((open) => !open)} />
             {isUserMenuOpen && (
-              <div className="login__user-menu" role="menu" aria-label="Opções da conta">
+              <div className="login__user-menu" aria-label="Opções da conta">
+                <button type="button" className="login__user-menu-button" onClick={() => navigate(ROUTES.perfil)}>
+                  Perfil
+                </button>
                 <button type="button" className="login__user-menu-button" onClick={handleLogout}>
                   Sair da conta
                 </button>
+                {statusMessage && (
+                  <span className="login__status" role="status" aria-live="polite">
+                    {statusMessage}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -196,10 +176,10 @@ const Login = forwardRef(function Login({ className = '' }, ref) {
     }
 
     return (
-      <div className={`login ${className}`} ref={ref} tabIndex={0} role="group" aria-label="Acesso do usuário">
+      <div className={`login ${className}`} role="group" aria-label="Acesso do usuário">
         <div className="login__panel">
           <div className="login__actions">
-            <button type="button" className="login__action" onClick={() => setScreen('login')}>
+            <button type="button" className="login__action" ref={ref} onClick={() => setScreen('login')}>
               Entrar
             </button>
             <button type="button" className="login__action" onClick={() => setScreen('register')}>
@@ -215,7 +195,7 @@ const Login = forwardRef(function Login({ className = '' }, ref) {
     const isRegister = screen === 'register'
 
     return (
-      <div className={`login login--open ${className}`} ref={ref} tabIndex={0} role="dialog" aria-modal="false" aria-label={isRegister ? 'Criar conta' : 'Entrar'}>
+      <div className={`login login--open ${className}`} role="dialog" aria-modal="false" aria-label={isRegister ? 'Criar conta' : 'Entrar'}>
         <div className="login__panel login__panel--form">
           <div className="login__header">
             <h2 className="login__title">{isRegister ? 'Criar conta' : 'Entrar'}</h2>
@@ -253,7 +233,7 @@ const Login = forwardRef(function Login({ className = '' }, ref) {
 
             <label className="login__field">
               <span>Senha</span>
-              <small>A senha deve ter entre 8 e 72 caracteres e não pode ser apenas espaços.</small>
+              {isRegister && <small>A senha deve ter entre {PASSWORD_MIN} e {PASSWORD_MAX} caracteres.</small>}
               <input
                 type="password"
                 name="password"
@@ -298,6 +278,4 @@ const Login = forwardRef(function Login({ className = '' }, ref) {
   }
 
   return screen === 'options' ? renderOptions() : renderForm()
-})
-
-export default Login
+}

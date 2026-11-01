@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { getMenuNavigationAction } from '../src/utils/menuKeyboard.js'
+import { getMenuNavigationAction, isTypingTarget } from '../src/utils/menuKeyboard.js'
+
+describe('isTypingTarget', () => {
+  test('campos de texto e áreas editáveis seguram os atalhos', () => {
+    assert.equal(isTypingTarget({ tagName: 'INPUT' }), true)
+    assert.equal(isTypingTarget({ tagName: 'TEXTAREA' }), true)
+    assert.equal(isTypingTarget({ tagName: 'BUTTON', isContentEditable: true }), true)
+  })
+
+  test('botões e a página liberam os atalhos', () => {
+    assert.equal(isTypingTarget({ tagName: 'BUTTON' }), false)
+    assert.equal(isTypingTarget(null), false)
+  })
+})
 
 describe('getMenuNavigationAction (menu principal)', () => {
   test('W navega pelas opções para cima', () => {

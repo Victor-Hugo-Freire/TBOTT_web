@@ -66,15 +66,6 @@ export default function SalaInicial() {
     }
 
     function handleKeyDown(event) {
-      const target = event.target
-      const isEditableTarget = target instanceof HTMLElement && (
-        target.isContentEditable ||
-        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
-        Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'))
-      )
-
-      if (document.body.classList.contains('auth-form-open') || isEditableTarget) return
-
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
 
       if (shouldReturnToMenu(event.key)) {

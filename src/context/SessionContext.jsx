@@ -1,86 +1,62 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiRequest } from '../services/api.js'
+import { SessionContext } from './useSession.js'
 
-const SessionContext = createContext(null)
+const NO_SESSION = { profile: null, isAuthenticated: false }
+
+// Pergunta à API quem está logado. Só devolve o resultado: quem chama atualiza o estado.
+async function fetchSession() {
+  try {
+    const response = await apiRequest('/api/auth/me', { method: 'GET', credentials: 'include' })
+    const profile = response?.profile ?? null
+    return { profile, isAuthenticated: Boolean(profile?.username) }
+  } catch (error) {
+    // 401 só quer dizer "ninguém logado"; qualquer outro erro é mostrado a quem chamou
+    if (error?.status === 401) return NO_SESSION
+    return { ...NO_SESSION, error: error?.message || 'Não foi possível consultar a sessão.' }
+  }
+}
 
 export function SessionProvider({ children }) {
-  const [profile, setProfile] = useState(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [session, setSession] = useState(NO_SESSION)
   const [isLoading, setIsLoading] = useState(true)
 
   const refreshSession = useCallback(async () => {
-    try {
-      const response = await apiRequest('/api/auth/me', {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      const nextProfile = response?.profile ?? null
-      setProfile(nextProfile)
-      setIsAuthenticated(Boolean(nextProfile?.username))
-      return { profile: nextProfile, isAuthenticated: Boolean(nextProfile?.username) }
-    } catch (error) {
-      const status = Number(error?.status ?? 0)
-
-      setProfile(null)
-      setIsAuthenticated(false)
-
-      if (status === 401) {
-        return { profile: null, isAuthenticated: false }
-      }
-
-      return {
-        profile: null,
-        isAuthenticated: false,
-        error: error?.message || 'Não foi possível consultar a sessão.',
-      }
-    } finally {
-      setIsLoading(false)
-    }
+    const result = await fetchSession()
+    setSession({ profile: result.profile, isAuthenticated: result.isAuthenticated })
+    setIsLoading(false)
+    return result
   }, [])
 
+  // Só limpa a sessão local se a API confirmou o logout (ou se ela já tinha expirado, 401).
+  // Se a API falhar, o cookie continua válido: o erro sobe para a tela avisar o jogador.
   const logoutSession = useCallback(async () => {
     try {
-      await apiRequest('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      })
+      await apiRequest('/api/auth/logout', { method: 'POST', credentials: 'include' })
     } catch (error) {
-      const status = Number(error?.status ?? 0)
-      if (status >= 500 || status === 0) {
-        console.warn('Logout falhou na API, mas a sessão local foi limpa.', error)
-      }
-    } finally {
-      setProfile(null)
-      setIsAuthenticated(false)
+      if (error?.status !== 401) throw error
+    }
+    setSession(NO_SESSION)
+  }, [])
+
+  // Consulta a sessão ao abrir o jogo. O setState fica dentro do .then (e não em refreshSession)
+  // para o React não renderizar de novo de forma síncrona dentro do efeito.
+  useEffect(() => {
+    let active = true
+    fetchSession().then(({ profile, isAuthenticated }) => {
+      if (!active) return
+      setSession({ profile, isAuthenticated })
       setIsLoading(false)
+    })
+    return () => {
+      active = false
     }
   }, [])
 
-  useEffect(() => {
-    refreshSession()
-  }, [refreshSession])
-
   const value = useMemo(
-    () => ({
-      profile,
-      isAuthenticated,
-      isLoading,
-      refreshSession,
-      logoutSession,
-    }),
-    [profile, isAuthenticated, isLoading, refreshSession, logoutSession],
+    () => ({ ...session, isLoading, refreshSession, logoutSession }),
+    [session, isLoading, refreshSession, logoutSession],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
-}
-
-export function useSession() {
-  const context = useContext(SessionContext)
-
-  if (!context) {
-    throw new Error('useSession deve ser usado dentro de SessionProvider.')
-  }
-
-  return context
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
-import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
+import { getMenuNavigationAction, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './MenuPrincipal.css'
 
 const MENU_ITEMS = [
@@ -25,14 +25,7 @@ export default function MenuPrincipal() {
     itemRefs.current.get(NAVIGABLE_ITEMS[0].label)?.focus()
 
     function handleKeyDown(event) {
-      const target = event.target
-      const isEditableTarget = target instanceof HTMLElement && (
-        target.isContentEditable ||
-        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
-        Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'))
-      )
-
-      if (document.body.classList.contains('auth-form-open') || isEditableTarget) return
+      if (document.body.classList.contains('auth-form-open') || isTypingTarget(event.target)) return
 
       if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
 
