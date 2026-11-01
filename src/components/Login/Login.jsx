@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CardUsuario from '../../components/CardUsuario/CardUsuario.jsx'
 import { useSession } from '../../context/useSession.js'
@@ -13,8 +13,6 @@ import {
   validateRegisterForm,
 } from '../../utils/authForm.js'
 import './Login.css'
-
-const AUTH_FORM_OPEN_CLASS = 'auth-form-open'
 
 const initialForm = {
   username: '',
@@ -37,25 +35,17 @@ function getLoginErrorMessage(error) {
   return message || 'Não foi possível entrar no momento.'
 }
 
-// - ref: vai para o botão que o atalho de teclado do menu seleciona (o card, se logado, ou "Entrar")
-// - modoPagina: usado na tela /entrar. Abre direto o formulário de login (sem os botões
-//   Entrar e Criar conta), sem Fechar e Cancelar, e troca entre login e cadastro por um link.
-export default function Login({ ref, className = '', modoPagina = false }) {
+// Com sessão, mostra o card do usuário (as telas internas só abrem logado). Sem sessão,
+// mostra o formulário de login, que troca para o cadastro por um link (tela /entrar).
+// - ref: vai para o card do usuário, para o atalho de teclado do menu selecioná-lo
+export default function Login({ ref, className = '' }) {
   const navigate = useNavigate()
-  const [screen, setScreen] = useState(modoPagina ? 'login' : 'options')
+  const [screen, setScreen] = useState('login')
   const [form, setForm] = useState(initialForm)
   const [statusMessage, setStatusMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const { profile, isAuthenticated, refreshSession, logoutSession } = useSession()
-
-  useEffect(() => {
-    if (modoPagina) return
-    document.body.classList.toggle(AUTH_FORM_OPEN_CLASS, screen !== 'options')
-    return () => {
-      document.body.classList.remove(AUTH_FORM_OPEN_CLASS)
-    }
-  }, [screen, modoPagina])
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -68,14 +58,6 @@ export default function Login({ ref, className = '', modoPagina = false }) {
     setScreen(nextScreen)
     setForm(initialForm)
     setStatusMessage('')
-  }
-
-  function resetToOptions() {
-    setScreen('options')
-    setForm(initialForm)
-    setStatusMessage('')
-    setIsSubmitting(false)
-    setIsUserMenuOpen(false)
   }
 
   async function handleRegisterSubmit(event) {
@@ -140,7 +122,6 @@ export default function Login({ ref, className = '', modoPagina = false }) {
       }
 
       setForm(initialForm)
-      setScreen('options')
       setStatusMessage('')
     } catch (error) {
       setStatusMessage(getLoginErrorMessage(error))
@@ -159,43 +140,26 @@ export default function Login({ ref, className = '', modoPagina = false }) {
     }
   }
 
-  function renderOptions() {
-    if (isAuthenticated && profile?.username) {
-      return (
-        <div className={`login ${className}`} role="group" aria-label="Perfil do usuário">
-          <div className="login__user-card">
-            <CardUsuario ref={ref} nome={profile.username} onClick={() => setIsUserMenuOpen((open) => !open)} />
-            {isUserMenuOpen && (
-              <div className="login__user-menu" aria-label="Opções da conta">
-                <button type="button" className="login__user-menu-button" onClick={() => navigate(ROUTES.perfil)}>
-                  Perfil
-                </button>
-                <button type="button" className="login__user-menu-button" onClick={handleLogout}>
-                  Sair da conta
-                </button>
-                {statusMessage && (
-                  <span className="login__status" role="status" aria-live="polite">
-                    {statusMessage}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )
-    }
-
+  function renderUserCard() {
     return (
-      <div className={`login ${className}`} role="group" aria-label="Acesso do usuário">
-        <div className="login__panel">
-          <div className="login__actions">
-            <button type="button" className="login__action" ref={ref} onClick={() => setScreen('login')}>
-              Entrar
-            </button>
-            <button type="button" className="login__action" onClick={() => setScreen('register')}>
-              Criar conta
-            </button>
-          </div>
+      <div className={`login ${className}`} role="group" aria-label="Perfil do usuário">
+        <div className="login__user-card">
+          <CardUsuario ref={ref} nome={profile.username} onClick={() => setIsUserMenuOpen((open) => !open)} />
+          {isUserMenuOpen && (
+            <div className="login__user-menu" aria-label="Opções da conta">
+              <button type="button" className="login__user-menu-button" onClick={() => navigate(ROUTES.perfil)}>
+                Perfil
+              </button>
+              <button type="button" className="login__user-menu-button" onClick={handleLogout}>
+                Sair da conta
+              </button>
+              {statusMessage && (
+                <span className="login__status" role="status" aria-live="polite">
+                  {statusMessage}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -205,16 +169,9 @@ export default function Login({ ref, className = '', modoPagina = false }) {
     const isRegister = screen === 'register'
 
     return (
-      <div className={`login login--open ${modoPagina ? 'login--pagina' : ''} ${className}`} role="dialog" aria-modal="false" aria-label={isRegister ? 'Criar conta' : 'Entrar'}>
-        <div className="login__panel login__panel--form">
-          <div className="login__header">
-            <h2 className="login__title">{isRegister ? 'Criar conta' : 'Entrar'}</h2>
-            {!modoPagina && (
-              <button type="button" className="login__close" onClick={resetToOptions} aria-label="Fechar formulário">
-                Fechar
-              </button>
-            )}
-          </div>
+      <div className={`login ${className}`} role="group" aria-label={isRegister ? 'Criar conta' : 'Entrar'}>
+        <div className="login__panel">
+          <h2 className="login__title">{isRegister ? 'Criar conta' : 'Entrar'}</h2>
 
           <form className="login__form" onSubmit={isRegister ? handleRegisterSubmit : handleLoginSubmit}>
             {isRegister && (
@@ -225,7 +182,7 @@ export default function Login({ ref, className = '', modoPagina = false }) {
                   type="text"
                   name="username"
                   value={form.username}
-                  autoFocus={modoPagina}
+                  autoFocus
                   onChange={handleChange}
                   placeholder="jogador123"
                 />
@@ -239,7 +196,7 @@ export default function Login({ ref, className = '', modoPagina = false }) {
                 type="email"
                 name="email"
                 value={form.email}
-                autoFocus={modoPagina && !isRegister}
+                autoFocus={!isRegister}
                 onChange={handleChange}
                 placeholder="jogador@email.com"
               />
@@ -278,29 +235,22 @@ export default function Login({ ref, className = '', modoPagina = false }) {
             )}
 
             <div className="login__form-actions">
-              {!modoPagina && (
-                <button type="button" className="login__button login__button--secondary" onClick={resetToOptions}>
-                  Cancelar
-                </button>
-              )}
               <button type="submit" className="login__button login__button--primary" disabled={isSubmitting}>
                 {isSubmitting ? 'Aguarde...' : isRegister ? 'Criar conta' : 'Entrar'}
               </button>
             </div>
           </form>
 
-          {modoPagina && (
-            <p className="login__troca">
-              {isRegister ? 'Já tem uma conta? ' : 'Não tem uma conta? '}
-              <button type="button" className="login__troca-botao" onClick={() => switchForm(isRegister ? 'login' : 'register')}>
-                {isRegister ? 'Entrar' : 'Criar conta'}
-              </button>
-            </p>
-          )}
+          <p className="login__troca">
+            {isRegister ? 'Já tem uma conta? ' : 'Não tem uma conta? '}
+            <button type="button" className="login__troca-botao" onClick={() => switchForm(isRegister ? 'login' : 'register')}>
+              {isRegister ? 'Entrar' : 'Criar conta'}
+            </button>
+          </p>
         </div>
       </div>
     )
   }
 
-  return screen === 'options' ? renderOptions() : renderForm()
+  return isAuthenticated && profile?.username ? renderUserCard() : renderForm()
 }

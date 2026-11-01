@@ -26,7 +26,7 @@ export default function MenuPrincipal() {
     itemRefs.current.get(NAVIGABLE_ITEMS[0].label)?.focus()
 
     function handleKeyDown(event) {
-      if (document.body.classList.contains('auth-form-open') || isTypingTarget(event.target)) return
+      if (isTypingTarget(event.target)) return
 
       if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
 

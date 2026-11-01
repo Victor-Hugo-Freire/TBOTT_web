@@ -27,7 +27,7 @@ export default function Entrar() {
             Sua sessão expirou. Entre de novo.
           </p>
         )}
-        <Login modoPagina className="entrar__login" />
+        <Login className="entrar__login" />
       </section>
     </main>
   )
