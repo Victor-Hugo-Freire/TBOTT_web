@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
@@ -123,17 +124,7 @@ export default function SessaoPersonagem() {
 
       <div className="sessao-personagem__layout">
         <header className="sessao-personagem__header">
-          <button
-          className="menu-principal__voltar"
-          ref={backRef}
-          type="button"
-          aria-label="Voltar para a tela inicial"
-          onClick={() => navigate(ROUTES.menuPrincipal)}
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M15 5 8 12l7 7" />
-          </svg>
-        </button>
+          <BotaoVoltar ref={backRef} label="Voltar para o menu" onClick={() => navigate(ROUTES.menuPrincipal)} />
 
           <Login className="sessao-personagem__usuario" />
         </header>

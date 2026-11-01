@@ -1,43 +1,208 @@
 .opcoes {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 1.5rem;
-  background: #1b1b1b;
+  overflow: auto;
+  padding: clamp(5rem, 11vh, 7rem) 1.25rem 2rem;
+  background: #1a1a1a;
+  color: #f5f5f5;
+  animation: opcoes-surgir 350ms ease-out both;
+}
+
+.opcoes__usuario {
+  position: absolute;
+  top: clamp(0.5rem, 0.85vw, 0.75rem);
+  right: clamp(0.75rem, 2vw, 1.5rem);
 }
 
 .opcoes__painel {
   display: grid;
-  width: min(100%, 38rem);
-  gap: 1.5rem;
-  padding: clamp(1.5rem, 5vw, 2.5rem);
+  width: min(100%, 42rem);
+  gap: clamp(1.25rem, 4vw, 2rem);
+  padding: clamp(1.5rem, 5vw, 2.75rem);
   border-radius: 0.5rem;
-  background: #333;
+  background: #444;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.22);
 }
 
 .opcoes__painel h1 {
   margin: 0;
-  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
-.opcoes__voltar {
-  justify-self: start;
-  min-height: 2.75rem;
-  padding: 0.6rem 1rem;
-  border: 1px solid #aaa;
+.opcoes__lista {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.opcoes__ajuda {
+  margin: -1rem 0 0;
+  color: #ddd;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.opcoes__volume,
+.opcoes__item {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(10rem, 1.15fr);
+  align-items: center;
+  gap: 1.5rem;
+  min-height: 3.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
   border-radius: 0.35rem;
-  background: #444;
+  background: transparent;
   color: inherit;
   font: inherit;
+  font-size: clamp(1rem, 2.4vw, 1.35rem);
+  font-weight: 700;
+  text-align: left;
+}
+
+.opcoes__rotulo,
+.opcoes__item {
+  text-transform: uppercase;
+}
+
+.opcoes__controle-volume {
+  display: grid;
+  grid-template-columns: minmax(4rem, 1fr) 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.opcoes__controle-volume input {
+  width: 100%;
+  margin: 0;
+  accent-color: #e8d2b0;
   cursor: pointer;
 }
 
-.opcoes__voltar:hover {
-  background: #555;
+.opcoes__controle-volume output {
+  color: #ddd;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
-.opcoes__voltar:focus-visible {
+.opcoes__item {
+  width: 100%;
+  cursor: pointer;
+}
+
+.opcoes__item span {
+  justify-self: end;
+}
+
+.opcoes__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.opcoes__controles {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.opcoes__controles p {
+  margin: 0;
+  color: #ddd;
+}
+
+.opcoes__controles dl {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.opcoes__controles dl > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 1.15fr;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem;
+  border-radius: 0.35rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.opcoes__controles dt {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.opcoes__controles dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.opcoes__controles kbd {
+  display: inline-grid;
+  min-width: 2rem;
+  min-height: 2rem;
+  place-items: center;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.3rem;
+  background: rgba(0, 0, 0, 0.25);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.opcoes__item--voltar {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.opcoes__aviso {
+  margin: 0;
+  color: #ffe0a6;
+  line-height: 1.5;
+}
+
+.opcoes__item:focus-visible,
+.opcoes__controle-volume input:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 3px;
+}
+
+@keyframes opcoes-surgir {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .opcoes {
+    padding-inline: 1rem;
+  }
+
+  .opcoes__painel {
+    gap: 1.25rem;
+    padding: 1.25rem;
+  }
+
+  .opcoes__volume,
+  .opcoes__item,
+  .opcoes__controles dl > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .opcoes__controle-volume {
+    grid-template-columns: minmax(4rem, 1fr) 3rem;
+  }
+
+  .opcoes__item span {
+    justify-self: start;
+  }
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { getMenuNavigationAction, isTypingTarget } from '../src/utils/menuKeyboard.js'
+import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../src/utils/menuKeyboard.js'
 
 describe('isTypingTarget', () => {
   test('campos de texto e áreas editáveis seguram os atalhos', () => {
@@ -47,5 +47,22 @@ describe('getMenuNavigationAction (menu principal)', () => {
     assert.equal(getMenuNavigationAction('Enter'), null)
     assert.equal(getMenuNavigationAction(' '), null)
     assert.equal(getMenuNavigationAction(undefined), null)
+  })
+})
+
+describe('getNextIndex', () => {
+  test('down avança e up volta um item', () => {
+    assert.equal(getNextIndex(1, 'down', 4), 2)
+    assert.equal(getNextIndex(1, 'up', 4), 0)
+  })
+
+  test('dá a volta nas pontas da lista', () => {
+    assert.equal(getNextIndex(3, 'down', 4), 0)
+    assert.equal(getNextIndex(0, 'up', 4), 3)
+  })
+
+  test('sem item focado, down vai ao primeiro e up ao último', () => {
+    assert.equal(getNextIndex(-1, 'down', 4), 0)
+    assert.equal(getNextIndex(-1, 'up', 4), 3)
   })
 })
