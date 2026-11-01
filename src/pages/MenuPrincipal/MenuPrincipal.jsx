@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import CardUsuario from '../../components/CardUsuario/CardUsuario.jsx'
+import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
 import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
 import './MenuPrincipal.css'
@@ -25,6 +25,15 @@ export default function MenuPrincipal() {
     itemRefs.current.get(NAVIGABLE_ITEMS[0].label)?.focus()
 
     function handleKeyDown(event) {
+      const target = event.target
+      const isEditableTarget = target instanceof HTMLElement && (
+        target.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+        Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'))
+      )
+
+      if (document.body.classList.contains('auth-form-open') || isEditableTarget) return
+
       if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
 
       const action = getMenuNavigationAction(event.key)
@@ -74,12 +83,7 @@ export default function MenuPrincipal() {
           </svg>
         </button>
 
-        <CardUsuario
-          className="menu-principal__usuario"
-          ref={userRef}
-          nome="(nome do usuário)"
-          onClick={() => navigate(ROUTES.perfil)}
-        />
+        <Login className="menu-principal__usuario" ref={userRef} />
 
         <nav className="menu-principal__painel" aria-label="Opções do jogo">
           <h1 className="visually-hidden">Menu principal</h1>

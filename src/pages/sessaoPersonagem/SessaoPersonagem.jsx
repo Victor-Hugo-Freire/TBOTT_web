@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import CardUsuario from '../../components/CardUsuario/CardUsuario.jsx'
+import Login from '../../components/Login/Login.jsx'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import './SessaoPersonagem.css'
@@ -135,11 +135,7 @@ export default function SessaoPersonagem() {
           </svg>
         </button>
 
-          <CardUsuario
-            className="sessao-personagem__usuario"
-            nome="(nome do usuário)"
-            onClick={() => navigate(ROUTES.perfil)}
-          />
+          <Login className="sessao-personagem__usuario" />
         </header>
 
         <section className="sessao-personagem__carrossel" aria-live="polite">
