@@ -109,8 +109,8 @@ describe('moveRoomPlayer (colisão com as bordas)', () => {
   test('mantém os pés dentro do piso da sala de 1200x853', () => {
     assert.deepEqual(ROOM_SIZE, { width: 1200, height: 853 })
     assert.deepEqual(ROOM_PLAYER_BOUNDS, {
-      minX: 25,
-      maxX: 1170,
+      minX: 42,
+      maxX: 1158,
       minY: 261,
       maxY: 741,
     })

@@ -11,16 +11,16 @@ export const PLAYER_FEET_BOX = { width: 44, height: 18 }
 // Paredes (sólidos), em unidades da sala. Elas passam da borda da sala e têm mais de
 // 100 de espessura, bem mais que o passo máximo (260 x 0,05 = 13), então nada atravessa.
 export const ROOM_WALLS = [
-  { x: -100, y: -100, width: 1400, height: 343 }, // em cima (até y = 243)
-  { x: -100, y: 741, width: 1400, height: 212 }, // embaixo (a partir de y = 741)
-  { x: -100, y: -100, width: 103, height: 1053 }, // esquerda (até x = 3)
-  { x: 1192, y: -100, width: 108, height: 1053 }, // direita (a partir de x = 1192)
+  { x: -100, y: -100, width: 1400, height: 343 }, // em cima
+  { x: -335, y: 741, width: 1925, height: 250 }, // embaixo
+  { x: -335, y: -100, width: 53, height: 1053 }, // esquerda
+  { x: 1482, y: -100, width: 108, height: 1053 }, // direita
 ]
 
 // Onde os pés podem ficar, calculado das paredes: x de 25 a 1170 e y de 261 a 741
 export const ROOM_PLAYER_BOUNDS = {
-  minX: 3 + PLAYER_FEET_BOX.width / 2,
-  maxX: 1192 - PLAYER_FEET_BOX.width / 2,
+  minX: -50 + PLAYER_FEET_BOX.width / 2,
+  maxX: 1242 - PLAYER_FEET_BOX.width / 2,
   minY: 243 + PLAYER_FEET_BOX.height,
   maxY: 741,
 }
@@ -86,8 +86,14 @@ export function moveRoomPlayer(position, movement, deltaSeconds, speedMultiplier
     movement.y * distance,
     ROOM_WALLS,
   )
-  const x = box.x + width / 2
-  const y = box.y + height
+  let x = box.x + width / 2
+  let y = box.y + height
+
+  // Só trava o topo em canto; não força o personagem para o lado, senão ocorre teleporte.
+  const topCornerEscape = y < ROOM_PLAYER_BOUNDS.minY && (x <= ROOM_PLAYER_BOUNDS.minX || x >= ROOM_PLAYER_BOUNDS.maxX)
+  if (topCornerEscape) {
+    y = ROOM_PLAYER_BOUNDS.minY
+  }
 
   if (x === position.x && y === position.y) return position
   return { x, y }
