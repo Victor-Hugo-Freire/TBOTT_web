@@ -38,9 +38,11 @@ function getLoginErrorMessage(error) {
 }
 
 // - ref: vai para o botão que o atalho de teclado do menu seleciona (o card, se logado, ou "Entrar")
-export default function Login({ ref, className = '' }) {
+// - modoPagina: usado na tela /entrar. Abre direto o formulário de login (sem os botões
+//   Entrar e Criar conta), sem Fechar e Cancelar, e troca entre login e cadastro por um link.
+export default function Login({ ref, className = '', modoPagina = false }) {
   const navigate = useNavigate()
-  const [screen, setScreen] = useState('options')
+  const [screen, setScreen] = useState(modoPagina ? 'login' : 'options')
   const [form, setForm] = useState(initialForm)
   const [statusMessage, setStatusMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -48,16 +50,24 @@ export default function Login({ ref, className = '' }) {
   const { profile, isAuthenticated, refreshSession, logoutSession } = useSession()
 
   useEffect(() => {
+    if (modoPagina) return
     document.body.classList.toggle(AUTH_FORM_OPEN_CLASS, screen !== 'options')
     return () => {
       document.body.classList.remove(AUTH_FORM_OPEN_CLASS)
     }
-  }, [screen])
+  }, [screen, modoPagina])
 
   function handleChange(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
     if (statusMessage) setStatusMessage('')
+  }
+
+  // Alterna entre o login e o cadastro, começando o outro formulário limpo
+  function switchForm(nextScreen) {
+    setScreen(nextScreen)
+    setForm(initialForm)
+    setStatusMessage('')
   }
 
   function resetToOptions() {
@@ -195,13 +205,15 @@ export default function Login({ ref, className = '' }) {
     const isRegister = screen === 'register'
 
     return (
-      <div className={`login login--open ${className}`} role="dialog" aria-modal="false" aria-label={isRegister ? 'Criar conta' : 'Entrar'}>
+      <div className={`login login--open ${modoPagina ? 'login--pagina' : ''} ${className}`} role="dialog" aria-modal="false" aria-label={isRegister ? 'Criar conta' : 'Entrar'}>
         <div className="login__panel login__panel--form">
           <div className="login__header">
             <h2 className="login__title">{isRegister ? 'Criar conta' : 'Entrar'}</h2>
-            <button type="button" className="login__close" onClick={resetToOptions} aria-label="Fechar formulário">
-              Fechar
-            </button>
+            {!modoPagina && (
+              <button type="button" className="login__close" onClick={resetToOptions} aria-label="Fechar formulário">
+                Fechar
+              </button>
+            )}
           </div>
 
           <form className="login__form" onSubmit={isRegister ? handleRegisterSubmit : handleLoginSubmit}>
@@ -213,6 +225,7 @@ export default function Login({ ref, className = '' }) {
                   type="text"
                   name="username"
                   value={form.username}
+                  autoFocus={modoPagina}
                   onChange={handleChange}
                   placeholder="jogador123"
                 />
@@ -226,6 +239,7 @@ export default function Login({ ref, className = '' }) {
                 type="email"
                 name="email"
                 value={form.email}
+                autoFocus={modoPagina && !isRegister}
                 onChange={handleChange}
                 placeholder="jogador@email.com"
               />
@@ -264,14 +278,25 @@ export default function Login({ ref, className = '' }) {
             )}
 
             <div className="login__form-actions">
-              <button type="button" className="login__button login__button--secondary" onClick={resetToOptions}>
-                Cancelar
-              </button>
+              {!modoPagina && (
+                <button type="button" className="login__button login__button--secondary" onClick={resetToOptions}>
+                  Cancelar
+                </button>
+              )}
               <button type="submit" className="login__button login__button--primary" disabled={isSubmitting}>
                 {isSubmitting ? 'Aguarde...' : isRegister ? 'Criar conta' : 'Entrar'}
               </button>
             </div>
           </form>
+
+          {modoPagina && (
+            <p className="login__troca">
+              {isRegister ? 'Já tem uma conta? ' : 'Não tem uma conta? '}
+              <button type="button" className="login__troca-botao" onClick={() => switchForm(isRegister ? 'login' : 'register')}>
+                {isRegister ? 'Entrar' : 'Criar conta'}
+              </button>
+            </p>
+          )}
         </div>
       </div>
     )

@@ -221,3 +221,29 @@
     width: 100%;
   }
 }
+
+/* Tela /entrar: o formulário fica na própria página, sem fundo escurecido por cima */
+.login--pagina {
+  position: static;
+  background: none;
+}
+
+.login__troca {
+  margin: 1rem 0 0;
+  text-align: center;
+}
+
+.login__troca-botao {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.login__troca-botao:focus-visible {
+  outline: 3px solid var(--color-text-light);
+  outline-offset: 3px;
+}

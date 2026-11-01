@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { apiRequest } from '../services/api.js'
+import { apiRequest, setSessionExpiredHandler } from '../services/api.js'
 import { SessionContext } from './useSession.js'
 
 const NO_SESSION = { profile: null, isAuthenticated: false }
@@ -20,10 +20,13 @@ async function fetchSession() {
 export function SessionProvider({ children }) {
   const [session, setSession] = useState(NO_SESSION)
   const [isLoading, setIsLoading] = useState(true)
+  // true quando a API recusou a sessão no meio do jogo: a tela de entrar mostra o aviso
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const refreshSession = useCallback(async () => {
     const result = await fetchSession()
     setSession({ profile: result.profile, isAuthenticated: result.isAuthenticated })
+    if (result.isAuthenticated) setSessionExpired(false)
     setIsLoading(false)
     return result
   }, [])
@@ -37,6 +40,17 @@ export function SessionProvider({ children }) {
       if (error?.status !== 401) throw error
     }
     setSession(NO_SESSION)
+    setSessionExpired(false)
+  }, [])
+
+  // Qualquer 401 de uma rota de dados (veja apiRequest) limpa a sessão; a RotaProtegida
+  // leva o jogador para a tela de entrar.
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      setSession(NO_SESSION)
+      setSessionExpired(true)
+    })
+    return () => setSessionExpiredHandler(null)
   }, [])
 
   // Consulta a sessão ao abrir o jogo. O setState fica dentro do .then (e não em refreshSession)
@@ -54,8 +68,8 @@ export function SessionProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ ...session, isLoading, refreshSession, logoutSession }),
-    [session, isLoading, refreshSession, logoutSession],
+    () => ({ ...session, isLoading, sessionExpired, refreshSession, logoutSession }),
+    [session, isLoading, sessionExpired, refreshSession, logoutSession],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
