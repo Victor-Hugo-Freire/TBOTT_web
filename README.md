@@ -137,16 +137,16 @@ Depois da seleção de personagem, `/jogo` mostra a sala de madeira e o personag
 
 **Controles**
 
-- **W**, **A**, **S** e **D** movem o personagem; segurar uma tecla mantém o movimento e as diagonais são aceitas (a velocidade não aumenta). As teclas valem pela posição física (`event.code`), em qualquer layout de teclado.
+- **W**, **A**, **S** e **D** movem o personagem; segurar uma tecla mantém o movimento e as diagonais são aceitas (a velocidade não aumenta). Com teclas opostas seguradas (A e D, ou W e S), vale a última apertada. As teclas valem pela posição física (`event.code`), em qualquer layout de teclado.
 - **Setas** atacam com o bastão na direção da seta. Segurar repete o golpe; com duas setas apertadas, vale a última pressionada.
 - **Esc:** retorna provisoriamente ao menu principal.
 - **F3** (só em `npm run dev`): mostra as paredes, a caixa dos pés e a área do golpe. Não existe no build.
 
 **Como funciona**
 
-- **Canvas em tela cheia** (`SalaInicial.jsx` e `scene/`). A sala (1200x853 unidades, com o piso aumentado em relação à referência) é desenhada por código, com escala uniforme (*contain*) e faixa na cor de fundo do jogo; nada é distorcido nem cortado. O canvas usa `devicePixelRatio`, e o personagem é desenhado com suavização alta, porque aparece reduzido. O jogo roda em `requestAnimationFrame`, sem renderizar o React a cada quadro.
+- **Canvas em tela cheia** (`SalaInicial.jsx` e `scene/`). A sala (1600x853 unidades) é desenhada por código no estilo do protótipo (painéis, viga, tijolos, piso de tábuas, rodapé e paredes laterais de pedra), com escala uniforme, e a área de andar é sempre a mesma em qualquer tela. A tela pode cortar até 30 u da borda de cima e de baixo (`ROOM_VIEW_CROP`, em `scene/view.js`). Em tela mais larga que a sala, as paredes laterais continuam até a borda da tela, escurecendo aos poucos (nunca chegam ao preto); a coluna junto do piso é um degradê, e o piso recebe a sombra das paredes e uma vinheta nos cantos, para dar profundidade. Parado por 120 ms, o personagem fica de frente (a espera evita que ele pisque de frente ao trocar de tecla). No alto, um contador (`HH:MM:SS.cc`, `scene/drawTimer.js`) conta o tempo real desde que a sala abre. O canvas usa `devicePixelRatio`, e o personagem é desenhado com suavização alta, porque aparece reduzido. O jogo roda em `requestAnimationFrame`, sem renderizar o React a cada quadro.
 - **Imagem de referência:** `docs/referencias/sala-inicial-vazia.png` serve só de referência de arte (as cores e as faixas foram medidas nela). Não é carregada pelo jogo nem entra no pacote.
-- **Colisão** (`src/utils/collision.js`): retângulos. O personagem tem uma caixa de 44x18 u nos pés; as paredes (`ROOM_WALLS`) são retângulos. O movimento é resolvido no eixo X e depois no Y, com encaixe exato: o personagem desliza na parede e não treme. Os pés ficam em x de 25 a 1170 e y de 261 a 741. A mesma função serve depois para inimigos, portas e golpes.
+- **Colisão** (`src/utils/collision.js`): retângulos. O personagem tem uma caixa de 44x18 u nos pés; as paredes (`ROOM_WALLS`) são retângulos. O movimento é resolvido no eixo X e depois no Y, com encaixe exato: o personagem desliza na parede e não treme. Na sala de 1600 u, os pés ficam em x de 140 a 1460 e y de 291 a 786, então o corpo e o bastão nunca saem da sala, nem em tela estreita. A mesma função serve depois para inimigos, portas e golpes.
 - **Pés como referência:** a posição é o centro dos pés e toda folha é desenhada a partir deles, então trocar de animação não faz o personagem "pular". A sombra (`drawShadow.js`) é só visual.
 
 **Animações** (`src/data/characterSprites.js`)
@@ -158,7 +158,7 @@ Depois da seleção de personagem, `/jogo` mostra a sala de madeira e o personag
 | Ataque | 8 | 630 ms (70, 90, 40, 40, 110, 80, 90 e 110) | 420x380 |
 | Dano | 4 | 410 ms (70, 110, 110 e 120) | 296x259 |
 
-- O quadro do andar depende da **distância andada**, e não do tempo: ao parar, ou ao empurrar a parede, as pernas voltam ao quadro parado. Com "reduzir movimento" no sistema, o andar fica parado.
+- O quadro do andar depende da **distância andada**, e não do tempo: ao parar (depois de 120 ms), ou ao empurrar a parede, as pernas voltam ao quadro parado. Com "reduzir movimento" no sistema, o andar fica parado.
 - O personagem é desenhado em **duas camadas**: as pernas (`pernas.png`) atrás e o tronco (`andar.png` ou `ataque.png`) na frente. Por isso as pernas continuam andando durante o golpe.
 - O tronco (cabeça, corpo, braço e bastão) vem do original, sem as pernas; no andar ele sobe e desce e o bastão balança (mais de frente e de costas). As pernas foram desenhadas por código com o mesmo material do tronco (grade de 3 px, tom, grão e contorno de 9 px): o rosto e a paleta não mudam.
 - O ataque e o dano vêm da pesquisa de sprites e têm os pixels do original (o ataque sem as pernas e o último quadro do dano com a pose parada nova).

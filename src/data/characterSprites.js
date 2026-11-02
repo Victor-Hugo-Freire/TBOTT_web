@@ -4,6 +4,10 @@
 // Em todos os quadros a cabeça fica no centro da célula e os pés na mesma altura,
 // então trocar de quadro não faz o personagem "pular" de lugar.
 // - feetPadding: pixels livres entre os pés e a base da célula
+// A vista esquerda do original é cerca de 4% menor que as outras (cabeça de 137 contra 142 px):
+// o jogo a desenha 4% maior, a partir dos pés. As pernas já têm o mesmo tamanho dos dois lados.
+const LEFT_VIEW_SCALE = { left: 1.04 }
+
 export const CHARACTER_SPRITES = {
   // Sala: o personagem é desenhado em duas camadas, para as pernas continuarem andando durante o golpe.
   // 1) Pernas (atrás): ciclo de 12 quadros por direção, mais o quadro 12 (parado). Desenhadas por código com o
@@ -29,6 +33,7 @@ export const CHARACTER_SPRITES = {
     feetPadding: 18,
     framesPerRow: 12,
     rows: { down: 0, left: 1, right: 2, up: 3 },
+    directionScale: LEFT_VIEW_SCALE,
   },
   // Sala: golpe com o bastão, 8 quadros por direção (preparação, arco, impacto e volta).
   // A folha não tem rastro, brilho nem pernas: o arco branco é desenhado pelo jogo (drawAttackArc.js)
@@ -47,6 +52,7 @@ export const CHARACTER_SPRITES = {
     rows: { down: 0, left: 1, right: 2, up: 3 },
     durations: [70, 90, 40, 40, 110, 80, 90, 110],
     hitFrames: [2, 3, 4],
+    directionScale: LEFT_VIEW_SCALE,
   },
   // Sala: dano, 4 quadros por direção (impacto, recuo, recuperação, volta ao normal; 410 ms).
   // O recuo já está desenhado nos quadros: os pés se mexem alguns pixels e voltam ao ponto original.
@@ -58,6 +64,7 @@ export const CHARACTER_SPRITES = {
     framesPerRow: 4,
     rows: { down: 0, left: 1, right: 2, up: 3 },
     durations: [70, 110, 110, 120],
+    directionScale: LEFT_VIEW_SCALE,
   },
   // Tela inicial: corpo inteiro piscando (quadros: aberto, meio, fechado, meio)
   tungTungSahurPiscar: {

@@ -9,6 +9,8 @@ export function drawSprite(ctx, image, sprite, direction, frame, feet, scale = P
 
   const pivotX = sprite.feetX ?? sprite.frameWidth / 2
   const pivotY = sprite.frameHeight - sprite.feetPadding
+  // Algumas direções da arte original são menores que as outras: directionScale corrige isso, a partir dos pés
+  const size = scale * (sprite.directionScale?.[direction] ?? 1)
 
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
@@ -18,9 +20,9 @@ export function drawSprite(ctx, image, sprite, direction, frame, feet, scale = P
     sprite.rows[direction] * sprite.frameHeight,
     sprite.frameWidth,
     sprite.frameHeight,
-    feet.x - pivotX * scale,
-    feet.y - pivotY * scale,
-    sprite.frameWidth * scale,
-    sprite.frameHeight * scale,
+    feet.x - pivotX * size,
+    feet.y - pivotY * size,
+    sprite.frameWidth * size,
+    sprite.frameHeight * size,
   )
 }

@@ -1,8 +1,8 @@
 import { moveAndCollide } from './collision.js'
 
-// Tamanho da sala em unidades. A proporção é a da imagem de referência (1080x768), com cerca de 11% mais
-// área de piso para andar; o personagem não muda de tamanho.
-export const ROOM_SIZE = { width: 1200, height: 853 }
+// Tamanho da sala em unidades, com as paredes. A proporção é quase 16:9, como as salas do Isaac:
+// assim a sala ocupa telas largas e celulares deitados sem deixar faixas grandes nos lados.
+export const ROOM_SIZE = { width: 1600, height: 853 }
 
 // A posição do personagem é o centro dos pés. A colisão usa só uma caixa nos pés
 // (e não o corpo todo), então a cabeça pode passar por cima da parede de cima.
@@ -10,19 +10,26 @@ export const PLAYER_FEET_BOX = { width: 44, height: 18 }
 
 // Paredes (sólidos), em unidades da sala. Elas passam da borda da sala e têm mais de
 // 100 de espessura, bem mais que o passo máximo (260 x 0,05 = 13), então nada atravessa.
+// A sala é uma caixa fechada de tamanho fixo (igual em qualquer tela), com parede dos quatro lados.
+// ROOM_FLOOR é a borda do piso, medida no protótipo da sala inicial: o desenho e a colisão usam a mesma.
+export const ROOM_FLOOR = { left: 118, top: 265, right: ROOM_SIZE.width - 118, bottom: 786 }
+
+const OUTSIDE = 100 // quanto cada parede passa da borda da sala
+const TOP_WALL_END = ROOM_FLOOR.top + 8 // os pés param um pouco abaixo da viga
 export const ROOM_WALLS = [
-  { x: -100, y: -100, width: 1400, height: 343 }, // em cima
-  { x: -335, y: 741, width: 1925, height: 250 }, // embaixo
-  { x: -335, y: -100, width: 53, height: 1053 }, // esquerda
-  { x: 1482, y: -100, width: 108, height: 1053 }, // direita
+  { x: -OUTSIDE, y: -OUTSIDE, width: ROOM_SIZE.width + 2 * OUTSIDE, height: OUTSIDE + TOP_WALL_END }, // em cima
+  { x: -OUTSIDE, y: ROOM_FLOOR.bottom, width: ROOM_SIZE.width + 2 * OUTSIDE, height: ROOM_SIZE.height - ROOM_FLOOR.bottom + OUTSIDE }, // embaixo
+  { x: -OUTSIDE, y: -OUTSIDE, width: OUTSIDE + ROOM_FLOOR.left, height: ROOM_SIZE.height + 2 * OUTSIDE }, // esquerda
+  { x: ROOM_FLOOR.right, y: -OUTSIDE, width: ROOM_SIZE.width - ROOM_FLOOR.right + OUTSIDE, height: ROOM_SIZE.height + 2 * OUTSIDE }, // direita
 ]
 
-// Onde os pés podem ficar, calculado das paredes: x de 25 a 1170 e y de 261 a 741
+// Onde os pés podem ficar, calculado das paredes: x de 140 a 1460 e y de 291 a 786.
+// O corpo e o bastão alcançam até cerca de 58 u para cada lado dos pés, então ficam dentro da sala.
 export const ROOM_PLAYER_BOUNDS = {
-  minX: -50 + PLAYER_FEET_BOX.width / 2,
-  maxX: 1242 - PLAYER_FEET_BOX.width / 2,
-  minY: 243 + PLAYER_FEET_BOX.height,
-  maxY: 741,
+  minX: ROOM_FLOOR.left + PLAYER_FEET_BOX.width / 2,
+  maxX: ROOM_FLOOR.right - PLAYER_FEET_BOX.width / 2,
+  minY: TOP_WALL_END + PLAYER_FEET_BOX.height,
+  maxY: ROOM_FLOOR.bottom,
 }
 
 // Onde o personagem começa (pés)
@@ -62,11 +69,17 @@ export function shouldReturnToMenu(key) {
   return typeof key === 'string' && key.toLowerCase() === 'escape'
 }
 
+// Um eixo do movimento: -1, 0 ou 1. Com as duas teclas opostas seguradas, vale a última apertada
+// (como nas setas), para trocar de lado sem parar.
+function getAxis(keys, negativeKeys, positiveKeys) {
+  const last = [...keys].reverse().find((code) => negativeKeys.includes(code) || positiveKeys.includes(code))
+  if (!last) return 0
+  return positiveKeys.includes(last) ? 1 : -1
+}
+
 export function getRoomMovement(keys) {
-  const horizontal = Number(MOVEMENT_KEYS.right.some((key) => keys.has(key)))
-    - Number(MOVEMENT_KEYS.left.some((key) => keys.has(key)))
-  const vertical = Number(MOVEMENT_KEYS.down.some((key) => keys.has(key)))
-    - Number(MOVEMENT_KEYS.up.some((key) => keys.has(key)))
+  const horizontal = getAxis(keys, MOVEMENT_KEYS.left, MOVEMENT_KEYS.right)
+  const vertical = getAxis(keys, MOVEMENT_KEYS.up, MOVEMENT_KEYS.down)
   const magnitude = Math.hypot(horizontal, vertical)
 
   if (magnitude === 0) return { x: 0, y: 0 }
@@ -86,14 +99,8 @@ export function moveRoomPlayer(position, movement, deltaSeconds, speedMultiplier
     movement.y * distance,
     ROOM_WALLS,
   )
-  let x = box.x + width / 2
-  let y = box.y + height
-
-  // Só trava o topo em canto; não força o personagem para o lado, senão ocorre teleporte.
-  const topCornerEscape = y < ROOM_PLAYER_BOUNDS.minY && (x <= ROOM_PLAYER_BOUNDS.minX || x >= ROOM_PLAYER_BOUNDS.maxX)
-  if (topCornerEscape) {
-    y = ROOM_PLAYER_BOUNDS.minY
-  }
+  const x = box.x + width / 2
+  const y = box.y + height
 
   if (x === position.x && y === position.y) return position
   return { x, y }

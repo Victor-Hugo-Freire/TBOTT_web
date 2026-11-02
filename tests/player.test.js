@@ -14,6 +14,7 @@ import {
   INVINCIBILITY_MS,
   isAttackHitActive,
   startAttack,
+  TURN_FRONT_DELAY_MS,
   updatePlayer,
 } from '../src/utils/player.js'
 import { ROOM_PLAYER_SPEED } from '../src/utils/roomMovement.js'
@@ -169,6 +170,12 @@ describe('ataque: janela do golpe (hitbox)', () => {
     assert.ok(ATTACK_HITBOXES.up.y + ATTACK_HITBOXES.up.height <= 0)
     assert.ok(ATTACK_HITBOXES.down.y + ATTACK_HITBOXES.down.height > 0)
   })
+
+  test('o golpe para a esquerda é o espelho do da direita (mesmo alcance)', () => {
+    const { left, right } = ATTACK_HITBOXES
+    assert.deepEqual([left.width, left.height, left.y], [right.width, right.height, right.y])
+    assert.equal(left.x, -right.width)
+  })
 })
 
 describe('ataque: arco branco', () => {
@@ -308,5 +315,40 @@ describe('dano (só o estado: nada dispara o dano no jogo ainda)', () => {
     assert.deepEqual(getPlayerPose(both), { sheet: 'hurt', direction: 'down', frame: 1, legs: null })
     assert.equal(getPlayerPose({ ...base, attack: both.attack }).sheet, 'attack')
     assert.equal(getPlayerPose(base).sheet, 'walk')
+  })
+})
+
+describe('personagem parado', () => {
+  test('ao parar de andar, espera TURN_FRONT_DELAY_MS e fica de frente', () => {
+    assert.equal(TURN_FRONT_DELAY_MS, 120)
+    let player = run(createPlayer(START), { movement: { x: -1, y: 0 }, attackDirection: null }, 100).player
+    const walked = player.walkDistance
+    player = updatePlayer(player, NO_INPUT, FRAME)
+    assert.equal(player.direction, 'left', 'logo depois de soltar, continua de lado')
+    assert.equal(player.walkDistance, walked, 'e a passada não zera')
+    player = run(player, NO_INPUT, TURN_FRONT_DELAY_MS).player
+    assert.equal(player.direction, 'down')
+    assert.equal(player.walkDistance, 0)
+    assert.equal(getPlayerPose(player).direction, 'down')
+  })
+
+  test('trocar de lado com um intervalo curto entre as teclas não pisca de frente', () => {
+    let player = run(createPlayer(START), { movement: { x: -1, y: 0 }, attackDirection: null }, 100).player
+    const directions = []
+    for (const movement of [...Array(3).fill({ x: 0, y: 0 }), ...Array(3).fill({ x: 1, y: 0 })]) {
+      const walked = player.walkDistance
+      player = updatePlayer(player, { movement, attackDirection: null }, FRAME)
+      directions.push(player.direction)
+      assert.ok(player.walkDistance >= walked, 'a passada continua de onde estava')
+    }
+    assert.deepEqual(directions, ['left', 'left', 'left', 'right', 'right', 'right'])
+  })
+
+  test('durante o golpe continua virado para o golpe, e depois volta a ficar de frente', () => {
+    let player = updatePlayer(createPlayer(START), { ...NO_INPUT, attackDirection: 'left' }, FRAME)
+    player = run(player, NO_INPUT, 300).player
+    assert.equal(player.direction, 'left')
+    player = run(player, NO_INPUT, 500).player
+    assert.equal(player.direction, 'down')
   })
 })
