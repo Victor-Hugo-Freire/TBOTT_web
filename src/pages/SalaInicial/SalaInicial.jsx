@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ROUTES } from '../../routes/paths.js'
+import { formatRunTime } from '../../utils/formatDuration.js'
 import { createPlayer, updatePlayer } from '../../utils/player.js'
 import {
   getAttackDirection,
@@ -12,8 +13,9 @@ import {
 import { drawDebug } from './scene/drawDebug.js'
 import { drawPlayer } from './scene/drawPlayer.js'
 import { drawRoom } from './scene/drawRoom.js'
+import { drawTimer } from './scene/drawTimer.js'
 import { loadSheets } from './scene/sheets.js'
-import { getRoomView, getVisibleRoom } from './scene/view.js'
+import { getRoomView, ROOM_VIEW_CROP } from './scene/view.js'
 import './SalaInicial.css'
 
 // A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
@@ -53,7 +55,6 @@ export default function SalaInicial() {
     let player = createPlayer(ROOM_PLAYER_START)
     let showDebug = false // F3, só no npm run dev
     let view = getRoomView(0, 0)
-    let visibleRoom // parte da sala que aparece na tela: o fundo é desenhado até as bordas dela
     let pixelRatio = 1
 
     // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
@@ -62,7 +63,6 @@ export default function SalaInicial() {
       canvas.width = Math.round(canvas.clientWidth * pixelRatio)
       canvas.height = Math.round(canvas.clientHeight * pixelRatio)
       view = getRoomView(canvas.clientWidth, canvas.clientHeight)
-      visibleRoom = getVisibleRoom(view, canvas.clientWidth, canvas.clientHeight)
     }
 
     function handleKeyDown(event) {
@@ -98,11 +98,15 @@ export default function SalaInicial() {
     }
 
     let previousTime
+    let startTime // quando a sala abriu: o contador conta tempo real desde aí
+    let elapsedMs = 0
     let animationFrame
 
     function update(time) {
       const deltaSeconds = previousTime === undefined ? 0 : (time - previousTime) / 1000
       previousTime = time
+      startTime ??= time
+      elapsedMs = time - startTime
 
       player = updatePlayer(
         player,
@@ -120,10 +124,17 @@ export default function SalaInicial() {
       // A partir daqui, tudo é desenhado em unidades da sala
       const scale = view.scale * pixelRatio
       ctx.setTransform(scale, 0, 0, scale, view.offsetX * pixelRatio, view.offsetY * pixelRatio)
-      drawRoom(ctx, visibleRoom)
+      // As paredes laterais continuam até a borda da tela (a sobra de cada lado, em unidades da sala)
+      drawRoom(ctx, view.offsetX / view.scale)
 
       drawPlayer(ctx, sheets, player, reduceMotion)
       if (import.meta.env.DEV && showDebug) drawDebug(ctx, player)
+
+      // O contador é desenhado em pixels da tela (sem a escala da sala), para ficar nítido
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      const pixelSize = Math.max(2, Math.round(4 * scale))
+      const timerTop = Math.round((view.offsetY + (ROOM_VIEW_CROP + 12) * view.scale) * pixelRatio)
+      drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), timerTop, pixelSize)
     }
 
     resize()

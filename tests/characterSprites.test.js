@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
 import { CHARACTER_SPRITES, getFramePosition } from '../src/data/characterSprites.js'
+import { drawSprite } from '../src/pages/SalaInicial/scene/drawSprite.js'
 
 const sprite = CHARACTER_SPRITES.tungTungSahurDano // grade de 4 colunas x 4 linhas
 
@@ -101,5 +102,31 @@ describe('folhas do personagem na sala', () => {
     assert.equal(hurt.durations.length, hurt.framesPerRow)
     assert.deepEqual([hurt.frameWidth, hurt.frameHeight, hurt.feetPadding], [walk.frameWidth, walk.frameHeight, walk.feetPadding])
     assert.deepEqual(hurt.rows, walk.rows)
+  })
+})
+
+describe('drawSprite (tamanho igual nos dois lados)', () => {
+  // ctx falso: só guarda os argumentos do drawImage
+  function draw(sprite, direction) {
+    let call
+    const ctx = { drawImage: (...args) => { call = args } }
+    drawSprite(ctx, { complete: true, naturalWidth: 1 }, sprite, direction, 0, { x: 600, y: 500 }, 1)
+    const [, , , , , dx, dy, dw, dh] = call
+    return { dx, dy, dw, dh, footX: dx + (sprite.feetX ?? sprite.frameWidth / 2) * (dw / sprite.frameWidth), footY: dy + (sprite.frameHeight - sprite.feetPadding) * (dh / sprite.frameHeight) }
+  }
+
+  test('a vista esquerda é desenhada 4% maior e os pés ficam no mesmo ponto', () => {
+    for (const name of ['tungTungSahurAndar', 'tungTungSahurAtaque', 'tungTungSahurDano']) {
+      const left = draw(CHARACTER_SPRITES[name], 'left')
+      const right = draw(CHARACTER_SPRITES[name], 'right')
+      assert.ok(Math.abs(left.dw / right.dw - 1.04) < 1e-9, name)
+      assert.ok(Math.abs(left.footX - 600) < 1e-9 && Math.abs(left.footY - 500) < 1e-9, name)
+    }
+  })
+
+  test('as outras direções e as pernas não mudam de tamanho', () => {
+    const walk = CHARACTER_SPRITES.tungTungSahurAndar
+    assert.equal(draw(walk, 'down').dw, walk.frameWidth)
+    assert.equal(draw(CHARACTER_SPRITES.tungTungSahurPernas, 'left').dw, CHARACTER_SPRITES.tungTungSahurPernas.frameWidth)
   })
 })

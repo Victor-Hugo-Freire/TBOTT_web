@@ -48,7 +48,7 @@ describe('moveAndCollide', () => {
 describe('colisão com as paredes da sala', () => {
   test('os limites dos pés vêm das paredes e da caixa de 44x18', () => {
     assert.deepEqual(PLAYER_FEET_BOX, { width: 44, height: 18 })
-    assert.deepEqual(ROOM_PLAYER_BOUNDS, { minX: 25, maxX: 1170, minY: 261, maxY: 741 })
+    assert.deepEqual(ROOM_PLAYER_BOUNDS, { minX: 140, maxX: 1460, minY: 291, maxY: 786 })
   })
 
   test('as paredes são bem mais grossas que o passo máximo de um quadro', () => {
@@ -83,8 +83,8 @@ describe('colisão com as paredes da sala', () => {
 
   test('dt de 0,05 s (o máximo) não atravessa a parede, nem de canto', () => {
     const corners = [
-      [{ x: 1049, y: 655 }, { x: 1, y: 1 }],
-      [{ x: 26, y: 262 }, { x: -1, y: -1 }],
+      [{ x: 1451, y: 780 }, { x: 1, y: 1 }],
+      [{ x: 149, y: 298 }, { x: -1, y: -1 }],
     ]
     for (const [start, movement] of corners) {
       let position = start

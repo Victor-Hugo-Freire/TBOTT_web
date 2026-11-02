@@ -25,12 +25,16 @@ export const INVINCIBILITY_MS = 1000
 // Passo máximo de lógica por quadro: depois de uma pausa (aba escondida) o jogo não "pula"
 const MAX_STEP_MS = 50
 
+// Ao soltar as teclas de andar, o personagem espera um pouco antes de ficar de frente. Assim, ao trocar
+// de tecla (soltar A e apertar D), ele não pisca de frente e a passada continua de onde estava.
+export const TURN_FRONT_DELAY_MS = 120
+
 // Área do golpe, em unidades da sala e relativa aos pés. Começou como a união dos quadros 2 a 4 do
 // ataque e foi ampliada (cerca de 20% de alcance e abertura; para cima, bem mais larga).
 // O arco branco usa a mesma caixa. Ajuste olhando o debug (F3).
 export const ATTACK_HITBOXES = {
   right: { x: 0, y: -67, width: 76, height: 98 },
-  left: { x: -72, y: -68, width: 72, height: 97 },
+  left: { x: -76, y: -67, width: 76, height: 98 }, // espelho da direita (era menor porque o sprite da esquerda era menor)
   down: { x: -38, y: -30, width: 86, height: 68 },
   up: { x: -50, y: -136, width: 100, height: 92 },
 }
@@ -45,6 +49,7 @@ export function createPlayer(position) {
     hurt: null, // { direction, elapsed } enquanto a animação de dano acontece
     invincibleMs: 0, // ms de invencibilidade que ainda restam
     sinceAttackStart: Infinity, // ms desde o início do último golpe
+    stoppedMs: 0, // ms sem nenhuma tecla de andar apertada
   }
 }
 
@@ -68,12 +73,12 @@ export function startAttack(player, direction) {
   return { ...player, direction, attack: { direction, elapsed: 0 }, sinceAttackStart: 0 }
 }
 
-function getFacingDirection(movement, currentDirection) {
+// Parado (depois de TURN_FRONT_DELAY_MS), o personagem fica de frente (para baixo)
+function getFacingDirection(movement) {
   if (movement.y < 0) return 'up'
-  if (movement.y > 0) return 'down'
   if (movement.x < 0) return 'left'
   if (movement.x > 0) return 'right'
-  return currentDirection
+  return 'down'
 }
 
 // Avança o personagem um quadro.
@@ -104,9 +109,13 @@ export function updatePlayer(player, input, deltaSeconds) {
   // (a pose do golpe usa attack.direction). As pernas seguem andando: a distância continua somando.
   const { movement } = input
   const attacking = Boolean(next.attack)
-  if (!attacking && (movement.x !== 0 || movement.y !== 0)) next.direction = getFacingDirection(movement, next.direction)
+  // Parou há menos de TURN_FRONT_DELAY_MS: mantém a direção e a passada (pode estar só trocando de tecla)
+  const stopped = movement.x === 0 && movement.y === 0
+  next.stoppedMs = stopped ? player.stoppedMs + stepMs : 0
+  const pausing = stopped && next.stoppedMs < TURN_FRONT_DELAY_MS
+  if (!attacking && !pausing) next.direction = getFacingDirection(movement)
   const moved = moveRoomPlayer(next, movement, stepMs / 1000, attacking ? ATTACK_MOVE_SPEED : 1)
-  next.walkDistance = updateWalkDistance(next.walkDistance, Math.hypot(moved.x - next.x, moved.y - next.y))
+  if (!pausing) next.walkDistance = updateWalkDistance(next.walkDistance, Math.hypot(moved.x - next.x, moved.y - next.y))
   next.x = moved.x
   next.y = moved.y
   return next

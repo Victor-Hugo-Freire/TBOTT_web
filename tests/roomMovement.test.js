@@ -45,9 +45,19 @@ describe('getRoomMovement (controles da sala)', () => {
     assert.ok(movement.y < 0)
   })
 
-  test('teclas opostas se anulam', () => {
-    assert.deepEqual(getRoomMovement(new Set(['KeyW', 'KeyS'])), { x: 0, y: 0 })
-    assert.deepEqual(getRoomMovement(new Set(['KeyA', 'KeyD'])), { x: 0, y: 0 })
+  test('com teclas opostas, vale a última apertada (troca de lado sem parar)', () => {
+    assert.deepEqual(getRoomMovement(new Set(['KeyA', 'KeyD'])), { x: 1, y: 0 })
+    assert.deepEqual(getRoomMovement(new Set(['KeyD', 'KeyA'])), { x: -1, y: 0 })
+    assert.deepEqual(getRoomMovement(new Set(['KeyW', 'KeyS'])), { x: 0, y: 1 })
+  })
+
+  test('soltar a última tecla volta para a oposta que ainda está segurada', () => {
+    const keys = new Set(['KeyA', 'KeyD'])
+    keys.delete('KeyD')
+    assert.deepEqual(getRoomMovement(keys), { x: -1, y: 0 })
+    keys.add('KeyD')
+    keys.add('KeyA') // keydown repetido da tecla que já estava segurada não muda a ordem
+    assert.deepEqual(getRoomMovement(keys), { x: 1, y: 0 })
   })
 })
 
@@ -106,14 +116,19 @@ describe('getAttackDirection (setas)', () => {
 })
 
 describe('moveRoomPlayer (colisão com as bordas)', () => {
-  test('mantém os pés dentro do piso da sala de 1200x853', () => {
-    assert.deepEqual(ROOM_SIZE, { width: 1200, height: 853 })
+  test('mantém os pés dentro do piso da sala de 1600x853', () => {
+    assert.deepEqual(ROOM_SIZE, { width: 1600, height: 853 })
     assert.deepEqual(ROOM_PLAYER_BOUNDS, {
-      minX: 25,
-      maxX: 1170,
-      minY: 261,
-      maxY: 741,
+      minX: 140,
+      maxX: 1460,
+      minY: 291,
+      maxY: 786,
     })
+  })
+
+  test('o personagem inteiro (até 59 u dos pés para cada lado) fica dentro da sala', () => {
+    assert.ok(ROOM_PLAYER_BOUNDS.minX - 59 >= 0)
+    assert.ok(ROOM_PLAYER_BOUNDS.maxX + 59 <= ROOM_SIZE.width)
   })
 
   test('o personagem começa no meio da sala, dentro dos limites', () => {

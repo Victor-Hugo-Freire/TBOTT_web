@@ -1,5 +1,5 @@
-/* A sala ocupa exatamente a janela. O canvas desenha a sala inteira com escala
-   uniforme (veja getRoomView); a sobra fica na cor de fundo do jogo. */
+/* A sala ocupa exatamente a janela. O canvas desenha a sala com escala
+   uniforme (veja getRoomView, que corta até 30 u das paredes de cima e de baixo); a sobra fica na cor de fundo do jogo. */
 .sala-inicial {
   width: 100vw;
   height: 100vh;

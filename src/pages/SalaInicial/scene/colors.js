@@ -1,4 +1,4 @@
-// Paleta da sala, medida na imagem de referência (docs/referencias/sala-inicial-vazia.png).
+// Paleta da sala, medida nas imagens de referência (docs/referencias/sala-inicial-vazia.png e o protótipo do Figma).
 export const COLORS = {
   // Parede de cima, vigas e rodapé
   topWall: '#0a0807',
@@ -17,6 +17,13 @@ export const COLORS = {
   brickC: '#402820',
   mortar: '#201810',
 
+  // Paredes laterais: blocos de pedra e coluna junto do piso.
+  // A coluna é um degradê: começa na média das pedras (post) e termina no tom do piso junto da parede (postLight).
+  stoneA: '#3b261b',
+  stoneB: '#33211a',
+  post: '#37241a',
+  postLight: '#3e2a1c',
+
   // Piso de madeira
   floorA: '#483020',
   floorB: '#583828',
@@ -25,4 +32,4 @@ export const COLORS = {
 }
 
 // Luz do piso: centro (em unidades da sala) e raio
-export const FLOOR_LIGHT = { x: 650, y: 335, radius: 570 }
+export const FLOOR_LIGHT = { x: 800, y: 380, radius: 700 }

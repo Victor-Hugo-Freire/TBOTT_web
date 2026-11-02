@@ -1,30 +1,20 @@
-// Escala "contain": a sala inteira (1200x853) cabe na tela sem distorcer.
-// O que sobra em cima/embaixo ou nas laterais é preenchido pelo fundo, que se estende (getVisibleRoom).
-// A área jogável tem sempre o mesmo tamanho, porque as paredes são colisão.
+// Escala da sala (1600x853) na tela, sem distorcer.
+// Como no Isaac, a tela pode cortar até ROOM_VIEW_CROP u da borda externa das paredes de cima e de baixo
+// (é só parede, a cabeça do personagem não chega lá). Assim telas largas quase não ficam com faixas nos lados.
+// Os lados da sala nunca são cortados; o que sobra da tela fica na cor de fundo do jogo.
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 
+export const ROOM_VIEW_CROP = 30
+
 // Calcula quanto a sala é ampliada (scale) e onde começa na tela (offsetX, offsetY),
-// tudo em pixels CSS.
+// tudo em pixels CSS. offsetY negativo quer dizer que a borda de cima (e a de baixo) ficou fora da tela.
 export function getRoomView(screenWidth, screenHeight) {
   if (!screenWidth || !screenHeight) return { scale: 1, offsetX: 0, offsetY: 0 }
 
-  const scale = Math.min(screenWidth / ROOM_SIZE.width, screenHeight / ROOM_SIZE.height)
+  const scale = Math.min(screenWidth / ROOM_SIZE.width, screenHeight / (ROOM_SIZE.height - 2 * ROOM_VIEW_CROP))
   return {
     scale,
     offsetX: (screenWidth - ROOM_SIZE.width * scale) / 2,
     offsetY: (screenHeight - ROOM_SIZE.height * scale) / 2,
   }
-}
-
-// Parte da sala que aparece na tela, em unidades da sala (pode passar de 0..1080 e 0..768).
-// O fundo é desenhado até essas bordas, então a tela inteira fica coberta e não sobra faixa.
-export function getVisibleRoom(view, screenWidth, screenHeight) {
-  const topLeft = screenToRoom(view, 0, 0)
-  const bottomRight = screenToRoom(view, screenWidth, screenHeight)
-  return { left: topLeft.x, top: topLeft.y, right: bottomRight.x, bottom: bottomRight.y }
-}
-
-// Ponto da tela (pixels CSS) -> ponto da sala (unidades da sala).
-export function screenToRoom(view, x, y) {
-  return { x: (x - view.offsetX) / view.scale, y: (y - view.offsetY) / view.scale }
 }
