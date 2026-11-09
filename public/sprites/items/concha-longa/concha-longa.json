@@ -1,0 +1,51 @@
+{
+  "id": "concha-longa",
+  "nome": "CONCHA LONGA",
+  "grupo": "itens",
+  "sala": "Sala do Tesouro",
+  "raridade": "comum",
+  "frameWidth": 300,
+  "frameHeight": 384,
+  "framesPerRow": 6,
+  "feetX": 150,
+  "feetPadding": 30,
+  "escalaGrade": 3,
+  "camadas": {
+    "item": "concha-longa_sheet.png"
+  },
+  "camadas1x": {
+    "item": "concha-longa_sheet@1x.png"
+  },
+  "icone": "concha-longa.png",
+  "vista": "o item e a camada da frente; o pedestal vem de itens/_comum/pedestal-<variante>.png (mesma celula e mesmos pes)",
+  "animacoes": {
+    "pedestal": {
+      "linha": 0,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "coleta": {
+      "linha": 1,
+      "quadros": 6,
+      "ms": [
+        90,
+        90,
+        90,
+        160,
+        160,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protótipos de salas (issue #18)</title>
+<style>
+  :root { --fundo: #14100e; --card: #1d1714; --texto: #e8dccb; --suave: #a8978a; --linha: #3a2e27; --destaque: #d08a4a; }
+  * { box-sizing: border-box }
+  body { margin: 0; background: var(--fundo); color: var(--texto); font: 16px/1.55 "Segoe UI", system-ui, sans-serif; padding: 0 16px 64px }
+  main { max-width: 1040px; margin: 0 auto }
+  h1 { font-size: 30px; margin: 40px 0 4px }
+  h2 { font-size: 22px; margin: 48px 0 12px; padding-top: 16px; border-top: 1px solid var(--linha) }
+  h3 { font-size: 18px; margin: 0 }
+  p { margin: 4px 0; color: var(--suave) }
+  .sub { color: var(--suave); margin-bottom: 20px }
+  .passos { background: var(--card); border: 1px solid var(--linha); border-radius: 12px; padding: 16px 20px 16px 36px }
+  .passos li { margin: 6px 0 }
+  .passos b { color: var(--texto) }
+  button { background: var(--destaque); color: #1a0f08; border: 0; border-radius: 8px; padding: 10px 16px; font: 600 15px inherit; cursor: pointer; white-space: nowrap }
+  button:hover { filter: brightness(1.1) }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 2px }
+  .cartao { background: var(--card); border: 1px solid var(--linha); border-radius: 12px; padding: 14px; margin: 16px 0 }
+  .cab { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; margin-bottom: 10px }
+  canvas { width: 100%; height: auto; display: block; border-radius: 6px; background: #000 }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 15px }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--linha); vertical-align: top }
+  th { color: var(--suave); font-weight: 600 }
+  code { background: #000; padding: 1px 6px; border-radius: 4px }
+  .aviso { border-left: 4px solid var(--destaque); padding: 8px 14px; background: var(--card); border-radius: 0 8px 8px 0; margin: 14px 0 }
+  @media (max-width: 640px) { .cab { flex-direction: column } table { font-size: 14px } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Protótipos de salas · issue #18</h1>
+  <p class="sub">The Binding of Tung Tung. Salas vazias (só visual), com o Tung Tung no centro, portas, minimapa e ícones. Tudo desenhado em código, no estilo da sala inicial.</p>
+
+  <h2 style="border:0;margin-top:24px">Como colocar no Figma</h2>
+  <ol class="passos">
+    <li>Clique em <b>Baixar todos (PNG)</b> abaixo (o navegador pode pedir permissão para baixar vários arquivos) ou em <b>Baixar PNG</b> de cada cartão. Cada sala sai com <b>1440×1024 px</b>, o mesmo tamanho do quadro "sala inicial vazia".</li>
+    <li>No arquivo do protótipo, renomeie a página atual (<code>Page 1</code>) para <b>Telas</b> e crie uma página nova chamada <b>Salas</b>.</li>
+    <li>Abra a página <b>Salas</b> e arraste os PNGs da pasta de downloads para o canvas (ou cole com Ctrl+V). Cada imagem vira um quadro; renomeie pelo nome do arquivo.</li>
+    <li>As quatro pranchas (portas, minimapa, obstáculos e coletáveis) são maiores; arraste também. Sugestão: deixe as 5 salas comuns numa linha e as 9 especiais na de baixo.</li>
+  </ol>
+  <p style="margin-top:14px"><button id="todos">Baixar todos (PNG)</button></p>
+
+  <h2>Andares, temas e sorteio de chefes</h2>
+  <table>
+    <tr><th>Andar</th><th>Tema</th><th>Chefe</th></tr>
+    <tr><td>1</td><td>Cantina (adega)</td><td rowspan="2">Sorteio A (sem repetir): Cinquecento Turbo, Chimpanzini Bananini, Nonna Lasagnona ou <b>Brr Brr Patapim</b></td></tr>
+    <tr><td>2</td><td>Cucina (cozinha)</td></tr>
+    <tr><td>3</td><td>Piazza (praça à noite)</td><td rowspan="2">Sorteio B (sem repetir): Ballerina Cappuccina, Bombardiro Crocodilo, Nonna Lasagnona (se não saiu no A) ou <b>Cappuccino Assassino</b></td></tr>
+    <tr><td>4</td><td>Pastificio (fábrica de massa)</td></tr>
+    <tr><td>5</td><td>Porto (cais)</td><td>Sempre o Tralalero Tralala</td></tr>
+  </table>
+  <p>Patapim no sorteio A (leitura mais fácil) e Assassino no B (teleporte mais difícil de ler).</p>
+
+  <h2>Salas especiais</h2>
+  <table>
+    <tr><th>Sala</th><th>Equivale a (Isaac)</th><th>O que faz</th><th>Porta</th></tr>
+    <tr><td>Sala do Chefe</td><td>Chefe</td><td>Luta com o chefe; ao vencer abre a escada.</td><td>Grade de ferro enquanto o chefe vive</td></tr>
+    <tr><td>Sala do Tesouro</td><td>Tesouro</td><td>1 item grátis sob uma cloche.</td><td>Nó de espaguete (1 garfo) a partir do andar 2</td></tr>
+    <tr><td>Loja</td><td>Loja</td><td>Itens por grãos de café.</td><td>Sempre aberta, toldo listrado</td></tr>
+    <tr><td>Sala do Pacto</td><td>Pacto com o diabo</td><td>Troca vida máxima por item forte.</td><td>Boca de tubarão com dentes</td></tr>
+    <tr><td>Sala da Mamãe</td><td>Anjo (sala do bem)</td><td>Item grátis e prato quente (cura). Vem no lugar do pacto se o chefe foi vencido sem dano.</td><td>Cortina de renda</td></tr>
+    <tr><td>Fliperama</td><td>Arcade</td><td>Paga grão e sorteia: grão, vida, garfo, item raro ou nada.</td><td>Funil de café (1 grão)</td></tr>
+    <tr><td>Palco</td><td>Desafio</td><td>Pega o item e enfrenta 2 ondas.</td><td>Cortina; só com vida cheia</td></tr>
+    <tr><td>Adega Secreta</td><td>Secreta</td><td>Grãos, garfos e às vezes um item.</td><td>Marca de giz de perto; 3 golpes do bastão em ritmo</td></tr>
+    <tr><td>Sala de Descanso</td><td>Quarto</td><td>Rede de dormir: cura toda a vida, uma vez.</td><td>Nó de espaguete (1 garfo)</td></tr>
+  </table>
+  <div class="aviso"><b>Rodada 4 (2026-11-07):</b> cada porta especial ganhou um enfeite acima da verga, com silhueta própria e ligada ao ícone do minimapa (Sala do Chefe: ameias e pontas; Sala do Tesouro: cúpula de cloche; Loja: placa com o grão; Pacto: barbatana e dentes; Mamãe: coração e renda; Fliperama: letreiro com lâmpadas; Palco: frontão e cortinas; Sala de Descanso: lua). Ícone da pedra-chave maior e funil do Fliperama maior. Salas: sem as rachaduras do piso (o Victor descartou rachaduras), poeira leve no piso, luz de cima/esquerda e sombra projetada dos obstáculos. Garfo e grão refinados na prancha de coletáveis e na Loja.</div>
+  <div class="aviso"><b>Rodada 3 (2026-11-07):</b> barra de vida do chefe (<code>prancha-barra-chefe</code> e a Sala do Chefe em luta), minimapa com relevo, ligações e garfo na porta trancada, e os itens reais nas salas: Café Duplo na Sala do Tesouro, Tiramisu na Loja (4 grãos) e Elixir Elétrico na Adega (aro dourado = item raro). Os sprites vêm de <code>pesquisa-issue-16-sprites/_novo</code> (<code>gerar-sprites.py</code>).</div>
+  <div class="aviso">As salas especiais têm só a porta temática (embaixo), porque são becos sem saída, como no Isaac. É fácil mostrar as 4 posições; é só pedir.</div>
+
+  <h2>Sala secreta: como achar</h2>
+  <p>No Isaac a secreta fica num espaço do mapa cercado por 2 ou 3 salas e abre com bomba: o jogador deduz pelo minimapa. Aqui o minimapa não ajuda e não há som. A secreta se acha por <b>observação</b>: uma marca quase invisível que só aparece de perto. Abre-se com o <b>bastão</b>.</p>
+  <ol class="passos">
+    <li><b>Quando existe.</b> Em cerca de metade dos andares, do 2 ao 5, há uma sala secreta. Ela se liga a <b>uma só sala</b>, a <b>sala de origem</b>: uma sala comum a <b>3 ou mais salas</b> do início (nunca a inicial, a do chefe ou uma especial). Se houver várias, sorteia uma, e sorteia também a parede que esconde a porta. Como ela não aparece no minimapa, ninguém sabe se há secreta até achá-la. O andar 1 nunca tem.</li>
+    <li><b>Onde fica a pista.</b> A parede certa é lisa, sem enfeite. Só de perto (Tung a até 1 quadrado dela) aparece a marca: 3 risquinhos de giz, um tijolo solto e poeira no chão (estado <i>Escondida</i> da prancha). De longe, a parede é igual às outras.</li>
+    <li><b>Batida de sahur (abrir).</b> 3 golpes do bastão na marca, com no máximo 2 s entre eles (<i>toc, toc, TUM</i>). Golpe 1: o tijolo cai e levanta poeira; golpe 2: a parede trinca (estado <i>Trincada</i>); golpe 3: ela cede (<i>Aberta</i>). Passou de 2 s, a parede volta a Escondida. Bater em parede comum faz um <i>toc</i> seco; na certa soa oco, o que ajuda quem já viu a marca.</li>
+    <li><b>Dentro.</b> Adega Secreta: grãos, garfos e às vezes um item. Ao abrir, a sala entra no minimapa com o ícone da garrafa, ligada à sala de origem. A porta de volta fica no lado oposto ao da entrada, por isso a peça aparece nos 4 lados.</li>
+  </ol>
+  <table>
+    <tr><th></th><th>The Binding of Isaac</th><th>TBOTT</th></tr>
+    <tr><td>Onde fica</td><td>Espaço vazio com 2 ou 3 salas vizinhas</td><td>Ligada a uma sala de origem, 3 ou mais salas longe do início</td></tr>
+    <tr><td>Como achar</td><td>Deduzir pelo minimapa</td><td>Andar até a parede certa e ver a marca de giz de perto</td></tr>
+    <tr><td>Como abrir</td><td>Bomba</td><td>3 golpes do bastão em ritmo, com no máximo 2 s entre eles</td></tr>
+  </table>
+  <div class="aviso">Pontos a testar: quantos andares têm secreta (metade é palpite), se 3 salas de distância basta, a distância de 1 quadrado para a marca aparecer e se os 2 s entre os golpes são justos.</div>
+
+  <h2>Salas comuns (1 por andar)</h2>
+  <section id="comuns"></section>
+  <h2>Salas especiais</h2>
+  <section id="especiais"></section>
+  <h2>Pranchas</h2>
+  <section id="pranchas"></section>
+</main>
+<script src="sprite.js"></script>
+<script src="fonte.js"></script>
+<script src="chefe-sprite.js"></script>
+<script src="itens-sprites.js"></script>
+<script src="lib.js"></script>
+<script src="hud.js"></script>
+<script src="salas.js"></script>
+</body>
+</html>

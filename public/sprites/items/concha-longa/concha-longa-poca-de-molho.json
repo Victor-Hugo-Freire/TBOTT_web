@@ -1,0 +1,36 @@
+{
+  "id": "poca-de-molho",
+  "arquivo": "poca-de-molho_sheet.png",
+  "frameWidth": 192,
+  "frameHeight": 84,
+  "quadros": 4,
+  "ms": [
+    120,
+    120,
+    120,
+    120
+  ],
+  "framesPerRow": 4,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "poca-de-molho_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "poca-de-molho_sheet@1x.png"
+  },
+  "animacoes": {
+    "poca-de-molho": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        120,
+        120,
+        120,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

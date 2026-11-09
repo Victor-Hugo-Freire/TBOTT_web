@@ -1,0 +1,40 @@
+{
+  "id": "po-de-cacau",
+  "arquivo": "po-de-cacau_sheet.png",
+  "frameWidth": 144,
+  "frameHeight": 120,
+  "quadros": 6,
+  "ms": [
+    100,
+    100,
+    100,
+    100,
+    100,
+    100
+  ],
+  "framesPerRow": 6,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "po-de-cacau_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "po-de-cacau_sheet@1x.png"
+  },
+  "animacoes": {
+    "po-de-cacau": {
+      "linha": 0,
+      "quadros": 6,
+      "ms": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

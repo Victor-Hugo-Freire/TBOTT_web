@@ -1,0 +1,38 @@
+{
+  "id": "vapor-de-cafe",
+  "arquivo": "vapor-de-cafe_sheet.png",
+  "frameWidth": 108,
+  "frameHeight": 108,
+  "quadros": 5,
+  "ms": [
+    90,
+    90,
+    90,
+    90,
+    90
+  ],
+  "framesPerRow": 5,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "vapor-de-cafe_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "vapor-de-cafe_sheet@1x.png"
+  },
+  "animacoes": {
+    "vapor-de-cafe": {
+      "linha": 0,
+      "quadros": 5,
+      "ms": [
+        90,
+        90,
+        90,
+        90,
+        90
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

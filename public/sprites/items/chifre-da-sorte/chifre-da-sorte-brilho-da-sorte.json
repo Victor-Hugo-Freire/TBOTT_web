@@ -1,0 +1,38 @@
+{
+  "id": "brilho-da-sorte",
+  "arquivo": "brilho-da-sorte_sheet.png",
+  "frameWidth": 120,
+  "frameHeight": 120,
+  "quadros": 5,
+  "ms": [
+    70,
+    70,
+    70,
+    70,
+    70
+  ],
+  "framesPerRow": 5,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "brilho-da-sorte_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "brilho-da-sorte_sheet@1x.png"
+  },
+  "animacoes": {
+    "brilho-da-sorte": {
+      "linha": 0,
+      "quadros": 5,
+      "ms": [
+        70,
+        70,
+        70,
+        70,
+        70
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

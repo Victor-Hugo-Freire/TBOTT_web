@@ -1,0 +1,38 @@
+{
+  "id": "mordida",
+  "arquivo": "mordida_sheet.png",
+  "frameWidth": 144,
+  "frameHeight": 120,
+  "quadros": 5,
+  "ms": [
+    50,
+    50,
+    60,
+    70,
+    70
+  ],
+  "framesPerRow": 5,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "mordida_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "mordida_sheet@1x.png"
+  },
+  "animacoes": {
+    "mordida": {
+      "linha": 0,
+      "quadros": 5,
+      "ms": [
+        50,
+        50,
+        60,
+        70,
+        70
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

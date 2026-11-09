@@ -1,0 +1,183 @@
+{
+  "id": "nonna-lasagnona",
+  "nome": "Nonna Lasagnona",
+  "grupo": "chefes",
+  "frameWidth": 660,
+  "frameHeight": 660,
+  "framesPerRow": 8,
+  "feetX": 330,
+  "feetPadding": 120,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "parado-3": {
+      "linha": 1,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "parado-2": {
+      "linha": 2,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "parado-1": {
+      "linha": 3,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 4,
+      "quadros": 6,
+      "ms": [
+        110,
+        110,
+        110,
+        110,
+        110,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 5,
+      "quadros": 5,
+      "ms": [
+        130,
+        130,
+        70,
+        90,
+        130
+      ],
+      "acertos": [
+        2,
+        3
+      ],
+      "emite": {
+        "quadro": 3,
+        "efeito": "onda-choque"
+      }
+    },
+    "invocar": {
+      "linha": 6,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        120
+      ],
+      "acertos": [],
+      "emite": {
+        "quadro": 3,
+        "efeito": "almondega"
+      }
+    },
+    "perde-camada": {
+      "linha": 7,
+      "quadros": 4,
+      "ms": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "perde-camada-3": {
+      "linha": 8,
+      "quadros": 4,
+      "ms": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "perde-camada-2": {
+      "linha": 9,
+      "quadros": 4,
+      "ms": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "dano": {
+      "linha": 10,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 11,
+      "quadros": 8,
+      "ms": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

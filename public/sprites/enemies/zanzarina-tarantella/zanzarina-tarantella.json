@@ -1,0 +1,87 @@
+{
+  "id": "zanzarina-tarantella",
+  "nome": "Zanzarina Tarantella",
+  "grupo": "inimigos",
+  "frameWidth": 360,
+  "frameHeight": 360,
+  "framesPerRow": 6,
+  "feetX": 180,
+  "feetPadding": 66,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 1,
+      "quadros": 4,
+      "ms": [
+        110,
+        110,
+        110,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 2,
+      "quadros": 5,
+      "ms": [
+        130,
+        80,
+        70,
+        90,
+        110
+      ],
+      "acertos": [
+        2,
+        3
+      ],
+      "emite": null
+    },
+    "dano": {
+      "linha": 3,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 4,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

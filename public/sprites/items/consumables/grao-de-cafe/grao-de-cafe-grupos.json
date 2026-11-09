@@ -1,0 +1,27 @@
+{
+  "id": "grao-de-cafe-grupos",
+  "nome": "Grupos de 1, 3 e 5 grãos",
+  "grupo": "consumiveis",
+  "frameWidth": 132,
+  "frameHeight": 132,
+  "framesPerRow": 3,
+  "feetX": 66,
+  "feetPadding": 12,
+  "escalaGrade": 3,
+  "camadas": {
+    "item": "grupos_sheet.png"
+  },
+  "animacoes": {
+    "grupos": {
+      "linha": 0,
+      "quadros": 3,
+      "ms": [
+        1000,
+        1000,
+        1000
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

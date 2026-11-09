@@ -1,0 +1,40 @@
+{
+  "id": "notas-no-ritmo",
+  "arquivo": "notas-no-ritmo_sheet.png",
+  "frameWidth": 192,
+  "frameHeight": 144,
+  "quadros": 6,
+  "ms": [
+    90,
+    90,
+    90,
+    90,
+    90,
+    90
+  ],
+  "framesPerRow": 6,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "notas-no-ritmo_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "notas-no-ritmo_sheet@1x.png"
+  },
+  "animacoes": {
+    "notas-no-ritmo": {
+      "linha": 0,
+      "quadros": 6,
+      "ms": [
+        90,
+        90,
+        90,
+        90,
+        90,
+        90
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

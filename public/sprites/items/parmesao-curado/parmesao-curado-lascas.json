@@ -1,0 +1,38 @@
+{
+  "id": "lascas",
+  "arquivo": "lascas_sheet.png",
+  "frameWidth": 168,
+  "frameHeight": 132,
+  "quadros": 5,
+  "ms": [
+    60,
+    60,
+    60,
+    60,
+    60
+  ],
+  "framesPerRow": 5,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "lascas_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "lascas_sheet@1x.png"
+  },
+  "animacoes": {
+    "lascas": {
+      "linha": 0,
+      "quadros": 5,
+      "ms": [
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

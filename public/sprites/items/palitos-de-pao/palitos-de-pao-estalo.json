@@ -1,0 +1,38 @@
+{
+  "id": "estalo",
+  "arquivo": "estalo_sheet.png",
+  "frameWidth": 168,
+  "frameHeight": 132,
+  "quadros": 5,
+  "ms": [
+    60,
+    60,
+    60,
+    60,
+    60
+  ],
+  "framesPerRow": 5,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "estalo_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "estalo_sheet@1x.png"
+  },
+  "animacoes": {
+    "estalo": {
+      "linha": 0,
+      "quadros": 5,
+      "ms": [
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}
