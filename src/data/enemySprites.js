@@ -1,0 +1,280 @@
+// Sprites dos inimigos (issue #16). Os arquivos ficam em public/sprites/enemies/<id>/.
+// Cada inimigo é desenhado em duas camadas com a mesma grade: layers.pernas (atrás) e layers.tronco (na frente).
+
+// ATENÇÃO, convenção diferente do protagonista (characterSprites.js):
+// - no protagonista, linha = direção (down, left, right, up) e coluna = quadro;
+// - aqui, linha = ANIMAÇÃO (animations.<nome>.row) e coluna = quadro. A vista é de frente;
+//   para o outro lado, espelhar na horizontal. Linhas "-lado" são a vista de lado olhando para a direita.
+// Cada animação: row (linha da folha), frames (quantos quadros usa, a partir da coluna 0),
+// durations (ms de cada quadro), hitFrames (quadros em que o golpe acerta, se houver) e
+// emits ({ frame, effect }: quadro em que nasce um efeito de effectSprites.js, se houver).
+// Pivô: os pés ficam em (feetX, frameHeight - feetPadding) da célula, iguais em todos os quadros.
+// Escala: frameWidth, frameHeight, feetX e feetPadding estão em pixels do ARQUIVO. Com scale: 3 o arquivo é a
+// versão @1x (1 px por pixel da grade da arte, 9x menos memória): desenhe 3x maior com imageSmoothingEnabled = false,
+// que o resultado é idêntico, pixel a pixel, à folha grande. Os <id>.json ao lado dos PNGs estão em pixels da folha grande (3x).
+// Gerado a partir desses <id>.json. Nenhuma tela usa estes dados ainda.
+
+// Chave = id do inimigo (kebab-case, igual à pasta e aos arquivos)
+export const ENEMY_SPRITES = {
+  'cannolo-carica': {
+    id: 'cannolo-carica',
+    layers: {
+      pernas: '/sprites/enemies/cannolo-carica/cannolo-carica-pernas.png',
+      tronco: '/sprites/enemies/cannolo-carica/cannolo-carica-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 23,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      andando: { row: 1, frames: 6, durations: [100, 100, 100, 100, 100, 100] },
+      'andando-lado': { row: 2, frames: 6, durations: [100, 100, 100, 100, 100, 100] },
+      preparando: { row: 3, frames: 4, durations: [150, 150, 150, 150] },
+      atacando: { row: 4, frames: 4, durations: [70, 70, 70, 70], hitFrames: [0, 1, 2, 3] },
+      atordoado: { row: 5, frames: 4, durations: [150, 150, 150, 150] },
+      dano: { row: 6, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 7, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+      'preparando-lado': { row: 8, frames: 4, durations: [150, 150, 150, 150] },
+      'atacando-lado': { row: 9, frames: 4, durations: [70, 70, 70, 70], hitFrames: [0, 1, 2, 3] },
+      'dano-lado': { row: 10, frames: 3, durations: [70, 110, 120] },
+      'morte-lado': { row: 11, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'fenicottero-fornarino': {
+    id: 'fenicottero-fornarino',
+    layers: {
+      pernas: '/sprites/enemies/fenicottero-fornarino/fenicottero-fornarino-pernas.png',
+      tronco: '/sprites/enemies/fenicottero-fornarino/fenicottero-fornarino-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 130,
+    feetX: 60,
+    feetPadding: 22,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      andando: { row: 1, frames: 6, durations: [100, 100, 100, 100, 100, 100] },
+      atacando: {
+        row: 2,
+        frames: 6,
+        durations: [130, 130, 90, 90, 100, 120],
+        emits: { frame: 3, effect: 'pizza-lancada' },
+      },
+      dano: { row: 3, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 4, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'formaggino-saltellino': {
+    id: 'formaggino-saltellino',
+    layers: {
+      pernas: '/sprites/enemies/formaggino-saltellino/formaggino-saltellino-pernas.png',
+      tronco: '/sprites/enemies/formaggino-saltellino/formaggino-saltellino-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 22,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      andando: { row: 1, frames: 6, durations: [110, 80, 100, 100, 90, 90] },
+      atacando: { row: 2, frames: 6, durations: [160, 110, 70, 120, 90, 120], hitFrames: [2, 3] },
+      dano: { row: 3, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 4, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'moka-scudiera': {
+    id: 'moka-scudiera',
+    layers: {
+      pernas: '/sprites/enemies/moka-scudiera/moka-scudiera-pernas.png',
+      tronco: '/sprites/enemies/moka-scudiera/moka-scudiera-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 22,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      andando: { row: 1, frames: 6, durations: [100, 100, 100, 100, 100, 100] },
+      atacando: {
+        row: 2,
+        frames: 6,
+        durations: [110, 120, 100, 100, 100, 110],
+        emits: { frame: 2, effect: 'vapor-anel' },
+      },
+      escudo: {
+        row: 3,
+        frames: 4,
+        durations: [110, 110, 110, 110],
+        emits: { frame: 1, effect: 'vapor-escudo' },
+      },
+      dano: { row: 4, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 5, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'peperoncino-kamikaze': {
+    id: 'peperoncino-kamikaze',
+    layers: {
+      pernas: '/sprites/enemies/peperoncino-kamikaze/peperoncino-kamikaze-pernas.png',
+      tronco: '/sprites/enemies/peperoncino-kamikaze/peperoncino-kamikaze-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 24,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      andando: { row: 1, frames: 6, durations: [70, 70, 70, 70, 70, 70] },
+      aceso: { row: 2, frames: 4, durations: [100, 100, 100, 100] },
+      atacando: { row: 3, frames: 5, durations: [110, 70, 80, 90, 140], hitFrames: [1, 2, 3] },
+      dano: { row: 4, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 5, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'pinguino-sorbettino': {
+    id: 'pinguino-sorbettino',
+    layers: {
+      pernas: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-pernas.png',
+      tronco: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 130,
+    feetX: 60,
+    feetPadding: 20,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      'parado-2': { row: 1, frames: 4, durations: [300, 300, 300, 110] },
+      'parado-1': { row: 2, frames: 4, durations: [300, 300, 300, 110] },
+      andando: { row: 3, frames: 6, durations: [100, 100, 100, 100, 100, 100] },
+      atacando: { row: 4, frames: 6, durations: [150, 110, 70, 70, 70, 110], hitFrames: [2, 3, 4] },
+      deslizando: {
+        row: 5,
+        frames: 4,
+        durations: [70, 70, 70, 70],
+        emits: { frame: 0, effect: 'rastro-gelo' },
+      },
+      dano: { row: 6, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 7, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'pistacchio-sputacchio': {
+    id: 'pistacchio-sputacchio',
+    layers: {
+      pernas: '/sprites/enemies/pistacchio-sputacchio/pistacchio-sputacchio-pernas.png',
+      tronco: '/sprites/enemies/pistacchio-sputacchio/pistacchio-sputacchio-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 22,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      andando: { row: 1, frames: 6, durations: [100, 100, 100, 100, 100, 100] },
+      atacando: {
+        row: 2,
+        frames: 6,
+        durations: [120, 150, 80, 90, 100, 120],
+        emits: { frame: 2, effect: 'caroco' },
+      },
+      dano: { row: 3, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 4, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'polpetta-sotterranea': {
+    id: 'polpetta-sotterranea',
+    layers: {
+      pernas: '/sprites/enemies/polpetta-sotterranea/polpetta-sotterranea-pernas.png',
+      tronco: '/sprites/enemies/polpetta-sotterranea/polpetta-sotterranea-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 28,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [300, 300, 300, 110] },
+      escondida: {
+        row: 1,
+        frames: 4,
+        durations: [140, 140, 140, 140],
+        emits: { frame: 0, effect: 'bolhas-molho' },
+      },
+      emergindo: { row: 2, frames: 4, durations: [110, 110, 110, 110] },
+      atacando: { row: 3, frames: 4, durations: [110, 70, 90, 120], hitFrames: [1] },
+      afundando: { row: 4, frames: 4, durations: [110, 110, 110, 110] },
+      dano: { row: 5, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 6, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'vespina-lambrettina': {
+    id: 'vespina-lambrettina',
+    layers: {
+      pernas: '/sprites/enemies/vespina-lambrettina/vespina-lambrettina-pernas.png',
+      tronco: '/sprites/enemies/vespina-lambrettina/vespina-lambrettina-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 16,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [100, 100, 100, 100] },
+      andando: { row: 1, frames: 4, durations: [80, 80, 80, 80] },
+      'andando-lado': { row: 2, frames: 4, durations: [80, 80, 80, 80] },
+      acelerando: {
+        row: 3,
+        frames: 4,
+        durations: [140, 140, 140, 140],
+        emits: { frame: 1, effect: 'fumaca' },
+      },
+      curva: { row: 4, frames: 4, durations: [90, 90, 90, 90] },
+      atacando: { row: 5, frames: 5, durations: [140, 80, 70, 90, 120], hitFrames: [2, 3] },
+      dano: { row: 6, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 7, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+      'acelerando-lado': {
+        row: 8,
+        frames: 4,
+        durations: [140, 140, 140, 140],
+        emits: { frame: 1, effect: 'fumaca' },
+      },
+      'atacando-lado': { row: 9, frames: 5, durations: [140, 80, 70, 90, 120], hitFrames: [2, 3] },
+      'dano-lado': { row: 10, frames: 3, durations: [70, 110, 120] },
+      'morte-lado': { row: 11, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+  'zanzarina-tarantella': {
+    id: 'zanzarina-tarantella',
+    layers: {
+      pernas: '/sprites/enemies/zanzarina-tarantella/zanzarina-tarantella-pernas.png',
+      tronco: '/sprites/enemies/zanzarina-tarantella/zanzarina-tarantella-tronco.png',
+    },
+    scale: 3,
+    frameWidth: 120,
+    frameHeight: 120,
+    feetX: 60,
+    feetPadding: 22,
+    framesPerRow: 6,
+    animations: {
+      parado: { row: 0, frames: 4, durations: [100, 100, 100, 100] },
+      andando: { row: 1, frames: 4, durations: [110, 110, 110, 110] },
+      atacando: { row: 2, frames: 5, durations: [130, 80, 70, 90, 110], hitFrames: [2, 3] },
+      dano: { row: 3, frames: 3, durations: [70, 110, 120] },
+      morte: { row: 4, frames: 6, durations: [120, 120, 120, 120, 120, 400] },
+    },
+  },
+}

@@ -1,0 +1,38 @@
+{
+  "id": "fios-de-queijo",
+  "arquivo": "fios-de-queijo_sheet.png",
+  "frameWidth": 192,
+  "frameHeight": 96,
+  "quadros": 5,
+  "ms": [
+    80,
+    80,
+    80,
+    80,
+    80
+  ],
+  "framesPerRow": 5,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "fios-de-queijo_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "fios-de-queijo_sheet@1x.png"
+  },
+  "animacoes": {
+    "fios-de-queijo": {
+      "linha": 0,
+      "quadros": 5,
+      "ms": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

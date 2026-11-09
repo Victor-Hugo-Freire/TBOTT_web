@@ -1,0 +1,120 @@
+{
+  "id": "ballerina-cappuccina",
+  "nome": "Ballerina Cappuccina",
+  "grupo": "chefes",
+  "frameWidth": 660,
+  "frameHeight": 660,
+  "framesPerRow": 8,
+  "feetX": 330,
+  "feetPadding": 96,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 1,
+      "quadros": 4,
+      "ms": [
+        120,
+        120,
+        120,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "pirueta": {
+      "linha": 2,
+      "quadros": 6,
+      "ms": [
+        70,
+        70,
+        70,
+        70,
+        70,
+        70
+      ],
+      "acertos": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 3,
+      "quadros": 5,
+      "ms": [
+        120,
+        110,
+        80,
+        90,
+        120
+      ],
+      "acertos": [],
+      "emite": {
+        "quadro": 2,
+        "efeito": "gota-cafe"
+      }
+    },
+    "tonta": {
+      "linha": 4,
+      "quadros": 4,
+      "ms": [
+        130,
+        130,
+        130,
+        130
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "dano": {
+      "linha": 5,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 6,
+      "quadros": 8,
+      "ms": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

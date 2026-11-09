@@ -1,0 +1,60 @@
+{
+  "id": "garfo",
+  "nome": "Garfo",
+  "grupo": "consumiveis",
+  "frameWidth": 132,
+  "frameHeight": 132,
+  "framesPerRow": 5,
+  "feetX": 66,
+  "feetPadding": 12,
+  "escalaGrade": 3,
+  "camadas": {
+    "item": "garfo_sheet.png"
+  },
+  "camadas1x": {
+    "item": "garfo_sheet@1x.png"
+  },
+  "icone": "garfo.png",
+  "hud": "hud.png",
+  "vista": "o item (com a sombra pontilhada do chão) numa célula só; o pedestal não se aplica",
+  "animacoes": {
+    "chao": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        140,
+        140,
+        140,
+        140
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "aparecer": {
+      "linha": 1,
+      "quadros": 5,
+      "ms": [
+        70,
+        70,
+        70,
+        90,
+        90
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "coleta": {
+      "linha": 2,
+      "quadros": 5,
+      "ms": [
+        60,
+        60,
+        70,
+        70,
+        90
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

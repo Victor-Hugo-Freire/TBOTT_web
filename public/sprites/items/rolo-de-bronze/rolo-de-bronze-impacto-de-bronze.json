@@ -1,0 +1,38 @@
+{
+  "id": "impacto-de-bronze",
+  "arquivo": "impacto-de-bronze_sheet.png",
+  "frameWidth": 240,
+  "frameHeight": 120,
+  "quadros": 5,
+  "ms": [
+    70,
+    70,
+    70,
+    70,
+    70
+  ],
+  "framesPerRow": 5,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "impacto-de-bronze_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "impacto-de-bronze_sheet@1x.png"
+  },
+  "animacoes": {
+    "impacto-de-bronze": {
+      "linha": 0,
+      "quadros": 5,
+      "ms": [
+        70,
+        70,
+        70,
+        70,
+        70
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

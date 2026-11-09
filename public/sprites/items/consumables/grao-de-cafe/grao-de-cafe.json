@@ -1,0 +1,62 @@
+{
+  "id": "grao-de-cafe",
+  "nome": "Grão de café",
+  "grupo": "consumiveis",
+  "frameWidth": 132,
+  "frameHeight": 132,
+  "framesPerRow": 6,
+  "feetX": 66,
+  "feetPadding": 12,
+  "escalaGrade": 3,
+  "camadas": {
+    "item": "grao-de-cafe_sheet.png"
+  },
+  "camadas1x": {
+    "item": "grao-de-cafe_sheet@1x.png"
+  },
+  "icone": "grao-de-cafe.png",
+  "hud": "hud.png",
+  "vista": "o item (com a sombra pontilhada do chão) numa célula só; o pedestal não se aplica",
+  "animacoes": {
+    "chao": {
+      "linha": 0,
+      "quadros": 6,
+      "ms": [
+        110,
+        110,
+        110,
+        110,
+        110,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "aparecer": {
+      "linha": 1,
+      "quadros": 5,
+      "ms": [
+        70,
+        70,
+        70,
+        90,
+        90
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "coleta": {
+      "linha": 2,
+      "quadros": 5,
+      "ms": [
+        60,
+        60,
+        70,
+        70,
+        90
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

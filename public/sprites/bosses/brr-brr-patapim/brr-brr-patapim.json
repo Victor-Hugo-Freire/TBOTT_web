@@ -1,0 +1,108 @@
+{
+  "id": "brr-brr-patapim",
+  "nome": "Brr Brr Patapim",
+  "grupo": "chefes",
+  "frameWidth": 660,
+  "frameHeight": 660,
+  "framesPerRow": 8,
+  "feetX": 330,
+  "feetPadding": 42,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 1,
+      "quadros": 6,
+      "ms": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 2,
+      "quadros": 5,
+      "ms": [
+        130,
+        130,
+        60,
+        100,
+        130
+      ],
+      "acertos": [
+        3
+      ],
+      "emite": {
+        "quadro": 3,
+        "efeito": "onda-choque"
+      }
+    },
+    "raizes": {
+      "linha": 3,
+      "quadros": 4,
+      "ms": [
+        110,
+        110,
+        110,
+        110
+      ],
+      "acertos": [],
+      "emite": {
+        "quadro": 2,
+        "efeito": "raiz"
+      }
+    },
+    "dano": {
+      "linha": 4,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 5,
+      "quadros": 8,
+      "ms": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "id": "peperoncino-kamikaze",
+  "nome": "Peperoncino Kamikaze",
+  "grupo": "inimigos",
+  "frameWidth": 360,
+  "frameHeight": 360,
+  "framesPerRow": 6,
+  "feetX": 180,
+  "feetPadding": 72,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 1,
+      "quadros": 6,
+      "ms": [
+        70,
+        70,
+        70,
+        70,
+        70,
+        70
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "aceso": {
+      "linha": 2,
+      "quadros": 4,
+      "ms": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 3,
+      "quadros": 5,
+      "ms": [
+        110,
+        70,
+        80,
+        90,
+        140
+      ],
+      "acertos": [
+        1,
+        2,
+        3
+      ],
+      "emite": null
+    },
+    "dano": {
+      "linha": 4,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 5,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

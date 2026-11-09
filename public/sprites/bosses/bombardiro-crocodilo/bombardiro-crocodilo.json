@@ -1,0 +1,170 @@
+{
+  "id": "bombardiro-crocodilo",
+  "nome": "Bombardiro Crocodilo",
+  "grupo": "chefes",
+  "frameWidth": 660,
+  "frameHeight": 660,
+  "framesPerRow": 8,
+  "feetX": 330,
+  "feetPadding": 60,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal. Linhas \"-lado\": vista de lado olhando para a direita (espelhar para a esquerda)",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        120,
+        120,
+        120,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 1,
+      "quadros": 4,
+      "ms": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando-lado": {
+      "linha": 2,
+      "quadros": 4,
+      "ms": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 3,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        90,
+        90,
+        90,
+        110
+      ],
+      "acertos": [],
+      "emite": {
+        "quadro": 3,
+        "efeito": "bomba"
+      }
+    },
+    "pousado": {
+      "linha": 4,
+      "quadros": 4,
+      "ms": [
+        160,
+        160,
+        160,
+        160
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "dano": {
+      "linha": 5,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 6,
+      "quadros": 8,
+      "ms": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando-lado": {
+      "linha": 7,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        90,
+        90,
+        90,
+        110
+      ],
+      "acertos": [],
+      "emite": {
+        "quadro": 3,
+        "efeito": "bomba"
+      }
+    },
+    "pousado-lado": {
+      "linha": 8,
+      "quadros": 4,
+      "ms": [
+        160,
+        160,
+        160,
+        160
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "dano-lado": {
+      "linha": 9,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte-lado": {
+      "linha": 10,
+      "quadros": 8,
+      "ms": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

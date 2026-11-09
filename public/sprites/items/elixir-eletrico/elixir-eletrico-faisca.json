@@ -1,0 +1,40 @@
+{
+  "id": "faisca",
+  "arquivo": "faisca_sheet.png",
+  "frameWidth": 192,
+  "frameHeight": 192,
+  "quadros": 6,
+  "ms": [
+    30,
+    40,
+    50,
+    40,
+    30,
+    30
+  ],
+  "framesPerRow": 6,
+  "escalaGrade": 3,
+  "pivo": "centro da celula (efeito: o jogo posiciona no ponto do disparo)",
+  "camadas": {
+    "efeito": "faisca_sheet.png"
+  },
+  "camadas1x": {
+    "efeito": "faisca_sheet@1x.png"
+  },
+  "animacoes": {
+    "faisca": {
+      "linha": 0,
+      "quadros": 6,
+      "ms": [
+        30,
+        40,
+        50,
+        40,
+        30,
+        30
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "grao-de-cafe-preco",
+  "nome": "Etiqueta de preço da Loja (1 a 9 grãos)",
+  "grupo": "consumiveis",
+  "frameWidth": 72,
+  "frameHeight": 48,
+  "framesPerRow": 9,
+  "escalaGrade": 3,
+  "quadro_n": "o quadro N-1 é o preço N",
+  "camadas": {
+    "etiqueta": "preco_sheet.png"
+  },
+  "animacoes": {
+    "preco": {
+      "linha": 0,
+      "quadros": 9,
+      "ms": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

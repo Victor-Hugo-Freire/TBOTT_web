@@ -1,0 +1,36 @@
+{
+  "id": "garfo-porta-trancada",
+  "nome": "Garfo abrindo a porta trancada",
+  "grupo": "consumiveis",
+  "frameWidth": 192,
+  "frameHeight": 192,
+  "framesPerRow": 8,
+  "feetX": 96,
+  "feetPadding": 96,
+  "escalaGrade": 3,
+  "pivo": "centro da argola (a porta é desenhada pelo jogo; esta é só a cena do garfo e do nó)",
+  "camadas": {
+    "cena": "porta_trancada_sheet.png"
+  },
+  "camadas1x": {
+    "cena": "porta_trancada_sheet@1x.png"
+  },
+  "animacoes": {
+    "porta-trancada": {
+      "linha": 0,
+      "quadros": 8,
+      "ms": [
+        110,
+        110,
+        120,
+        120,
+        110,
+        120,
+        140,
+        160
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

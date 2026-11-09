@@ -1,0 +1,205 @@
+{
+  "caroco": {
+    "arquivo": "caroco.png",
+    "frameWidth": 72,
+    "frameHeight": 72,
+    "quadros": 4,
+    "ms": 80
+  },
+  "vapor-escudo": {
+    "arquivo": "vapor-escudo.png",
+    "frameWidth": 180,
+    "frameHeight": 156,
+    "quadros": 4,
+    "ms": 120
+  },
+  "vapor-anel": {
+    "arquivo": "vapor-anel.png",
+    "frameWidth": 420,
+    "frameHeight": 240,
+    "quadros": 5,
+    "ms": 90
+  },
+  "rastro-gelo": {
+    "arquivo": "rastro-gelo.png",
+    "frameWidth": 210,
+    "frameHeight": 90,
+    "quadros": 4,
+    "ms": 140
+  },
+  "pizza-lancada": {
+    "arquivo": "pizza-lancada.png",
+    "frameWidth": 96,
+    "frameHeight": 96,
+    "quadros": 4,
+    "ms": 70
+  },
+  "marca-chao": {
+    "arquivo": "marca-chao.png",
+    "frameWidth": 192,
+    "frameHeight": 120,
+    "quadros": 4,
+    "ms": 120
+  },
+  "queijo-quente": {
+    "arquivo": "queijo-quente.png",
+    "frameWidth": 210,
+    "frameHeight": 102,
+    "quadros": 4,
+    "ms": 160
+  },
+  "explosao": {
+    "arquivo": "explosao.png",
+    "frameWidth": 300,
+    "frameHeight": 300,
+    "quadros": 6,
+    "ms": 70
+  },
+  "fumaca": {
+    "arquivo": "fumaca.png",
+    "frameWidth": 192,
+    "frameHeight": 168,
+    "quadros": 4,
+    "ms": 110
+  },
+  "banana-bumerangue": {
+    "arquivo": "banana-bumerangue.png",
+    "frameWidth": 120,
+    "frameHeight": 120,
+    "quadros": 4,
+    "ms": 60
+  },
+  "casca-escorregadia": {
+    "arquivo": "casca-escorregadia.png",
+    "frameWidth": 120,
+    "frameHeight": 84,
+    "quadros": 2,
+    "ms": 200
+  },
+  "gota-cafe": {
+    "arquivo": "gota-cafe.png",
+    "frameWidth": 60,
+    "frameHeight": 72,
+    "quadros": 4,
+    "ms": 100
+  },
+  "bomba": {
+    "arquivo": "bomba.png",
+    "frameWidth": 84,
+    "frameHeight": 108,
+    "quadros": 4,
+    "ms": 100
+  },
+  "nota-musical": {
+    "arquivo": "nota-musical.png",
+    "frameWidth": 72,
+    "frameHeight": 90,
+    "quadros": 4,
+    "ms": 150
+  },
+  "pauta": {
+    "arquivo": "pauta.png",
+    "frameWidth": 600,
+    "frameHeight": 132,
+    "quadros": 6,
+    "ms": 90
+  },
+  "onda-choque": {
+    "arquivo": "onda-choque.png",
+    "frameWidth": 480,
+    "frameHeight": 270,
+    "quadros": 6,
+    "ms": 80
+  },
+  "raiz": {
+    "arquivo": "raiz.png",
+    "frameWidth": 144,
+    "frameHeight": 168,
+    "quadros": 4,
+    "ms": 90
+  },
+  "corte-katana": {
+    "arquivo": "corte-katana.png",
+    "frameWidth": 270,
+    "frameHeight": 210,
+    "quadros": 4,
+    "ms": 50
+  },
+  "estrela-atordoado": {
+    "arquivo": "estrela-atordoado.png",
+    "frameWidth": 156,
+    "frameHeight": 90,
+    "quadros": 4,
+    "ms": 120
+  },
+  "impacto": {
+    "arquivo": "impacto.png",
+    "frameWidth": 144,
+    "frameHeight": 144,
+    "quadros": 4,
+    "ms": 60
+  },
+  "poeira": {
+    "arquivo": "poeira.png",
+    "frameWidth": 168,
+    "frameHeight": 84,
+    "quadros": 4,
+    "ms": 90
+  },
+  "almondega": {
+    "arquivo": "almondega.png",
+    "frameWidth": 72,
+    "frameHeight": 72,
+    "quadros": 4,
+    "ms": 100
+  },
+  "bolhas-molho": {
+    "arquivo": "bolhas-molho.png",
+    "frameWidth": 210,
+    "frameHeight": 102,
+    "quadros": 4,
+    "ms": 140
+  },
+  "respingo": {
+    "arquivo": "respingo.png",
+    "frameWidth": 180,
+    "frameHeight": 120,
+    "quadros": 4,
+    "ms": 80
+  },
+  "barbatana": {
+    "arquivo": "barbatana.png",
+    "frameWidth": 210,
+    "frameHeight": 150,
+    "quadros": 4,
+    "ms": 120
+  },
+  "poof": {
+    "arquivo": "poof.png",
+    "frameWidth": 192,
+    "frameHeight": 192,
+    "quadros": 5,
+    "ms": 70
+  },
+  "folha": {
+    "arquivo": "folha.png",
+    "frameWidth": 60,
+    "frameHeight": 60,
+    "quadros": 4,
+    "ms": 140
+  },
+  "buzina": {
+    "arquivo": "buzina.png",
+    "frameWidth": 600,
+    "frameHeight": 240,
+    "quadros": 4,
+    "ms": 90
+  },
+  "marca-pneu": {
+    "arquivo": "marca-pneu.png",
+    "frameWidth": 270,
+    "frameHeight": 72,
+    "quadros": 3,
+    "ms": 110
+  }
+}

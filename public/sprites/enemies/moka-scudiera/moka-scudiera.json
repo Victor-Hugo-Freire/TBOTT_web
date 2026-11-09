@@ -1,0 +1,105 @@
+{
+  "id": "moka-scudiera",
+  "nome": "Moka Scudiera",
+  "grupo": "inimigos",
+  "frameWidth": 360,
+  "frameHeight": 360,
+  "framesPerRow": 6,
+  "feetX": 180,
+  "feetPadding": 66,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 1,
+      "quadros": 6,
+      "ms": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 2,
+      "quadros": 6,
+      "ms": [
+        110,
+        120,
+        100,
+        100,
+        100,
+        110
+      ],
+      "acertos": [],
+      "emite": {
+        "quadro": 2,
+        "efeito": "vapor-anel"
+      }
+    },
+    "escudo": {
+      "linha": 3,
+      "quadros": 4,
+      "ms": [
+        110,
+        110,
+        110,
+        110
+      ],
+      "acertos": [],
+      "emite": {
+        "quadro": 1,
+        "efeito": "vapor-escudo"
+      }
+    },
+    "dano": {
+      "linha": 4,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 5,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}

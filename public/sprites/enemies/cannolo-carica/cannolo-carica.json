@@ -1,0 +1,182 @@
+{
+  "id": "cannolo-carica",
+  "nome": "Cannolo Carica",
+  "grupo": "inimigos",
+  "frameWidth": 360,
+  "frameHeight": 360,
+  "framesPerRow": 6,
+  "feetX": 180,
+  "feetPadding": 69,
+  "escalaGrade": 3,
+  "camadas": {
+    "pernas": "pernas.png",
+    "tronco": "tronco.png"
+  },
+  "camadas1x": {
+    "pernas": "pernas@1x.png",
+    "tronco": "tronco@1x.png"
+  },
+  "vista": "frente; para o outro lado, espelhar na horizontal. Linhas \"-lado\": vista de lado olhando para a direita (espelhar para a esquerda)",
+  "animacoes": {
+    "parado": {
+      "linha": 0,
+      "quadros": 4,
+      "ms": [
+        300,
+        300,
+        300,
+        110
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando": {
+      "linha": 1,
+      "quadros": 6,
+      "ms": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "andando-lado": {
+      "linha": 2,
+      "quadros": 6,
+      "ms": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "preparando": {
+      "linha": 3,
+      "quadros": 4,
+      "ms": [
+        150,
+        150,
+        150,
+        150
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando": {
+      "linha": 4,
+      "quadros": 4,
+      "ms": [
+        70,
+        70,
+        70,
+        70
+      ],
+      "acertos": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "emite": null
+    },
+    "atordoado": {
+      "linha": 5,
+      "quadros": 4,
+      "ms": [
+        150,
+        150,
+        150,
+        150
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "dano": {
+      "linha": 6,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte": {
+      "linha": 7,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "preparando-lado": {
+      "linha": 8,
+      "quadros": 4,
+      "ms": [
+        150,
+        150,
+        150,
+        150
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "atacando-lado": {
+      "linha": 9,
+      "quadros": 4,
+      "ms": [
+        70,
+        70,
+        70,
+        70
+      ],
+      "acertos": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "emite": null
+    },
+    "dano-lado": {
+      "linha": 10,
+      "quadros": 3,
+      "ms": [
+        70,
+        110,
+        120
+      ],
+      "acertos": [],
+      "emite": null
+    },
+    "morte-lado": {
+      "linha": 11,
+      "quadros": 6,
+      "ms": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        400
+      ],
+      "acertos": [],
+      "emite": null
+    }
+  }
+}
