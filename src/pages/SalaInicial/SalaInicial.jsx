@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { createPlayer, updatePlayer } from '../../utils/player.js'
+import { createProgressSnapshot, normalizeProgressPayload } from '../../utils/progress.js'
 import {
   getAttackDirection,
   getRoomMovement,
@@ -18,24 +20,18 @@ import { loadSheets } from './scene/sheets.js'
 import { getRoomView, ROOM_VIEW_CROP } from './scene/view.js'
 import './SalaInicial.css'
 
-// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
 
 function blockMouse(event) {
   event.preventDefault()
 }
 
-// A sala é um canvas em tela cheia. O jogo (posição, direção, animação) fica em
-// variáveis do efeito e é desenhado a cada quadro: o React não renderiza de novo
-// enquanto o personagem anda.
 export default function SalaInicial() {
   const navigate = useNavigate()
   const location = useLocation()
   const roomRef = useRef(null)
   const canvasRef = useRef(null)
 
-  // Personagem escolhido na seleção. Por enquanto só o nome é usado: o canvas
-  // desenha o Tung Tung Sahur, o único com sprite (os outros virão depois)
   const selectedCharacter = location.state?.character ?? {
     id: 'tung-tung-sahur',
     name: 'Tung Tung Sahur',
@@ -48,16 +44,59 @@ export default function SalaInicial() {
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
     const sheets = loadSheets()
-    // Quem pede "reduzir movimento" no sistema vê o andar parado no quadro 0
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     const pressedKeys = new Set()
-    let player = createPlayer(ROOM_PLAYER_START)
-    let showDebug = false // F3, só no npm run dev
+    const continueProgress = normalizeProgressPayload(location.state?.continueProgress ?? {}, {
+      roomId: 'sala-inicial',
+      characterId: selectedCharacter.id,
+      playerX: ROOM_PLAYER_START.x,
+      playerY: ROOM_PLAYER_START.y,
+      elapsedMs: 0,
+    })
+
+    let player = createPlayer({ x: continueProgress.playerX, y: continueProgress.playerY })
+    let showDebug = false
     let view = getRoomView(0, 0)
     let pixelRatio = 1
+    let previousTime
+    let elapsedMs = continueProgress.elapsedMs
+    let isPaused = false
+    let saveInFlight = false
+    let queuedSave = false
+    let animationFrame
 
-    // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
+    async function persistProgress() {
+      if (saveInFlight) {
+        queuedSave = true
+        return
+      }
+
+      saveInFlight = true
+      const payload = createProgressSnapshot({
+        player,
+        elapsedMs,
+        characterId: selectedCharacter.id,
+        roomId: 'sala-inicial',
+      })
+
+      try {
+        await apiRequest('/api/progress', {
+          method: 'PUT',
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        })
+      } catch (error) {
+        if (error?.status !== 401) console.warn('Não foi possível salvar o progresso.', error)
+      } finally {
+        saveInFlight = false
+        if (queuedSave) {
+          queuedSave = false
+          void persistProgress()
+        }
+      }
+    }
+
     function resize() {
       pixelRatio = window.devicePixelRatio || 1
       canvas.width = Math.round(canvas.clientWidth * pixelRatio)
@@ -75,14 +114,12 @@ export default function SalaInicial() {
         return
       }
 
-      // import.meta.env.DEV é false no build: este trecho e o drawDebug saem do pacote
       if (import.meta.env.DEV && event.code === 'F3') {
         event.preventDefault()
         showDebug = !showDebug
         return
       }
 
-      // preventDefault também nas setas, para a página não rolar
       if (!isRoomKey(event.code)) return
 
       event.preventDefault()
@@ -97,21 +134,26 @@ export default function SalaInicial() {
       pressedKeys.clear()
     }
 
-    let previousTime
-    let startTime // quando a sala abriu: o contador conta tempo real desde aí
-    let elapsedMs = 0
-    let animationFrame
+    function handleBlur() {
+      isPaused = true
+      previousTime = undefined
+    }
+
+    function handleFocus() {
+      isPaused = false
+      previousTime = undefined
+    }
 
     function update(time) {
-      const deltaSeconds = previousTime === undefined ? 0 : (time - previousTime) / 1000
+      const deltaMs = previousTime === undefined ? 0 : time - previousTime
       previousTime = time
-      startTime ??= time
-      elapsedMs = time - startTime
+
+      if (!isPaused) elapsedMs += deltaMs
 
       player = updatePlayer(
         player,
         { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
-        deltaSeconds,
+        deltaMs / 1000,
       )
 
       draw()
@@ -121,16 +163,13 @@ export default function SalaInicial() {
     function draw() {
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      // A partir daqui, tudo é desenhado em unidades da sala
       const scale = view.scale * pixelRatio
       ctx.setTransform(scale, 0, 0, scale, view.offsetX * pixelRatio, view.offsetY * pixelRatio)
-      // As paredes laterais continuam até a borda da tela (a sobra de cada lado, em unidades da sala)
       drawRoom(ctx, view.offsetX / view.scale)
 
       drawPlayer(ctx, sheets, player, reduceMotion)
       if (import.meta.env.DEV && showDebug) drawDebug(ctx, player)
 
-      // O contador é desenhado em pixels da tela (sem a escala da sala), para ficar nítido
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       const pixelSize = Math.max(2, Math.round(4 * scale))
       const timerTop = Math.round((view.offsetY + (ROOM_VIEW_CROP + 12) * view.scale) * pixelRatio)
@@ -141,19 +180,34 @@ export default function SalaInicial() {
     window.addEventListener('resize', resize)
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', clearPressedKeys)
     BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
+
+    if (!location.state?.continueProgress) {
+      void persistProgress()
+    }
+
+    const saveTimer = window.setInterval(() => {
+      void persistProgress()
+    }, 5000)
+
     animationFrame = window.requestAnimationFrame(update)
 
     return () => {
       window.removeEventListener('resize', resize)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', clearPressedKeys)
       BLOCKED_MOUSE_EVENTS.forEach((name) => window.removeEventListener(name, blockMouse))
+      window.clearInterval(saveTimer)
       window.cancelAnimationFrame(animationFrame)
+      void persistProgress()
     }
-  }, [navigate])
+  }, [location.state?.continueProgress, navigate, selectedCharacter.id])
 
   return (
     <main

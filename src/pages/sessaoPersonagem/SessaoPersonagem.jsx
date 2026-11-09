@@ -113,9 +113,28 @@ export default function SessaoPersonagem() {
     setSelectedCharacterId(nextCharacter.id)
   }
 
-  function handleStartGame() {
+  async function handleStartGame() {
     if (!selectedCharacter) return
-    navigate(ROUTES.novaPartida, { state: { character: selectedCharacter } })
+
+    try {
+      const response = await apiRequest('/api/progress/exists', {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      if (response?.exists && !window.confirm('Já existe uma partida salva. Deseja sobrescrevê-la?')) {
+        return
+      }
+
+      navigate(ROUTES.novaPartida, { state: { character: selectedCharacter } })
+    } catch (error) {
+      if (error?.status === 401) {
+        navigate(ROUTES.entrar)
+        return
+      }
+
+      setError(error?.message || 'Não foi possível verificar a partida salva.')
+    }
   }
 
   return (
