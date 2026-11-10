@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
 import { apiRequest } from '../../services/api.js'
-import { normalizeProgressPayload } from '../../utils/progress.js'
 import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './MenuPrincipal.css'
 
+// Continue só fica ativo quando a API diz que existe uma partida salva
 const MENU_ITEMS = [
-  { label: 'Continue', route: null, disabled: false },
+  { label: 'Continue', route: ROUTES.novaPartida },
   { label: 'New game', route: ROUTES.selecaoPersonagem },
   { label: 'Ranks', route: ROUTES.ranking },
   { label: 'Options', route: ROUTES.opcoes },
@@ -20,101 +20,45 @@ export default function MenuPrincipal() {
   const backRef = useRef(null)
   const userRef = useRef(null)
   const itemRefs = useRef(new Map())
-  const [hasProgress, setHasProgress] = useState(false)
-  const [isCheckingProgress, setIsCheckingProgress] = useState(true)
+  const lastFocusedItemRef = useRef('New game')
+  const [canContinue, setCanContinue] = useState(false)
   const [progressError, setProgressError] = useState('')
-  const lastFocusedItemRef = useRef('Continue')
 
-  const refreshProgressState = useCallback(async () => {
-    try {
-      const response = await apiRequest('/api/progress/exists', {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      const exists = Boolean(response?.exists)
-      setHasProgress(exists)
-      setProgressError(exists ? '' : '')
-      return exists
-    } catch (error) {
-      if (error?.status === 401) {
-        setHasProgress(false)
-        setProgressError('')
-        return false
-      }
-
-      setHasProgress(false)
-      setProgressError(error?.message || 'Não foi possível consultar a partida salva.')
-      return false
-    } finally {
-      setIsCheckingProgress(false)
-    }
-  }, [])
+  function isDisabled(item) {
+    return item.label === 'Continue' && !canContinue
+  }
 
   useEffect(() => {
     let active = true
 
-    async function loadProgressState() {
-      setIsCheckingProgress(true)
-      const exists = await refreshProgressState()
-      if (!active) return
-      setHasProgress(Boolean(exists))
-    }
+    apiRequest('/api/progress/exists', { credentials: 'include' })
+      .then((response) => {
+        if (active) setCanContinue(Boolean(response?.exists))
+      })
+      .catch((error) => {
+        // 401 é sessão vencida: quem trata é o SessionContext
+        if (active && error?.status !== 401) setProgressError(error?.message || 'Não foi possível consultar a partida salva.')
+      })
 
-    void loadProgressState()
     return () => {
       active = false
     }
-  }, [refreshProgressState])
+  }, [])
 
-  async function handleContinue() {
-    try {
-      const exists = await refreshProgressState()
-      if (!exists) {
-        setHasProgress(false)
-        setProgressError('Nenhuma partida salva para continuar.')
-        return
-      }
-
-      const response = await apiRequest('/api/progress', {
-        method: 'GET',
-        credentials: 'include',
-      })
-
-      if (!response?.exists || !response?.progress) {
-        setHasProgress(false)
-        setProgressError('Nenhuma partida salva para continuar.')
-        return
-      }
-
-      const progress = normalizeProgressPayload(response.progress)
-      navigate(ROUTES.novaPartida, {
-        state: {
-          character: {
-            id: progress.characterId || 'tung-tung-sahur',
-            name: 'Tung Tung Sahur',
-            description: 'Personagem principal do jogo.',
-          },
-          continueProgress: progress,
-        },
-      })
-    } catch (error) {
-      if (error?.status === 401) {
-        navigate(ROUTES.entrar)
-        return
-      }
-
-      setProgressError(error?.message || 'Não foi possível recuperar a partida salva.')
-    }
-  }
+  // O foco começa no primeiro item ativo. Se o jogador ainda não mexeu, ele passa para o
+  // Continue quando a API confirma a partida salva; se já foi para outro item, não é tirado de lá
+  useEffect(() => {
+    const focused = document.activeElement
+    if (focused !== document.body && focused !== itemRefs.current.get('New game')) return
+    itemRefs.current.get(canContinue ? 'Continue' : 'New game')?.focus()
+  }, [canContinue])
 
   useEffect(() => {
-    const navigableItems = MENU_ITEMS.filter((item) => item.label === 'Continue' ? hasProgress && !isCheckingProgress : true)
-    const firstItem = navigableItems[0]?.label ?? 'New game'
-    itemRefs.current.get(firstItem)?.focus()
+    const navigableItems = MENU_ITEMS.filter((item) => item.label !== 'Continue' || canContinue)
 
     function handleKeyDown(event) {
       if (isTypingTarget(event.target)) return
+
       if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
 
       const action = getMenuNavigationAction(event.key)
@@ -144,7 +88,7 @@ export default function MenuPrincipal() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hasProgress, isCheckingProgress])
+  }, [canContinue])
 
   return (
     <main className="menu-principal" aria-label="Menu principal">
@@ -157,39 +101,27 @@ export default function MenuPrincipal() {
 
         <nav className="menu-principal__painel" aria-label="Opções do jogo">
           <h1 className="visually-hidden">Menu principal</h1>
-          {MENU_ITEMS.map((item) => {
-            const disabled = item.label === 'Continue' ? !hasProgress || isCheckingProgress : item.disabled
-
-            return (
-              <button
-                className="menu-principal__item"
-                ref={(element) => {
-                  if (element) itemRefs.current.set(item.label, element)
-                  else itemRefs.current.delete(item.label)
-                }}
-                type="button"
-                key={item.label}
-                disabled={disabled}
-                onFocus={() => {
-                  if (!disabled) lastFocusedItemRef.current = item.label
-                }}
-                onClick={() => {
-                  if (item.label === 'Continue') {
-                    if (!hasProgress || isCheckingProgress) return
-                    void handleContinue()
-                    return
-                  }
-
-                  if (item.route) navigate(item.route)
-                }}
-              >
-                {item.label}
-              </button>
-            )
-          })}
+          {MENU_ITEMS.map((item) => (
+            <button
+              className="menu-principal__item"
+              ref={(element) => {
+                if (element) itemRefs.current.set(item.label, element)
+                else itemRefs.current.delete(item.label)
+              }}
+              type="button"
+              key={item.label}
+              disabled={isDisabled(item)}
+              onFocus={() => {
+                if (!isDisabled(item)) lastFocusedItemRef.current = item.label
+              }}
+              onClick={() => navigate(item.route)}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
 
-        {progressError ? <p className="menu-principal__erro">{progressError}</p> : null}
+        {progressError ? <p className="menu-principal__erro" role="alert">{progressError}</p> : null}
       </div>
     </main>
   )

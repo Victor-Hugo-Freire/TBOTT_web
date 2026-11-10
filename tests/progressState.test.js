@@ -32,6 +32,20 @@ describe('normalizeProgressPayload', () => {
   })
 })
 
+describe('normalizeProgressPayload com dados estranhos', () => {
+  test('valor que não é objeto vira a partida inicial', () => {
+    for (const value of [null, undefined, 'texto', 42, []]) {
+      assert.deepEqual(normalizeProgressPayload(value), {
+        roomId: 'sala-inicial',
+        characterId: 'tung-tung-sahur',
+        playerX: 800,
+        playerY: 560,
+        elapsedMs: 0,
+      })
+    }
+  })
+})
+
 describe('createProgressSnapshot', () => {
   test('monta o estado completo da run em coordenadas lógicas da sala', () => {
     const snapshot = createProgressSnapshot({

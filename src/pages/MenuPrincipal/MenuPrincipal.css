@@ -66,6 +66,17 @@
   cursor: pointer;
 }
 
+/* Aviso de erro ao consultar a partida salva, no pé da tela */
+.menu-principal__erro {
+  position: absolute;
+  bottom: clamp(0.75rem, 3vh, 1.5rem);
+  margin: 0;
+  padding: 0 1rem;
+  color: #ffe0a6;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .menu-principal__item:not(:disabled):hover {
   color: #e6e6e6;
 }
