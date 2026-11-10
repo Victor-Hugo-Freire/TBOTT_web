@@ -4,6 +4,7 @@ import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
+import { createProgressSnapshot } from '../../utils/progress.js'
 import './SessaoPersonagem.css'
 
 const EMPTY_STATE = {
@@ -113,9 +114,30 @@ export default function SessaoPersonagem() {
     setSelectedCharacterId(nextCharacter.id)
   }
 
-  function handleStartGame() {
+  async function handleStartGame() {
     if (!selectedCharacter) return
-    navigate(ROUTES.novaPartida, { state: { character: selectedCharacter } })
+
+    try {
+      const response = await apiRequest('/api/progress/exists', { credentials: 'include' })
+
+      if (response?.exists && !window.confirm('Já existe uma partida salva. Deseja sobrescrevê-la?')) {
+        return
+      }
+
+      // A partida nova substitui a salva já aqui (a API troca o progresso do usuário pelo novo).
+      // A sala carrega o progresso da API, então nunca depende do state da navegação.
+      const newRun = createProgressSnapshot({ characterId: selectedCharacter.id })
+      await apiRequest('/api/progress', { method: 'PUT', credentials: 'include', body: JSON.stringify(newRun) })
+
+      navigate(ROUTES.novaPartida, { state: { character: selectedCharacter } })
+    } catch (error) {
+      if (error?.status === 401) {
+        navigate(ROUTES.entrar)
+        return
+      }
+
+      setError(error?.message || 'Não foi possível iniciar a partida.')
+    }
   }
 
   return (

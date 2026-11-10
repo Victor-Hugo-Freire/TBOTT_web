@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { createPlayer, updatePlayer } from '../../utils/player.js'
+import { createProgressSnapshot, normalizeProgressPayload } from '../../utils/progress.js'
 import {
   getAttackDirection,
   getRoomMovement,
@@ -19,6 +21,9 @@ import { getRoomView, ROOM_VIEW_CROP } from './scene/view.js'
 import './SalaInicial.css'
 
 // A sala é só de teclado: cliques e menu de contexto não fazem nada aqui
+// De quanto em quanto tempo o progresso é salvo na API (também é salvo ao sair da sala)
+const SAVE_INTERVAL_MS = 5000
+
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
 
 function blockMouse(event) {
@@ -53,9 +58,63 @@ export default function SalaInicial() {
 
     const pressedKeys = new Set()
     let player = createPlayer(ROOM_PLAYER_START)
+    let characterId = selectedCharacter.id
+    let elapsedMs = 0 // tempo de jogo ativo, em milissegundos
+    let previousTime
+    let isPaused = !document.hasFocus()
+    let animationFrame
+    // O progresso só é salvo depois de carregado: assim uma sala "em branco" nunca
+    // apaga o que já estava salvo (F5, botão Avançar do navegador, endereço digitado)
+    let progressLoaded = false
+    let isCancelled = false
+    let isSaving = false
+    let saveAgain = false
     let showDebug = false // F3, só no npm run dev
     let view = getRoomView(0, 0)
     let pixelRatio = 1
+
+    // A posição e o tempo vêm da API (e não do state da navegação, que o navegador
+    // guarda no histórico e pode estar velho). A partida nova já foi salva pela seleção.
+    async function loadProgress() {
+      try {
+        const response = await apiRequest('/api/progress', { credentials: 'include' })
+        if (isCancelled) return
+
+        if (response?.exists) {
+          const progress = normalizeProgressPayload(response.progress)
+          player = createPlayer({ x: progress.playerX, y: progress.playerY })
+          elapsedMs = progress.elapsedMs
+          characterId = progress.characterId
+        }
+        progressLoaded = true
+      } catch (error) {
+        // Sem conseguir ler o progresso, não salvamos nada nesta visita (isso protege o que já existe)
+        if (error?.status !== 401) console.warn('Não foi possível carregar o progresso.', error)
+      }
+    }
+
+    // Salva uma requisição por vez: se pedirem outra durante o envio, ela roda logo depois
+    async function saveProgress() {
+      if (!progressLoaded) return
+      if (isSaving) {
+        saveAgain = true
+        return
+      }
+
+      isSaving = true
+      try {
+        const snapshot = createProgressSnapshot({ player, elapsedMs, characterId })
+        await apiRequest('/api/progress', { method: 'PUT', credentials: 'include', body: JSON.stringify(snapshot) })
+      } catch (error) {
+        if (error?.status !== 401) console.warn('Não foi possível salvar o progresso.', error)
+      } finally {
+        isSaving = false
+        if (saveAgain) {
+          saveAgain = false
+          void saveProgress()
+        }
+      }
+    }
 
     // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
     function resize() {
@@ -97,21 +156,26 @@ export default function SalaInicial() {
       pressedKeys.clear()
     }
 
-    let previousTime
-    let startTime // quando a sala abriu: o contador conta tempo real desde aí
-    let elapsedMs = 0
-    let animationFrame
+    // Janela sem foco (outra aba, outro programa): o contador para e não conta esse tempo
+    function handleBlur() {
+      isPaused = true
+    }
+
+    function handleFocus() {
+      isPaused = false
+      previousTime = undefined
+    }
 
     function update(time) {
-      const deltaSeconds = previousTime === undefined ? 0 : (time - previousTime) / 1000
+      const deltaMs = previousTime === undefined ? 0 : time - previousTime
       previousTime = time
-      startTime ??= time
-      elapsedMs = time - startTime
+      // O contador só anda depois de carregar o progresso salvo (que traz o tempo já jogado)
+      if (progressLoaded && !isPaused) elapsedMs += deltaMs
 
       player = updatePlayer(
         player,
         { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
-        deltaSeconds,
+        deltaMs / 1000,
       )
 
       draw()
@@ -142,7 +206,14 @@ export default function SalaInicial() {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
     window.addEventListener('blur', clearPressedKeys)
+    window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
     BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
+    void loadProgress()
+    // Parado na janela sem foco, não há o que salvar
+    const saveTimer = window.setInterval(() => {
+      if (!isPaused) void saveProgress()
+    }, SAVE_INTERVAL_MS)
     animationFrame = window.requestAnimationFrame(update)
 
     return () => {
@@ -150,10 +221,15 @@ export default function SalaInicial() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
       window.removeEventListener('blur', clearPressedKeys)
+      window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
       BLOCKED_MOUSE_EVENTS.forEach((name) => window.removeEventListener(name, blockMouse))
+      window.clearInterval(saveTimer)
       window.cancelAnimationFrame(animationFrame)
+      isCancelled = true
+      void saveProgress() // ao sair da sala
     }
-  }, [navigate])
+  }, [navigate, selectedCharacter.id])
 
   return (
     <main

@@ -1,29 +1,60 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
+import { apiRequest } from '../../services/api.js'
 import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './MenuPrincipal.css'
 
+// Continue só fica ativo quando a API diz que existe uma partida salva
 const MENU_ITEMS = [
-  { label: 'Continue', route: null, disabled: true },
+  { label: 'Continue', route: ROUTES.novaPartida },
   { label: 'New game', route: ROUTES.selecaoPersonagem },
   { label: 'Ranks', route: ROUTES.ranking },
   { label: 'Options', route: ROUTES.opcoes },
 ]
-
-const NAVIGABLE_ITEMS = MENU_ITEMS.filter((item) => !item.disabled)
 
 export default function MenuPrincipal() {
   const navigate = useNavigate()
   const backRef = useRef(null)
   const userRef = useRef(null)
   const itemRefs = useRef(new Map())
-  const lastFocusedItemRef = useRef(NAVIGABLE_ITEMS[0].label)
+  const lastFocusedItemRef = useRef('New game')
+  const [canContinue, setCanContinue] = useState(false)
+  const [progressError, setProgressError] = useState('')
+
+  function isDisabled(item) {
+    return item.label === 'Continue' && !canContinue
+  }
 
   useEffect(() => {
-    itemRefs.current.get(NAVIGABLE_ITEMS[0].label)?.focus()
+    let active = true
+
+    apiRequest('/api/progress/exists', { credentials: 'include' })
+      .then((response) => {
+        if (active) setCanContinue(Boolean(response?.exists))
+      })
+      .catch((error) => {
+        // 401 é sessão vencida: quem trata é o SessionContext
+        if (active && error?.status !== 401) setProgressError(error?.message || 'Não foi possível consultar a partida salva.')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // O foco começa no primeiro item ativo. Se o jogador ainda não mexeu, ele passa para o
+  // Continue quando a API confirma a partida salva; se já foi para outro item, não é tirado de lá
+  useEffect(() => {
+    const focused = document.activeElement
+    if (focused !== document.body && focused !== itemRefs.current.get('New game')) return
+    itemRefs.current.get(canContinue ? 'Continue' : 'New game')?.focus()
+  }, [canContinue])
+
+  useEffect(() => {
+    const navigableItems = MENU_ITEMS.filter((item) => item.label !== 'Continue' || canContinue)
 
     function handleKeyDown(event) {
       if (isTypingTarget(event.target)) return
@@ -45,19 +76,19 @@ export default function MenuPrincipal() {
         return
       }
 
-      const currentIndex = NAVIGABLE_ITEMS.findIndex((item) => itemRefs.current.get(item.label) === document.activeElement)
+      const currentIndex = navigableItems.findIndex((item) => itemRefs.current.get(item.label) === document.activeElement)
       if (currentIndex === -1) {
         if (action === 'down') itemRefs.current.get(lastFocusedItemRef.current)?.focus()
         return
       }
 
-      const nextIndex = getNextIndex(currentIndex, action, NAVIGABLE_ITEMS.length)
-      itemRefs.current.get(NAVIGABLE_ITEMS[nextIndex].label)?.focus()
+      const nextIndex = getNextIndex(currentIndex, action, navigableItems.length)
+      itemRefs.current.get(navigableItems[nextIndex].label)?.focus()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [canContinue])
 
   return (
     <main className="menu-principal" aria-label="Menu principal">
@@ -79,16 +110,18 @@ export default function MenuPrincipal() {
               }}
               type="button"
               key={item.label}
-              disabled={item.disabled}
+              disabled={isDisabled(item)}
               onFocus={() => {
-                if (!item.disabled) lastFocusedItemRef.current = item.label
+                if (!isDisabled(item)) lastFocusedItemRef.current = item.label
               }}
-              onClick={() => item.route && navigate(item.route)}
+              onClick={() => navigate(item.route)}
             >
               {item.label}
             </button>
           ))}
         </nav>
+
+        {progressError ? <p className="menu-principal__erro" role="alert">{progressError}</p> : null}
       </div>
     </main>
   )
