@@ -94,3 +94,36 @@ describe('colisão com as paredes da sala', () => {
     }
   })
 })
+
+describe('colisão com obstáculos da sala', () => {
+  // caixa sólida de obstáculo de piso (84x60) no meio da sala
+  const block = box(700, 450, 84, 60)
+  const solids = [...ROOM_WALLS, block]
+  const feetBox = (position) => box(position.x - PLAYER_FEET_BOX.width / 2, position.y - PLAYER_FEET_BOX.height, PLAYER_FEET_BOX.width, PLAYER_FEET_BOX.height)
+
+  test('dt de 0,05 s (o máximo) não atravessa o obstáculo, de nenhum lado', () => {
+    const cases = [
+      [{ x: 600, y: 490 }, { x: 1, y: 0 }],
+      [{ x: 880, y: 490 }, { x: -1, y: 0 }],
+      [{ x: 742, y: 400 }, { x: 0, y: 1 }],
+      [{ x: 742, y: 600 }, { x: 0, y: -1 }],
+    ]
+    for (const [start, movement] of cases) {
+      let position = start
+      for (let frame = 0; frame < 40; frame++) {
+        position = moveRoomPlayer(position, movement, 0.05, 1, solids)
+        assert.equal(overlaps(feetBox(position), block), false)
+      }
+      assert.notDeepEqual(position, start, 'andou até encostar')
+    }
+  })
+
+  test('na diagonal contra o obstáculo, desliza pela borda', () => {
+    const movement = getRoomMovement(new Set(['KeyD', 'KeyS']))
+    let position = { x: 670, y: 460 }
+    // 10 quadros: o bastante para encostar, sem passar da borda de baixo do bloco
+    for (let frame = 0; frame < 10; frame++) position = moveRoomPlayer(position, movement, 1 / 60, 1, solids)
+    assert.equal(position.x, 700 - PLAYER_FEET_BOX.width / 2)
+    assert.ok(position.y > 460)
+  })
+})

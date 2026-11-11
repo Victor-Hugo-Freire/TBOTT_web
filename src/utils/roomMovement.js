@@ -86,18 +86,27 @@ export function getRoomMovement(keys) {
   return { x: horizontal / magnitude, y: vertical / magnitude }
 }
 
+// Caixa dos pés na posição (x, y), que é o meio da borda de baixo da caixa.
+// margin aumenta a caixa para todos os lados (ex.: a folga da chapa quente).
+export function getFeetBox(position, margin = 0) {
+  const { width, height } = PLAYER_FEET_BOX
+  return { x: position.x - width / 2 - margin, y: position.y - height - margin, width: width + 2 * margin, height: height + 2 * margin }
+}
+
 // Move os pés conforme a direção e o tempo, parando nas paredes (ou deslizando nelas).
 // speedMultiplier: 1 é a velocidade normal; menor que 1 deixa o personagem mais lento (ex.: durante o golpe).
-export function moveRoomPlayer(position, movement, deltaSeconds, speedMultiplier = 1) {
+// solids: as caixas que bloqueiam. Sem informar, só as paredes; numa sala com obstáculos,
+// quem chama passa as paredes mais os obstáculos (getRoomSolids, em roomObstacles.js).
+export function moveRoomPlayer(position, movement, deltaSeconds, speedMultiplier = 1, solids = ROOM_WALLS) {
   const elapsed = Math.max(0, Math.min(deltaSeconds, 0.05))
   const distance = ROOM_PLAYER_SPEED * speedMultiplier * elapsed
   const { width, height } = PLAYER_FEET_BOX
 
   const box = moveAndCollide(
-    { x: position.x - width / 2, y: position.y - height, width, height },
+    getFeetBox(position),
     movement.x * distance,
     movement.y * distance,
-    ROOM_WALLS,
+    solids,
   )
   const x = box.x + width / 2
   const y = box.y + height

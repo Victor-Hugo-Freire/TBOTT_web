@@ -1,6 +1,6 @@
 import { CHARACTER_SPRITES } from '../data/characterSprites.js'
 import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance } from './spriteAnimation.js'
-import { moveRoomPlayer } from './roomMovement.js'
+import { moveRoomPlayer, ROOM_WALLS } from './roomMovement.js'
 
 // Estado do personagem na sala, em funções puras (sem React, sem canvas), para testar.
 // Posição (x, y) = centro dos pés. Tempos em ms.
@@ -17,7 +17,7 @@ export const ATTACK_DURATION_MS = getTotalDuration(ATTACK.durations)
 
 // Dano: 410 ms de animação, em que o personagem não anda nem ataca (dano > ataque > andar).
 // Depois de levar dano fica invencível por 1000 ms, contados do momento do golpe.
-// Por enquanto nada chama hurtPlayer no jogo: só existe o estado, até haver inimigos.
+// Por enquanto só a chapa quente (run.js) chama hurtPlayer, e ainda sem tirar vida (vida virá com os inimigos).
 const HURT = CHARACTER_SPRITES.tungTungSahurDano
 export const HURT_DURATION_MS = getTotalDuration(HURT.durations)
 export const INVINCIBILITY_MS = 1000
@@ -83,7 +83,11 @@ function getFacingDirection(movement) {
 
 // Avança o personagem um quadro.
 // input: { movement: { x, y }, attackDirection: 'up' | 'down' | 'left' | 'right' | null }
-export function updatePlayer(player, input, deltaSeconds) {
+// options (opcional), para a sala com obstáculos:
+// - solids: caixas que bloqueiam (padrão: só as paredes da sala);
+// - speedMultiplier: velocidade do piso (ex.: 0,5 no piso grudento). Multiplica com a do golpe.
+export function updatePlayer(player, input, deltaSeconds, options = {}) {
+  const { solids = ROOM_WALLS, speedMultiplier = 1 } = options
   const stepMs = Math.max(0, Math.min(deltaSeconds * 1000, MAX_STEP_MS))
 
   let next = {
@@ -114,7 +118,8 @@ export function updatePlayer(player, input, deltaSeconds) {
   next.stoppedMs = stopped ? player.stoppedMs + stepMs : 0
   const pausing = stopped && next.stoppedMs < TURN_FRONT_DELAY_MS
   if (!attacking && !pausing) next.direction = getFacingDirection(movement)
-  const moved = moveRoomPlayer(next, movement, stepMs / 1000, attacking ? ATTACK_MOVE_SPEED : 1)
+  const speed = (attacking ? ATTACK_MOVE_SPEED : 1) * speedMultiplier
+  const moved = moveRoomPlayer(next, movement, stepMs / 1000, speed, solids)
   if (!pausing) next.walkDistance = updateWalkDistance(next.walkDistance, Math.hypot(moved.x - next.x, moved.y - next.y))
   next.x = moved.x
   next.y = moved.y

@@ -17,7 +17,7 @@ import {
   TURN_FRONT_DELAY_MS,
   updatePlayer,
 } from '../src/utils/player.js'
-import { ROOM_PLAYER_SPEED } from '../src/utils/roomMovement.js'
+import { PLAYER_FEET_BOX, ROOM_PLAYER_SPEED, ROOM_WALLS } from '../src/utils/roomMovement.js'
 import { getWalkFrame } from '../src/utils/spriteAnimation.js'
 
 const START = { x: 500, y: 400 }
@@ -209,6 +209,32 @@ describe('ataque: arco branco', () => {
       )
       assert.equal(arc.direction, direction)
     }
+  })
+})
+
+describe('updatePlayer com os obstáculos da sala (options)', () => {
+  const WALK_RIGHT = { movement: { x: 1, y: 0 }, attackDirection: null }
+
+  test('com sólidos, para encostado no obstáculo', () => {
+    const block = { x: 560, y: 360, width: 84, height: 60 }
+    const { player } = run(createPlayer(START), WALK_RIGHT, 1000)
+    assert.ok(player.x > 560, 'sem o obstáculo, passa')
+    let blocked = createPlayer(START)
+    for (let frame = 0; frame < 60; frame++) {
+      blocked = updatePlayer(blocked, WALK_RIGHT, FRAME, { solids: [...ROOM_WALLS, block] })
+    }
+    assert.equal(blocked.x, 560 - PLAYER_FEET_BOX.width / 2)
+  })
+
+  test('com speedMultiplier, anda mais devagar (e multiplica com o golpe)', () => {
+    const sticky = updatePlayer(createPlayer(START), WALK_RIGHT, 0.02, { speedMultiplier: 0.5 })
+    assert.equal(sticky.x, START.x + ROOM_PLAYER_SPEED * 0.5 * 0.02)
+    const both = updatePlayer(createPlayer(START), { ...WALK_RIGHT, attackDirection: 'up' }, 0.02, { speedMultiplier: 0.5 })
+    assert.ok(Math.abs(both.x - START.x - ROOM_PLAYER_SPEED * 0.25 * 0.02) < 1e-9)
+  })
+
+  test('options vazio é igual a não passar options', () => {
+    assert.deepEqual(updatePlayer(createPlayer(START), WALK_RIGHT, 0.02, {}), updatePlayer(createPlayer(START), WALK_RIGHT, 0.02))
   })
 })
 

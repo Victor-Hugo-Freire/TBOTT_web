@@ -5,10 +5,12 @@ import {
   getRoomMovement,
   isRoomKey,
   moveRoomPlayer,
+  PLAYER_FEET_BOX,
   ROOM_PLAYER_BOUNDS,
   ROOM_PLAYER_SPEED,
   ROOM_PLAYER_START,
   ROOM_SIZE,
+  ROOM_WALLS,
   shouldReturnToMenu,
 } from '../src/utils/roomMovement.js'
 
@@ -172,5 +174,26 @@ describe('moveRoomPlayer (colisão com as bordas)', () => {
   test('limita deltas longos para evitar saltos após uma pausa', () => {
     const next = moveRoomPlayer({ x: 500, y: 400 }, { x: 1, y: 0 }, 1)
     assert.equal(next.x, 500 + ROOM_PLAYER_SPEED * 0.05)
+  })
+})
+
+describe('moveRoomPlayer (sólidos da sala)', () => {
+  const block = { x: 600, y: 380, width: 84, height: 60 }
+
+  test('sem informar os sólidos, usa só as paredes (igual a antes)', () => {
+    const start = { x: ROOM_PLAYER_BOUNDS.maxX, y: 400 }
+    assert.deepEqual(moveRoomPlayer(start, { x: 1, y: 0 }, 0.05), moveRoomPlayer(start, { x: 1, y: 0 }, 0.05, 1, ROOM_WALLS))
+    assert.equal(moveRoomPlayer(start, { x: 1, y: 0 }, 0.05), start)
+  })
+
+  test('para encostado num obstáculo da lista de sólidos', () => {
+    let position = { x: 560, y: 420 }
+    for (let frame = 0; frame < 30; frame++) position = moveRoomPlayer(position, { x: 1, y: 0 }, 0.05, 1, [...ROOM_WALLS, block])
+    assert.deepEqual(position, { x: 600 - PLAYER_FEET_BOX.width / 2, y: 420 })
+  })
+
+  test('o obstáculo fora da lista não bloqueia', () => {
+    const position = moveRoomPlayer({ x: 570, y: 420 }, { x: 1, y: 0 }, 0.05)
+    assert.equal(position.x, 570 + ROOM_PLAYER_SPEED * 0.05)
   })
 })
