@@ -1,8 +1,13 @@
 import { noise, rect } from '../../../utils/canvas.js'
-import { COLORS, FLOOR_LIGHT } from './colors.js'
+import { FLOOR_LIGHT } from './colors.js'
+import { ROOM_THEMES } from './themes.js'
+import { drawWallPattern } from './drawWallPattern.js'
+import { drawFloorPattern } from './drawFloorPattern.js'
+import { drawWallDecor } from './drawWallDecor.js'
 import { ROOM_FLOOR, ROOM_SIZE } from '../../../utils/roomMovement.js'
 
-// Desenho da sala inicial, igual ao protótipo do Figma. As outras salas do andar terão desenho próprio (issue #18).
+// Desenho da sala, igual ao protótipo do Figma. A estrutura é a mesma em todos os andares e salas especiais;
+// o tema troca as cores, o padrão da parede e do piso e os enfeites (themes.js).
 // A sala é desenhada em unidades da sala (1600x853), de cima para baixo. As faixas (y) foram medidas no protótipo.
 const W = ROOM_SIZE.width
 const H = ROOM_SIZE.height
@@ -16,10 +21,6 @@ const FLOOR_END = ROOM_FLOOR.bottom
 const SIDE_STONE = 75 // largura da pedra, da borda da sala até a coluna (que vai até ROOM_FLOOR.left)
 const STONE_WIDTH = 75
 const STONE_HEIGHT = 85
-const BRICK_ROW_HEIGHT = 23
-const BRICK_WIDTH = 56
-const PLANK_WIDTH = 85.8
-const FIRST_JOINT_X = 66
 const EDGE_DARKNESS = 0.55 // escurecimento na borda da tela: nunca chega ao preto
 const WALL_SHADOW = 0.4 // sombra que a parede projeta no piso, encostada nas paredes laterais
 const WALL_SHADOW_WIDTH = 45 // até onde essa sombra vai, a partir da parede
@@ -28,92 +29,69 @@ const TOP_SHADOW_HEIGHT = 45
 const VIGNETTE = 0.4 // escurecimento do piso nos cantos, para o centro parecer iluminado
 const STONE_SHADE = 0.45 // quanto da sombra do piso (de cima para baixo) a pedra recebe: embaixo fica ×0,62, como no protótipo
 
-const BRICK_COLORS = [COLORS.brickA, COLORS.brickB, COLORS.brickC]
-const STONE_COLORS = [COLORS.stoneA, COLORS.stoneB]
-const FLOOR_COLORS = [COLORS.floorA, COLORS.floorB, COLORS.floorC]
-
 function pick(colors, seed) {
   return colors[Math.floor(noise(seed) * colors.length)]
 }
 
 // Desenha a sala inteira. O ctx já vem com a escala e o deslocamento da tela.
 // extraX = sobra da tela de cada lado, em unidades da sala: as paredes laterais continuam até a borda da tela.
-export function drawRoom(ctx, extraX = 0) {
+// theme = chave de ROOM_THEMES: o andar ('cantina', 'cucina', ...) ou o tipo da sala especial ('chefe', 'loja', ...).
+export function drawRoom(ctx, extraX = 0, theme = 'cantina') {
+  const palette = ROOM_THEMES[theme]
   const area = { left: -extraX, right: W + extraX }
   // Tijolos e tábuas começam um pouco fora da área; o recorte evita que vazem
   ctx.save()
   ctx.beginPath()
   ctx.rect(area.left, 0, area.right - area.left, H)
   ctx.clip()
-  drawTopWall(ctx, area)
-  drawInnerWall(ctx)
-  drawBaseboard(ctx, area)
-  drawSideWalls(ctx, area)
+  drawTopWall(ctx, area, palette)
+  drawInnerWall(ctx, palette)
+  drawWallDecor(ctx, theme, palette)
+  drawBaseboard(ctx, area, palette)
+  drawSideWalls(ctx, area, palette)
   ctx.restore()
 }
 
-// Parede escura de cima, com painéis, e a viga que separa dos tijolos
-function drawTopWall(ctx, { left, right }) {
+// Parede escura de cima, com painéis, e a viga que separa da faixa de parede
+function drawTopWall(ctx, { left, right }, palette) {
   const width = right - left
-  rect(ctx, COLORS.topWall, left, 0, width, TOP_WALL_END)
+  rect(ctx, palette.top, left, 0, width, TOP_WALL_END)
   for (let i = Math.floor((left - 20) / 68), x = 20 + i * 68; x < right; i++, x += 68) {
-    rect(ctx, i % 2 ? COLORS.topPanelB : COLORS.topPanelA, x, 12, 46, TOP_WALL_END - 12)
+    rect(ctx, i % 2 ? palette.panelB : palette.panelA, x, 12, 46, TOP_WALL_END - 12)
   }
-  rect(ctx, COLORS.beam, left, TOP_WALL_END, width, BEAM_TOP + 40 - TOP_WALL_END)
-  rect(ctx, COLORS.beamLight, left, BEAM_TOP, width, 3)
+  rect(ctx, palette.beam, left, TOP_WALL_END, width, BEAM_TOP + 40 - TOP_WALL_END)
+  rect(ctx, palette.beamLight, left, BEAM_TOP, width, 3)
 }
 
-// Entre as colunas laterais: tijolos, viga de baixo e piso
-function drawInnerWall(ctx) {
+// Entre as colunas laterais: faixa de parede, viga de baixo e piso
+function drawInnerWall(ctx, palette) {
+  const { left, right, top } = ROOM_FLOOR
   ctx.save()
   ctx.beginPath()
-  ctx.rect(ROOM_FLOOR.left, 0, ROOM_FLOOR.right - ROOM_FLOOR.left, H)
+  ctx.rect(left, 0, right - left, H)
   ctx.clip()
-  drawBricks(ctx)
-  drawLowerBeam(ctx)
-  drawFloor(ctx)
+  drawWallPattern(ctx, palette, { left, right, top: BRICKS_TOP, bottom: BRICKS_END })
+  drawLowerBeam(ctx, palette)
+  drawFloorPattern(ctx, palette, { left, right, top, bottom: FLOOR_END })
+  drawFloorLight(ctx, palette)
   ctx.restore()
 }
 
-// Parede de tijolos: fiadas deslocadas meio tijolo
-function drawBricks(ctx) {
-  const left = ROOM_FLOOR.left
-  const right = ROOM_FLOOR.right
-  rect(ctx, COLORS.brickC, left, BRICKS_TOP, right - left, BRICKS_END - BRICKS_TOP)
-  for (let row = 0, y = BRICKS_TOP; y < BRICKS_END; row++, y += BRICK_ROW_HEIGHT) {
-    const height = Math.min(BRICK_ROW_HEIGHT, BRICKS_END - y)
-    const shift = (row % 2) * (BRICK_WIDTH / 2)
-    for (let col = Math.floor((left + shift) / BRICK_WIDTH), x = col * BRICK_WIDTH - shift; x < right; x += BRICK_WIDTH, col++) {
-      rect(ctx, pick(BRICK_COLORS, row * 31 + col + 1), x + 1, y + 1, BRICK_WIDTH - 2, height - 2)
-    }
-    rect(ctx, COLORS.mortar, left, y + height - 2, right - left, 3)
-  }
-}
-
-function drawLowerBeam(ctx) {
+function drawLowerBeam(ctx, palette) {
   const { left, right } = ROOM_FLOOR
-  rect(ctx, COLORS.beamBase, left, BRICKS_END, right - left, LOWER_BEAM_END - BRICKS_END)
-  rect(ctx, COLORS.beamShadow, left, BRICKS_END + 8, right - left, 5)
+  rect(ctx, palette.beamBase, left, BRICKS_END, right - left, LOWER_BEAM_END - BRICKS_END)
+  rect(ctx, palette.beamShadow, left, BRICKS_END + 8, right - left, 5)
 }
 
-// Piso de tábuas verticais com juntas escuras, uma luz quente no alto, sombras das paredes e escuro nos cantos e embaixo
-function drawFloor(ctx) {
+// Por cima do padrão do piso: a luz do tema no alto, sombras das paredes e escuro nos cantos e embaixo
+function drawFloorLight(ctx, palette) {
   const { left: floorLeft, right, top } = ROOM_FLOOR
   const width = right - floorLeft
   const height = FLOOR_END - top
-  for (let plank = Math.floor((floorLeft - FIRST_JOINT_X) / PLANK_WIDTH) - 1; ; plank++) {
-    const x = FIRST_JOINT_X + plank * PLANK_WIDTH
-    if (x > right) break
-    const left = Math.round(x)
-    rect(ctx, pick(FLOOR_COLORS, plank + 40), left, top, Math.round(x + PLANK_WIDTH) - left, height)
-    // Uma emenda horizontal por tábua, em alturas diferentes
-    rect(ctx, COLORS.floorJoint, left, top + 60 + Math.floor(noise(plank + 7) * 300), Math.round(PLANK_WIDTH), 2)
-    rect(ctx, COLORS.floorJoint, left, top, 3, height)
-  }
 
   const light = ctx.createRadialGradient(FLOOR_LIGHT.x, FLOOR_LIGHT.y, 10, FLOOR_LIGHT.x, FLOOR_LIGHT.y, FLOOR_LIGHT.radius)
-  light.addColorStop(0, 'rgba(170, 118, 70, 0.30)')
-  light.addColorStop(1, 'rgba(170, 118, 70, 0)')
+  light.addColorStop(0, `rgba(${palette.glow}, 0.30)`)
+  light.addColorStop(1, `rgba(${palette.glow}, 0)`)
   rect(ctx, light, floorLeft, top, width, height)
 
   // Sombra suave junto das paredes laterais, dos dois lados
@@ -153,26 +131,26 @@ function getFloorShade(ctx) {
 }
 
 // Rodapé de lajotas, que desce até a borda da tela (sem faixa escura embaixo)
-function drawBaseboard(ctx, { left, right }) {
+function drawBaseboard(ctx, { left, right }, palette) {
   const width = right - left
-  rect(ctx, COLORS.baseboard, left, FLOOR_END, width, H - FLOOR_END)
+  rect(ctx, palette.base, left, FLOOR_END, width, H - FLOOR_END)
   for (let x = Math.floor(left / 80) * 80; x < right; x += 80) {
-    rect(ctx, COLORS.baseboardLine, x, FLOOR_END, 2, H - FLOOR_END)
+    rect(ctx, palette.baseLine, x, FLOOR_END, 2, H - FLOOR_END)
   }
-  rect(ctx, COLORS.beamShadow, left, FLOOR_END, width, 3)
+  rect(ctx, palette.beamShadow, left, FLOOR_END, width, 3)
 }
 
 // Paredes laterais: blocos de pedra em fiadas deslocadas e uma coluna junto do piso.
 // Escurecem em direção à borda da tela, mas só até EDGE_DARKNESS (não chegam ao preto).
-function drawSideWalls(ctx, area) {
+function drawSideWalls(ctx, area, palette) {
   for (const side of ['left', 'right']) {
     // Desenha a esquerda e espelha para a direita
     ctx.save()
     if (side === 'right') ctx.transform(-1, 0, 0, 1, W, 0)
     const edge = side === 'left' ? area.left : W - area.right // x da borda da tela, já espelhado
 
-    drawStone(ctx, edge, side === 'left' ? 0 : 50)
-    drawPost(ctx)
+    drawStone(ctx, edge, side === 'left' ? 0 : 50, palette)
+    drawPost(ctx, palette)
 
     // Escurecem para baixo junto com o piso: a coluna igual ao piso e a pedra só em parte.
     // Abaixo do piso, a sombra fica no último tom (a pedra não clareia de novo no rodapé).
@@ -192,24 +170,25 @@ function drawSideWalls(ctx, area) {
 }
 
 // Blocos de pedra da borda da tela até SIDE_STONE, na altura toda
-function drawStone(ctx, edge, seedOffset) {
-  rect(ctx, COLORS.mortar, edge, 0, SIDE_STONE - edge, H)
+function drawStone(ctx, edge, seedOffset, palette) {
+  const stoneColors = [palette.stoneA, palette.stoneB]
+  rect(ctx, palette.mortar, edge, 0, SIDE_STONE - edge, H)
   for (let row = 0, y = 0; y < H; row++, y += STONE_HEIGHT) {
     const shift = (row % 2) * (STONE_WIDTH / 2)
     // col pode ser negativo (blocos além da borda da sala): só serve de semente da cor
     for (let col = Math.floor((edge + shift) / STONE_WIDTH), x = col * STONE_WIDTH - shift; x < SIDE_STONE; x += STONE_WIDTH, col++) {
       const left = Math.max(x, edge)
       const right = Math.min(x + STONE_WIDTH, SIDE_STONE)
-      rect(ctx, pick(STONE_COLORS, row * 17 + col + seedOffset + 100), left + 1, y + 1, right - left - 2, Math.min(STONE_HEIGHT, H - y) - 2)
+      rect(ctx, pick(stoneColors, row * 17 + col + seedOffset + 100), left + 1, y + 1, right - left - 2, Math.min(STONE_HEIGHT, H - y) - 2)
     }
   }
 }
 
 // Coluna entre a pedra e o piso: um degradê do tom da pedra até o do piso, sem degrau nas bordas
-function drawPost(ctx) {
+function drawPost(ctx, palette) {
   const top = BEAM_TOP + 40
   const post = ctx.createLinearGradient(SIDE_STONE, 0, ROOM_FLOOR.left, 0)
-  post.addColorStop(0, COLORS.post)
-  post.addColorStop(1, COLORS.postLight)
+  post.addColorStop(0, palette.post)
+  post.addColorStop(1, palette.postLight)
   rect(ctx, post, SIDE_STONE, top, ROOM_FLOOR.left - SIDE_STONE, FLOOR_END - top)
 }
