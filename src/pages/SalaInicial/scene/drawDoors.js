@@ -1,4 +1,7 @@
+import { CONSUMABLE_SPRITES } from '../../../data/itemSprites.js'
 import { noise, polygon } from '../../../utils/canvas.js'
+import { FORK_KNOT_MS, FORK_LEAVES_MS } from '../../../utils/doors.js'
+import { getTimedFrame } from '../../../utils/spriteAnimation.js'
 
 // Portas da sala, portadas do protótipo da issue #18 (docs/referencias/prototipo-salas-issue-18/lib.js: door(), enfeite(), ICON e BM).
 // Cada porta é desenhada uma vez, como a porta de cima, e girada para os outros lados.
@@ -49,7 +52,16 @@ const ICONS = {
 }
 const ICON_PIXEL = 2.6
 
-// Desenha as portas da sala. doors vem de getRoomDoors ({ side, kind, state }); palette é uma paleta de ROOM_THEMES.
+// Porta trancada: a chapa com o nó de espaguete (folha garfo-porta-trancada, 9 quadros de 64x64, @1x).
+// Parada, mostra o quadro idleFrame (só a chapa e o nó, sem o garfo); abrindo, os quadros 0 a 7 (o garfo aparece,
+// enrola e tira o nó). Tamanho em u por pixel da arte: na porta de baixo só aparece o rodapé, então a chapa é menor.
+const FORK_LOCK = CONSUMABLE_SPRITES.garfo.variants['porta-trancada']
+const FORK_LOCK_DURATIONS = FORK_LOCK.animations['porta-trancada'].durations
+const FORK_LOCK_SCALE = { up: 2, left: 2, right: 2, down: 1.25 }
+let forkLockImage = null // carregada na primeira porta trancada que aparecer
+
+// Desenha as portas da sala. doors vem de getRoomDoors ({ side, kind, state }), com applyUnlocking para a porta
+// que está abrindo ({ state: 'unlocking', unlockMs }); palette é uma paleta de ROOM_THEMES.
 export function drawDoors(ctx, doors, palette) {
   for (const door of doors) drawDoor(ctx, door, palette)
 }
@@ -82,7 +94,7 @@ export function drawSecretMark(ctx, side) {
   ctx.restore()
 }
 
-function drawDoor(ctx, { side, kind, state }, palette) {
+function drawDoor(ctx, { side, kind, state, unlockMs = 0 }, palette) {
   // A adega escondida não tem porta: de perto aparece só a marca (drawSecretMark)
   if (kind === 'adega' && state === 'hidden') return
   const style = DOOR_STYLES[kind] || DOOR_STYLES.comum
@@ -91,9 +103,30 @@ function drawDoor(ctx, { side, kind, state }, palette) {
   moveToDoor(ctx, side)
   paintRect(ctx, '#0a0604', -3, -3, DOOR_WIDTH + 6, depth + 3) // contorno escuro em volta da porta
   if (kind === 'adega') drawCellarDoor(ctx, side, state, palette, depth)
-  else drawFramedDoor(ctx, kind, state, style, palette, depth)
+  else drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs)
   ctx.restore()
   if (style.icon) drawDoorIcon(ctx, side, ICONS[style.icon])
+  // A chapa do garfo fica fora da rotação, sempre em pé; some quando as folhas começam a abrir
+  if (state === 'locked') drawForkLock(ctx, side, FORK_LOCK.idleFrame)
+  if (state === 'unlocking' && unlockMs < FORK_KNOT_MS) drawForkLock(ctx, side, getTimedFrame(FORK_LOCK_DURATIONS, unlockMs))
+}
+
+// Chapa do garfo no meio do vão (quadro `frame` da folha)
+function drawForkLock(ctx, side, frame) {
+  if (!forkLockImage) {
+    forkLockImage = new Image()
+    forkLockImage.src = FORK_LOCK.path
+  }
+  if (!forkLockImage.complete || !forkLockImage.naturalWidth || frame < 0) return
+  const { center, edge, depth } = DOOR_GEOMETRY[side]
+  const v = LINTEL + (depth - LINTEL) / 2 // meio do vão, da borda da sala para dentro
+  const [x, y] = { up: [center, edge + v], down: [center, edge - v], left: [edge + v, center], right: [edge - v, center] }[side]
+  const scale = FORK_LOCK_SCALE[side]
+  const { frameWidth: width, frameHeight: height } = FORK_LOCK
+  ctx.save()
+  ctx.imageSmoothingEnabled = false // pixel art: sem borrar
+  ctx.drawImage(forkLockImage, frame * width, 0, width, height, x - (width * scale) / 2, y - (height * scale) / 2, width * scale, height * scale)
+  ctx.restore()
 }
 
 // Leva a origem para o canto da porta e gira, para desenhar todas como se fossem a de cima
@@ -105,8 +138,9 @@ function moveToDoor(ctx, side) {
   ctx.translate(-DOOR_WIDTH / 2, 0)
 }
 
-// Porta com batente de pedra, verga e duas folhas
-function drawFramedDoor(ctx, kind, state, style, palette, depth) {
+// Porta com batente de pedra, verga e duas folhas. Trancada ('locked') ela é desenhada fechada (a chapa do garfo
+// vai por cima, em drawDoor); abrindo ('unlocking'), as folhas se abrem depois que o garfo tira o nó.
+function drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs) {
   const frame = style.frame || palette.doorFrame
   const leaf = style.leaf || palette.doorLeaf
   const trim = style.trim || palette.doorTrim
@@ -130,7 +164,9 @@ function drawFramedDoor(ctx, kind, state, style, palette, depth) {
   paintRect(ctx, inside, FRAME, LINTEL, OPENING_WIDTH, opening)
 
   if (state === 'open') drawOpenLeaves(ctx, kind, leaf, opening)
-  else if (kind === 'chefe') drawBossGate(ctx, opening)
+  else if (state === 'unlocking' && unlockMs >= FORK_KNOT_MS) {
+    drawOpeningLeaves(ctx, leaf, opening, Math.min(1, (unlockMs - FORK_KNOT_MS) / FORK_LEAVES_MS))
+  } else if (kind === 'chefe') drawBossGate(ctx, opening)
   else drawClosedLeaves(ctx, style, leaf, opening)
 
   // Cantos do vão chanfrados (um arco quadradinho) e a sombra da verga
@@ -167,6 +203,17 @@ function drawOpenLeaves(ctx, kind, leaf, opening) {
     paintRect(ctx, '#5a9ac0', DOOR_WIDTH / 2 + 10, LINTEL + 30, 4, 4, 0.7)
     paintRect(ctx, '#5a9ac0', DOOR_WIDTH - FRAME - 36, LINTEL + 12, 6, 6, 0.7)
   }
+}
+
+// Folhas abrindo (progress de 0 a 1): cada folha encolhe para o seu lado do vão até a largura da porta aberta.
+// Começa e termina devagar.
+function drawOpeningLeaves(ctx, leaf, opening, progress) {
+  const eased = progress * progress * (3 - 2 * progress)
+  const width = HALF_LEAF - 1 - (HALF_LEAF - 10) * eased // de meia porta (fechada) até 9 u (aberta)
+  paintRect(ctx, leaf, FRAME, LINTEL, width, opening)
+  paintRect(ctx, leaf, DOOR_WIDTH - FRAME - width, LINTEL, width, opening)
+  paintRect(ctx, '#000', FRAME + width, LINTEL, 2, opening, 0.4)
+  paintRect(ctx, '#000', DOOR_WIDTH - FRAME - width - 2, LINTEL, 2, opening, 0.4)
 }
 
 // Mamãe aberta: luz quente lá dentro e uma cortina de renda presa dos dois lados

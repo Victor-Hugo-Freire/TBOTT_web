@@ -15,7 +15,15 @@ import {
   ROOM_SIZE,
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
-import { createRun, createRunSnapshot, getRestartFade, RESTART_HOLD_MS, updateRestartHold, updateRun } from '../../utils/run.js'
+import {
+  createRun,
+  createRunSnapshot,
+  getRestartFade,
+  RESTART_HOLD_MS,
+  updateRestartHold,
+  updateRestartKey,
+  updateRun,
+} from '../../utils/run.js'
 import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
 import { drawHud, loadHudImages } from './scene/drawHud.js'
@@ -100,7 +108,7 @@ export default function SalaInicial() {
     let outcome = 'victory' // resultado da run que acabou: 'victory' (tambor do andar 5) ou 'defeat' (morreu)
     let deathCause = null // o que matou o personagem (id de health.js), para o aviso
     let restartHoldMs = 0 // há quanto tempo o R está segurado (a tela escurece junto)
-    let restartLocked = false // depois de recomeçar, o R só vale de novo quando for solto
+    let restartHeld = false // a tecla R está segurada (veja updateRestartKey em run.js)
     let announcedFloor = 0
     let showDebug = false // F3, só no npm run dev
     let view = getRoomView(0, 0)
@@ -141,6 +149,7 @@ export default function SalaInicial() {
         visitedRoomIds: progress.visitedRoomIds,
         roomStates: progress.roomStates,
         health: progress.health,
+        forks: progress.forks,
       })
       elapsedMs = progress.elapsedMs
 
@@ -230,12 +239,12 @@ export default function SalaInicial() {
     retryRef.current = sendRunResult
 
     // Recomeça do andar 1 com outra seed, vida cheia e o tempo zerado, e salva por cima da partida anterior.
-    // A tela está preta nesta hora. restartLocked faz o R parar de valer até ser solto: a tela clareia
-    // e a run não recomeça de novo com a tecla ainda segurada.
+    // A tela está preta nesta hora. O tempo segurado volta a 0: a tela clareia na run nova e, com o R ainda
+    // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
     function restartRun() {
       run = createRun({ seed: createRunSeed(), characterId: run.characterId })
       elapsedMs = 0
-      restartLocked = true
+      restartHoldMs = 0
       void saveProgress()
     }
 
@@ -268,17 +277,22 @@ export default function SalaInicial() {
       if (!isRoomKey(event.code)) return
 
       event.preventDefault()
+      // O R fica fora de pressedKeys: só um aperto novo conta, e não o keydown que o teclado repete
+      if (event.code === RESTART_KEY) {
+        restartHeld = updateRestartKey(restartHeld, event.repeat ? 'repeat' : 'press')
+        return
+      }
       pressedKeys.add(event.code)
     }
 
     function handleKeyUp(event) {
       pressedKeys.delete(event.code)
-      if (event.code === RESTART_KEY) restartLocked = false
+      if (event.code === RESTART_KEY) restartHeld = updateRestartKey(restartHeld, 'release')
     }
 
     function clearPressedKeys() {
       pressedKeys.clear()
-      restartLocked = false
+      restartHeld = updateRestartKey(restartHeld, 'blur')
     }
 
     // Só os botões do aviso de fim da run aceitam o mouse
@@ -312,7 +326,7 @@ export default function SalaInicial() {
         )
 
         // Segurar R escurece a tela e, ao completar, recomeça a run (não vale na morte nem depois do fim)
-        const holdingRestart = pressedKeys.has(RESTART_KEY) && !restartLocked && !run.finished && !run.death
+        const holdingRestart = restartHeld && !run.finished && !run.death
         restartHoldMs = updateRestartHold(restartHoldMs, holdingRestart, stepMs)
         if (holdingRestart && restartHoldMs >= RESTART_HOLD_MS) restartRun()
 

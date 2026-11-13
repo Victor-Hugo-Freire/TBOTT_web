@@ -208,13 +208,13 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
     })
   })
 
-  test('pacto ou mamãe só nos andares 1 a 4, ligado só à sala do chefe', () => {
+  test('pacto ou mamãe só nos andares 2 a 4 (nunca no 1º), ligado só à sala do chefe', () => {
     forEachFloor((floor) => {
       const pacts = floor.rooms.filter((item) => ['pacto', 'mamae'].includes(item.type))
       assert.ok(pacts.length <= 1)
       if (pacts.length === 0) return
 
-      assert.ok(floor.number <= 4)
+      assert.ok(floor.number >= 2 && floor.number <= 4, `andar ${floor.number}`)
       const links = getLinks(pacts[0])
       assert.equal(links.length, 1)
       assert.equal(findRoom(floor, links[0].id).type, 'chefe')
@@ -244,9 +244,9 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
 
   test('frequências: adega, pacto/mamãe, fliperama e descanso aparecem em proporções razoáveis', () => {
     const floors2to5 = ALL_FLOORS.filter((floor) => floor.number >= 2)
-    const floors1to4 = ALL_FLOORS.filter((floor) => floor.number <= 4)
+    const floors2to4 = ALL_FLOORS.filter((floor) => floor.number >= 2 && floor.number <= 4)
     const cellarRate = floors2to5.filter((floor) => countByType(floor, 'adega') > 0).length / floors2to5.length
-    const pactRate = floors1to4.filter((floor) => countByType(floor, 'pacto') + countByType(floor, 'mamae') > 0).length / floors1to4.length
+    const pactRate = floors2to4.filter((floor) => countByType(floor, 'pacto') + countByType(floor, 'mamae') > 0).length / floors2to4.length
 
     assert.ok(cellarRate >= 0.3 && cellarRate <= 0.7, `adega em ${cellarRate}`)
     assert.ok(pactRate >= 0.3 && pactRate <= 0.7, `pacto/mamãe em ${pactRate}`)

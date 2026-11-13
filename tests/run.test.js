@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { getEntryPosition, getRoomDoors, OPPOSITE_SIDE, SIDE_VECTORS } from '../src/utils/doors.js'
+import { FORK_UNLOCK_MS, getEntryPosition, getRoomDoors, OPPOSITE_SIDE, SIDE_VECTORS } from '../src/utils/doors.js'
 import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
 import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
+import { STICKY_SPEED } from '../src/utils/roomObstacles.js'
 import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
 import {
   BANNER_TOTAL_MS,
@@ -23,7 +24,9 @@ import {
   isSecretMarkVisible,
   RESTART_HOLD_MS,
   ROOM_TRANSITION_MS,
+  STARTING_FORKS,
   updateRestartHold,
+  updateRestartKey,
   updateRun,
 } from '../src/utils/run.js'
 
@@ -60,6 +63,15 @@ function goThrough(run, side) {
   run = updateRun(run, { movement: SIDE_VECTORS[side], attackDirection: null }, STEP)
   assert.equal(run.transition?.type, 'room', `a porta ${side} da sala ${run.roomId} não abriu a transição`)
   return waitTransition(run)
+}
+
+// Empurra a porta trancada (gasta 1 garfo) e espera a animação de abrir acabar
+function unlockDoor(run, side) {
+  run.player = createPlayer(DOOR_EDGES[side])
+  run = updateRun(run, { movement: SIDE_VECTORS[side], attackDirection: null }, STEP)
+  assert.equal(run.unlocking?.side, side, `a porta trancada ${side} da sala ${run.roomId} não abriu`)
+  while (run.unlocking) run = updateRun(run, IDLE, STEP)
+  return run
 }
 
 // Um golpe inteiro na direção pedida: aperta a seta e espera o golpe acabar.
@@ -203,6 +215,7 @@ describe('createRun', () => {
       roomStates: {},
       health: MAX_HEALTH,
       deathCause: null,
+      forks: 1,
     })
   })
 
@@ -511,7 +524,7 @@ describe('mecânicas do piso na run', () => {
 
   test('grudento deixa lento', () => {
     const run = updateRun(runWith([obstacle('grudento', { x: 600, y: 450, width: 300, height: 200 })], { x: 700, y: 540 }), right, STEP)
-    assert.ok(Math.abs(run.player.x - (700 + 260 * 0.5 * STEP)) < 1e-6)
+    assert.ok(Math.abs(run.player.x - (700 + 260 * STICKY_SPEED * STEP)) < 1e-6)
   })
 
   const ice = () => obstacle('escorregadio', { x: 500, y: 400, width: 600, height: 300 })
@@ -527,9 +540,9 @@ describe('mecânicas do piso na run', () => {
     assert.ok(run.player.x > before, 'sem tecla, continua deslizando')
     assert.ok(run.slip.x < 1 && run.slip.x > 0, 'e freia aos poucos')
 
-    run = steps(run, 12)
+    run = steps(run, 26)
     assert.deepEqual(run.slip, { x: 0, y: 0 }, 'por fim para')
-    assert.ok(run.player.x - 600 < 130, 'sem passar de ~65 u depois de soltar')
+    assert.ok(run.player.x - 600 < 200, 'sem passar de ~160 u depois de soltar')
   })
 
   test('escorregadio: trocar de tecla muda a direção aos poucos, não de uma vez', () => {
@@ -587,7 +600,8 @@ function explore(run, parentId, seen) {
 
   for (const door of doors) {
     if (door === bossDoor) continue
-    if (door.state !== 'open') {
+    if (door.state === 'locked') run = unlockDoor(run, door.side)
+    else if (door.state !== 'open') {
       for (let hit = 0; hit < 3; hit++) run = hitSecret(run, door.side).run
     }
     run = goThrough(run, door.side)
@@ -614,7 +628,7 @@ describe('estado das salas no progresso: o que quebrou não volta', () => {
     const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
     run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height + 30 })
     run = swing(run, 'up').run
-    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0 } })
+    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0, unlocked: false } })
 
     const back = saveAndContinue(run)
     assert.equal(back.roomId, room.id)
@@ -714,6 +728,48 @@ describe('recomeçar a run segurando R', () => {
   })
 })
 
+// Simula a página: quadros de 16 ms, o teclado repetindo o keydown a cada 33 ms enquanto a tecla está no fundo
+// (como um teclado de verdade) e, no meio, os eventos de `extras` ({ ms, type }). Devolve quantas vezes recomeçou.
+// Igual a SalaInicial.jsx: ao recomeçar, o tempo segurado volta a 0.
+function holdR(totalMs, extras = []) {
+  let held = updateRestartKey(false, 'press')
+  let hold = 0
+  let restarts = 0
+  const pending = [...extras]
+  for (let ms = 0; ms < totalMs; ms += 16) {
+    while (pending.length > 0 && pending[0].ms <= ms) held = updateRestartKey(held, pending.shift().type)
+    if (ms % 33 < 16) held = updateRestartKey(held, 'repeat')
+    hold = updateRestartHold(hold, held, 16)
+    if (held && hold >= RESTART_HOLD_MS) {
+      restarts++
+      hold = 0
+    }
+  }
+  return restarts
+}
+
+describe('tecla R: segurando, a run recomeça uma atrás da outra', () => {
+  test('segurar por 10 s recomeça a cada ~1 s (9 vezes, com quadros de 16 ms)', () => {
+    assert.equal(holdR(10_000), 9)
+    assert.equal(holdR(900), 0, 'antes de 1 s não recomeça')
+  })
+
+  test('soltar para de recomeçar; apertar de novo volta', () => {
+    assert.equal(holdR(5000, [{ ms: 1500, type: 'release' }]), 1)
+    assert.equal(holdR(5000, [{ ms: 1500, type: 'release' }, { ms: 2000, type: 'press' }]), 3)
+  })
+
+  test('perder o foco para, e o repeat do teclado não religa sozinho', () => {
+    assert.equal(holdR(5000, [{ ms: 600, type: 'blur' }]), 0)
+    assert.equal(holdR(5000, [{ ms: 1500, type: 'blur' }]), 1)
+  })
+
+  test('o repeat não liga a tecla sem um aperto de verdade', () => {
+    assert.equal(updateRestartKey(false, 'repeat'), false)
+    assert.equal(updateRestartKey(true, 'repeat'), true)
+  })
+})
+
 describe('salas visitadas no progresso', () => {
   const sorted = (ids) => [...ids].sort()
 
@@ -774,10 +830,11 @@ describe('salas visitadas no progresso', () => {
 })
 
 describe('ponta a ponta', () => {
-  test('300 seeds: todas as salas dos 5 andares pelas portas, adega aberta, tambor até o fim', () => {
+  test('300 seeds: todas as salas dos 5 andares pelas portas, adega aberta, trancadas abertas com garfo, tambor até o fim', () => {
     let cellars = 0
     for (let seed = 1; seed <= 300; seed++) {
-      let run = createRun({ seed, characterId: 'x' })
+      // garfos de sobra: o teste abre toda sala trancada (no máximo 2 por andar)
+      let run = createRun({ seed, characterId: 'x', forks: 99 })
       for (let number = 1; number <= LAST_FLOOR; number++) {
         const { floor } = run
         assert.equal(floor.number, number)
@@ -792,5 +849,78 @@ describe('ponta a ponta', () => {
       assert.equal(run.finished, true, `seed ${seed} não terminou`)
     }
     assert.ok(cellars > 0, 'alguma seed tem adega')
+  })
+})
+
+describe('portas trancadas: gastar o garfo', () => {
+  // A 1ª seed com Sala do Tesouro no andar 2: começa a run na sala vizinha dela, de frente para a porta trancada
+  function nextToTreasure(forks = 1) {
+    for (let seed = 1; ; seed++) {
+      const floor = generateFloor(seed, 2)
+      const treasure = floor.rooms.find((room) => room.type === 'tesouro')
+      if (!treasure) continue
+      const back = Object.keys(treasure.neighbors).find((side) => treasure.neighbors[side])
+      const run = createRun({ seed, floorNumber: 2, roomId: treasure.neighbors[back], characterId: 'x', forks })
+      return { run, side: OPPOSITE_SIDE[back], treasureId: treasure.id }
+    }
+  }
+  const push = (run, side) => {
+    run.player = createPlayer(DOOR_EDGES[side])
+    return updateRun(run, { movement: SIDE_VECTORS[side], attackDirection: null }, STEP)
+  }
+  const doorState = (run, side) => getRoomDoors(run.floor, getCurrentRoom(run)).find((door) => door.side === side).state
+
+  test('a run começa com 1 garfo e a porta do tesouro (andar 2) trancada', () => {
+    const { run, side } = nextToTreasure()
+    assert.equal(run.forks, STARTING_FORKS)
+    assert.equal(STARTING_FORKS, 1)
+    assert.equal(doorState(run, side), 'locked')
+  })
+
+  test('empurrar com garfo gasta 1, toca a animação e só depois deixa passar', () => {
+    let { run, side, treasureId } = nextToTreasure()
+    run = push(run, side)
+    assert.equal(run.forks, 0)
+    assert.deepEqual(run.unlocking, { side, elapsedMs: 0 })
+    assert.equal(run.transition, null, 'durante a animação a porta não deixa passar')
+    // continua empurrando: a animação anda e ele não atravessa, nem gasta outro garfo
+    for (let ms = 0; ms < FORK_UNLOCK_MS - 2 * STEP_MS; ms += STEP_MS) {
+      run = updateRun(run, { movement: SIDE_VECTORS[side], attackDirection: null }, STEP)
+      assert.equal(run.transition, null)
+    }
+    assert.equal(run.forks, 0)
+    while (run.unlocking) run = updateRun(run, IDLE, STEP)
+    run = goThrough(run, side)
+    assert.equal(run.roomId, treasureId)
+  })
+
+  test('aberta, ela fica aberta: ao sair e voltar, e ao continuar a run pelo save', () => {
+    let { run, side } = nextToTreasure()
+    run = push(run, side)
+    while (run.unlocking) run = updateRun(run, IDLE, STEP)
+    run = goThrough(goThrough(run, side), OPPOSITE_SIDE[side])
+    assert.equal(doorState(run, side), 'open')
+    assert.equal(run.forks, 0)
+
+    const saved = normalizeProgressPayload(createRunSnapshot(run, 1000))
+    const again = createRun({ seed: saved.seed, floorNumber: saved.floor, roomId: saved.roomId, characterId: 'x', roomStates: saved.roomStates, forks: saved.forks })
+    assert.equal(again.forks, 0, 'o garfo gasto não volta')
+    assert.equal(doorState(again, side), 'open')
+  })
+
+  test('sem garfo, empurrar não faz nada', () => {
+    let { run, side } = nextToTreasure(0)
+    run = push(run, side)
+    assert.equal(run.unlocking, null)
+    assert.equal(run.transition, null)
+    assert.equal(run.forks, 0)
+    assert.equal(doorState(run, side), 'locked')
+  })
+
+  test('com 2 garfos, abrir uma porta gasta só 1', () => {
+    let { run, side } = nextToTreasure(2)
+    run = push(run, side)
+    while (run.unlocking) run = updateRun(run, { movement: SIDE_VECTORS[side], attackDirection: null }, STEP)
+    assert.equal(run.forks, 1)
   })
 })

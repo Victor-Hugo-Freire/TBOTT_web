@@ -1,4 +1,4 @@
-import { getRoomDoors, SIDE_VECTORS } from '../../../utils/doors.js'
+import { applyUnlocking, getRoomDoors, SIDE_VECTORS } from '../../../utils/doors.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 import {
   FLOOR_TRANSITION_MS,
@@ -22,7 +22,8 @@ import { ROOM_THEMES } from './themes.js'
 // screen = a área da tela em unidades da sala: { left, top, width, height } (left e top ficam <= 0 quando sobra tela).
 export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
   // timeMs: um só relógio para as duas salas da transição (as setas da esteira andam com ele)
-  const options = { sheets, reduceMotion, extraX: -screen.left, timeMs: performance.now() }
+  // unlocking: a porta trancada que está abrindo agora (só existe na sala atual)
+  const options = { sheets, reduceMotion, extraX: -screen.left, timeMs: performance.now(), unlocking: run.unlocking }
   const { transition } = run
   if (transition?.type !== 'room') {
     drawRoomScene(ctx, run.floor, getCurrentRoom(run), run.obstacles, run.player, isSecretMarkVisible(run), options)
@@ -35,7 +36,8 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
   const drawFrom = () =>
     drawRoomScene(ctx, run.floor, fromRoom, transition.fromObstacles, transition.fromPlayer, isSecretMarkVisible(run), options)
   // A sala nova entra vazia: o jogador aparece nela quando a transição termina
-  const drawTo = () => drawRoomScene(ctx, run.floor, toRoom, getRoomObstacles(run.floor, toRoom), null, false, options)
+  const drawTo = () =>
+    drawRoomScene(ctx, run.floor, toRoom, getRoomObstacles(run.floor, toRoom), null, false, { ...options, unlocking: null })
   const progress = transition.elapsedMs / transition.durationMs
 
   // Reduzir movimento: em vez de deslizar, escurece até a metade e clareia já na sala nova
@@ -72,13 +74,13 @@ export function getFloorFade(run) {
 // Uma sala, de baixo para cima: sala, piso, cenário, portas, marca da adega,
 // depois obstáculos, tambor e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // player = null desenha a sala sem o jogador.
-function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, { sheets, reduceMotion, extraX, timeMs }) {
+function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, { sheets, reduceMotion, extraX, timeMs, unlocking }) {
   const theme = getRoomTheme(floor, room)
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
   drawRoomScenery(ctx, room.type)
 
-  const doors = getRoomDoors(floor, room)
+  const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
   drawDoors(ctx, doors, ROOM_THEMES[theme])
   const secretDoor = room.secret ? doors.find((door) => door.side === room.secret.side) : null
   if (showSecretMark && secretDoor?.state === 'hidden') drawSecretMark(ctx, secretDoor.side)

@@ -6,12 +6,17 @@ import {
   getDoorKind,
   getEntryPosition,
   getExitSide,
+  applyUnlocking,
+  FORK_KNOT_MS,
+  FORK_UNLOCK_MS,
   getRoomDoors,
   isNearDoor,
+  needsFork,
   OPPOSITE_SIDE,
   SIDE_VECTORS,
   SIDES,
 } from '../src/utils/doors.js'
+import { CONSUMABLE_SPRITES } from '../src/data/itemSprites.js'
 import { ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 
 // Sala no formato do andar, com os campos que as portas usam
@@ -167,5 +172,69 @@ describe('getRoomDoors e getDoorKind', () => {
       ['up', 'chefe', 'open'],
       ['down', 'pacto', 'open'],
     ])
+  })
+})
+
+describe('portas trancadas com garfo', () => {
+  // Inicial no meio, tesouro em cima, descanso à direita e loja à esquerda
+  function lockedFloor(number) {
+    return {
+      number,
+      startRoomId: '4-3',
+      rooms: [
+        room('4-3', 'inicial', { up: '4-2', right: '5-3', left: '3-3' }, { cleared: true }),
+        room('4-2', 'tesouro', { down: '4-3' }, { cleared: true }),
+        room('5-3', 'descanso', { left: '4-3' }, { cleared: true }),
+        room('3-3', 'loja', { right: '4-3' }, { cleared: true }),
+      ],
+    }
+  }
+  const stateOf = (floor, id, side) => getRoomDoors(floor, findRoom(floor, id)).find((door) => door.side === side).state
+
+  test('tesouro tranca do andar 2 em diante, descanso sempre, loja nunca', () => {
+    const floor1 = lockedFloor(1)
+    const floor2 = lockedFloor(2)
+    assert.equal(needsFork(floor1, findRoom(floor1, '4-2')), false)
+    assert.equal(needsFork(floor2, findRoom(floor2, '4-2')), true)
+    assert.equal(needsFork(floor1, findRoom(floor1, '5-3')), true)
+    assert.equal(needsFork(floor2, findRoom(floor2, '3-3')), false)
+    assert.equal(needsFork(floor2, findRoom(floor2, '4-3')), false)
+  })
+
+  test('só a porta para a sala trancada fica "locked"; aberta com garfo, fica "open"', () => {
+    const floor = lockedFloor(2)
+    assert.deepEqual(['up', 'right', 'left'].map((side) => stateOf(floor, '4-3', side)), ['locked', 'locked', 'open'])
+    findRoom(floor, '4-2').unlocked = true
+    assert.equal(stateOf(floor, '4-3', 'up'), 'open')
+    assert.equal(stateOf(floor, '4-3', 'right'), 'locked', 'abrir uma não abre a outra')
+  })
+
+  test('de dentro da sala trancada, a porta de volta fica aberta', () => {
+    const floor = lockedFloor(2)
+    assert.equal(stateOf(floor, '4-2', 'down'), 'open')
+    assert.equal(stateOf(floor, '5-3', 'left'), 'open')
+  })
+
+  test('não dá para atravessar a porta trancada', () => {
+    const doors = [{ side: 'up', state: 'locked' }]
+    const edge = { x: 800, y: ROOM_PLAYER_BOUNDS.minY }
+    assert.equal(getExitSide(edge, { x: 0, y: -1 }, doors), null)
+    assert.equal(getExitSide(edge, { x: 0, y: -1 }, doors, 'locked'), 'up', 'mas dá para saber que ele está empurrando ela')
+  })
+
+  test('a porta que está abrindo vira "unlocking", com o tempo da animação', () => {
+    const doors = [{ side: 'up', state: 'open' }, { side: 'left', state: 'open' }]
+    assert.equal(applyUnlocking(doors, null), doors)
+    assert.deepEqual(applyUnlocking(doors, { side: 'up', elapsedMs: 300 }), [
+      { side: 'up', state: 'unlocking', unlockMs: 300 },
+      { side: 'left', state: 'open' },
+    ])
+    assert.ok(FORK_UNLOCK_MS > FORK_KNOT_MS, 'o nó e depois as folhas abrindo')
+  })
+
+  test('o tempo do nó é o da folha do garfo na porta (os 8 quadros)', () => {
+    const { durations } = CONSUMABLE_SPRITES.garfo.variants['porta-trancada'].animations['porta-trancada']
+    assert.equal(durations.length, 8)
+    assert.equal(durations.reduce((total, ms) => total + ms, 0), FORK_KNOT_MS)
   })
 })

@@ -52,7 +52,8 @@ export function getEntryPosition(side) {
 // O personagem atravessa quando os pés encostam na parede dentro do vão de uma porta aberta
 // e ele continua apertando para aquele lado. Andar de lado encostado na parede não troca de sala.
 // Devolve o lado da porta atravessada, ou null.
-export function getExitSide(position, movement, doors) {
+// state = 'locked' faz a mesma pergunta para a porta trancada: ele está empurrando ela (para gastar o garfo)?
+export function getExitSide(position, movement, doors, state = 'open') {
   const { x, y } = position
   const { minX, maxX, minY, maxY } = ROOM_PLAYER_BOUNDS
   const insideTopBottomGap = Math.abs(x - DOOR_CENTER_X) <= DOOR_FEET_RANGE
@@ -65,7 +66,7 @@ export function getExitSide(position, movement, doors) {
     right: x >= maxX - 0.5 && insideSideGap && movement.x > 0,
   }
 
-  const door = doors.find((item) => item.state === 'open' && crosses[item.side])
+  const door = doors.find((item) => item.state === state && crosses[item.side])
   return door ? door.side : null
 }
 
@@ -127,6 +128,26 @@ export function getDoorKind(floor, room, side) {
 // Golpes para abrir a parede da adega (e batidas no tambor do chefe para passar de andar)
 export const HITS_TO_OPEN = 3
 
+// Salas trancadas com o nó de espaguete: abrir gasta 1 garfo (regra de itens/spawn.md, issue #18).
+// A Sala do Tesouro só tranca do andar 2 em diante; a Sala de Descanso tranca sempre. A Loja fica sempre aberta.
+// As outras condições (vida cheia no Palco, grão no Fliperama) ainda não fecham a porta.
+export function needsFork(floor, room) {
+  return (room.type === 'tesouro' && floor.number >= 2) || room.type === 'descanso'
+}
+
+// A animação de abrir: o garfo enrola o nó e tira (folha garfo-porta-trancada, 990 ms) e depois as folhas da
+// porta se abrem (FORK_LEAVES_MS). Enquanto ela toca, a porta ainda não deixa passar.
+export const FORK_KNOT_MS = 990
+export const FORK_LEAVES_MS = 260
+export const FORK_UNLOCK_MS = FORK_KNOT_MS + FORK_LEAVES_MS
+
+// A porta que está abrindo agora (unlocking = { side, elapsedMs } da run, ou null) vira 'unlocking', com o tempo
+// da animação. Quem chama: a run (para não deixar passar) e o desenho (para animar).
+export function applyUnlocking(doors, unlocking) {
+  if (!unlocking) return doors
+  return doors.map((door) => (door.side === unlocking.side ? { ...door, state: 'unlocking', unlockMs: unlocking.elapsedMs } : door))
+}
+
 // Parede da adega: escondida até o 1º golpe, trincada no 1º e no 2º, aberta a partir do 3º
 function getSecretState(hits) {
   if (hits >= HITS_TO_OPEN) return 'open'
@@ -134,8 +155,9 @@ function getSecretState(hits) {
   return 'hidden'
 }
 
-// Portas da sala: { side, kind, targetId, state }, com state 'open', 'closed', 'hidden' ou 'cracked'.
-// As portas com condição (garfo, grão, vida cheia) ficam abertas nesta entrega.
+// Portas da sala: { side, kind, targetId, state }, com state 'open', 'closed', 'locked', 'hidden' ou 'cracked'.
+// 'locked' = a porta para uma sala trancada (needsFork) que ainda não foi aberta com um garfo. De dentro dela, a porta
+// de volta fica sempre aberta. As outras condições (grão, vida cheia) ficam abertas nesta entrega.
 export function getRoomDoors(floor, room) {
   const doors = []
 
@@ -152,6 +174,8 @@ export function getRoomDoors(floor, room) {
     } else if (room.type === 'chefe' && target && BOSS_BRANCH_TYPES.includes(target.type)) {
       // A porta do pacto ou da mamãe só aparece depois que a sala do chefe fica limpa
       if (!room.cleared) continue
+    } else if (target && needsFork(floor, target) && !target.unlocked) {
+      state = 'locked'
     }
 
     doors.push({ side, kind, targetId, state })

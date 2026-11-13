@@ -1,5 +1,15 @@
 import { overlaps } from './collision.js'
-import { DOOR_HIT_ZONES, getEntryPosition, HITS_TO_OPEN, getExitSide, getRoomDoors, isNearDoor, OPPOSITE_SIDE } from './doors.js'
+import {
+  applyUnlocking,
+  DOOR_HIT_ZONES,
+  FORK_UNLOCK_MS,
+  getEntryPosition,
+  getExitSide,
+  getRoomDoors,
+  HITS_TO_OPEN,
+  isNearDoor,
+  OPPOSITE_SIDE,
+} from './doors.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, MAX_HEALTH } from './health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
@@ -30,6 +40,7 @@ export const ROOM_TRANSITION_MS = 350
 export const FLOOR_TRANSITION_MS = 900 // escurece 450, troca de andar, clareia 450
 export const DEATH_HOLD_MS = 500 // depois da animação de morte, ele fica deitado esse tempo antes do aviso
 export const RESTART_HOLD_MS = 1000 // segurar R por 1 s recomeça a run com outra seed (como no Isaac)
+export const STARTING_FORKS = 1 // garfos no começo da run (cada porta trancada gasta 1)
 
 // O que machuca hoje: só a chapa quente. A causa vai para o aviso de morte (veja health.js).
 const HOT_PLATE_CAUSE = 'chapa'
@@ -92,6 +103,7 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     obstacles: getRoomObstacles(floor, room),
     slip: null, // velocidade do deslize no líquido ({ x, y }) ou null (veja getSlipMovement)
     swingCounted: false,
+    unlocking: null, // porta trancada abrindo agora: { side, elapsedMs } (veja "Porta trancada" em updateRoom)
   }
 }
 
@@ -124,12 +136,14 @@ export function getVisitedRoomIds(floor) {
   return floor.rooms.filter((room) => room.visited).map((room) => room.id)
 }
 
-// O que mudou em cada sala do andar, para o progresso salvo: obstáculos quebrados e batidas
-// (parede da adega e tambor). Só entram as salas em que algo mudou.
+// O que mudou em cada sala do andar, para o progresso salvo: obstáculos quebrados, batidas
+// (parede da adega e tambor) e se a sala trancada já foi aberta com um garfo. Só entram as salas em que algo mudou.
 export function getRoomStates(floor) {
   const states = {}
   for (const room of floor.rooms) {
-    if (room.removed.length > 0 || room.hits > 0) states[room.id] = { removed: [...room.removed], hits: room.hits }
+    if (room.removed.length > 0 || room.hits > 0 || room.unlocked) {
+      states[room.id] = { removed: [...room.removed], hits: room.hits, unlocked: room.unlocked }
+    }
   }
   return states
 }
@@ -138,7 +152,8 @@ export function getRoomStates(floor) {
 // Do progresso salvo vêm também:
 // - visitedRoomIds: as salas já visitadas;
 // - roomStates: o que quebrou e as batidas de cada sala (formato de getRoomStates);
-// - health: a vida, em meios corações.
+// - health: a vida, em meios corações;
+// - forks: os garfos que sobraram (a run começa com STARTING_FORKS).
 // Ids que não existem neste andar são ignorados (os ids repetem de um andar para outro).
 export function createRun({
   seed,
@@ -149,6 +164,7 @@ export function createRun({
   visitedRoomIds = [],
   roomStates = {},
   health = MAX_HEALTH,
+  forks = STARTING_FORKS,
 }) {
   const floor = generateFloor(seed, floorNumber)
   const room = findRoom(floor, roomId) ?? findRoom(floor, floor.startRoomId)
@@ -162,6 +178,7 @@ export function createRun({
     if (!saved) continue
     saved.removed = [...state.removed]
     saved.hits = state.hits
+    saved.unlocked = Boolean(state.unlocked) // a porta aberta com garfo continua aberta
   }
 
   // Save antigo (sem o estado das salas) dentro da adega: a parede da origem abre, senão ele ficaria preso
@@ -173,7 +190,7 @@ export function createRun({
     seed,
     characterId,
     grains: 0,
-    forks: 1,
+    forks,
     health, // vida em meios corações (veja health.js)
     death: null, // { cause } depois que a vida acaba: toca a animação de morte e a run termina
     transition: null,
@@ -197,6 +214,7 @@ export function createRunSnapshot(run, elapsedMs) {
     visitedRoomIds: getVisitedRoomIds(run.floor),
     roomStates: getRoomStates(run.floor),
     health: run.health,
+    forks: run.forks,
     deathCause: run.death?.cause ?? null,
   })
 }
@@ -280,7 +298,21 @@ function updateRoom(run, input, deltaSeconds) {
   const next = { ...run, player, obstacles, slip, swingCounted, health, death }
   if (death) return next // morto não atravessa porta nem passa de andar
 
-  const doors = getRoomDoors(run.floor, room)
+  // Porta trancada: empurrar com garfo no bolso gasta 1 garfo e abre a sala para o resto da run (target.unlocked).
+  // Enquanto a animação toca, a porta ainda não deixa passar; sem garfo, ela só fica trancada.
+  if (next.unlocking) {
+    const elapsedMs = next.unlocking.elapsedMs + deltaSeconds * 1000
+    next.unlocking = elapsedMs >= FORK_UNLOCK_MS ? null : { ...next.unlocking, elapsedMs }
+  }
+  const roomDoors = getRoomDoors(run.floor, room)
+  const lockedSide = next.forks > 0 && !next.unlocking ? getExitSide(player, input.movement, roomDoors, 'locked') : null
+  if (lockedSide) {
+    findRoom(run.floor, roomDoors.find((door) => door.side === lockedSide).targetId).unlocked = true
+    next.forks -= 1
+    next.unlocking = { side: lockedSide, elapsedMs: 0 }
+  }
+
+  const doors = applyUnlocking(roomDoors, next.unlocking)
   // A porta vale só com a tecla apertada para ela: o deslize sozinho nunca troca de sala
   const side = getExitSide(player, input.movement, doors)
   if (side) {
@@ -352,6 +384,19 @@ function updateDeath(run, deltaSeconds) {
 export function updateRestartHold(holdMs, isHeld, stepMs) {
   if (isHeld) return Math.min(RESTART_HOLD_MS, holdMs + stepMs)
   return Math.max(0, holdMs - stepMs * 3)
+}
+
+// A tecla R está segurada? Enquanto estiver, a run recomeça a cada RESTART_HOLD_MS (como no Isaac: segurar R
+// sorteia uma run atrás da outra). Quem recomeça zera o tempo segurado, e o ciclo começa de novo.
+// O evento muda o estado assim:
+// - 'press': keydown de um aperto novo (event.repeat === false) liga;
+// - 'release' (keyup) e 'blur' (a janela perdeu o foco) desligam;
+// - 'repeat': keydown repetido pelo teclado com a tecla no fundo não muda nada. Assim, depois de um blur, o
+//   repeat não religa o R sozinho: só um aperto novo.
+export function updateRestartKey(held, type) {
+  if (type === 'press') return true
+  if (type === 'release' || type === 'blur') return false
+  return held
 }
 
 // Escurecimento da tela enquanto o R é segurado: 0 (nada) a 1 (preto)

@@ -12,6 +12,8 @@ const MAX_ROOMS = 72 // a grade do andar tem 9 x 8 casas
 const MAX_OBSTACLES = 91 // a sala tem 13 x 7 casas
 const GRID_ID = /^\d{1,2}-\d{1,2}$/ // ids de sala e de obstáculo são 'col-row', como '3-5'
 const MAX_CAUSE_LENGTH = 32
+const MAX_FORKS = 99 // o HUD mostra 2 dígitos
+const STARTING_FORKS = 1 // igual a run.js (progress.js não importa run.js para não criar um ciclo)
 
 // Número dentro de [min, max]; valor que não é número vira o mínimo
 function clamp(value, min, max) {
@@ -38,8 +40,9 @@ function normalizeIds(value, max) {
   return [...new Set(ids)].slice(0, max)
 }
 
-// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas } }.
-// Só entram as salas em que algo mudou. hits conta as batidas na parede da adega ou no tambor (até 3).
+// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas, unlocked } }.
+// Só entram as salas em que algo mudou. hits conta as batidas na parede da adega ou no tambor (até 3);
+// unlocked diz que a sala trancada já foi aberta com um garfo.
 function normalizeRoomStates(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   const states = {}
@@ -47,7 +50,8 @@ function normalizeRoomStates(value) {
     if (!GRID_ID.test(id) || !state || typeof state !== 'object') continue
     const removed = normalizeIds(state.removed, MAX_OBSTACLES)
     const hits = Number.isInteger(state.hits) ? clamp(state.hits, 0, HITS_TO_OPEN) : 0
-    if (removed.length > 0 || hits > 0) states[id] = { removed, hits }
+    const unlocked = state.unlocked === true // sala trancada já aberta com um garfo
+    if (removed.length > 0 || hits > 0 || unlocked) states[id] = { removed, hits, unlocked }
   }
   return states
 }
@@ -80,6 +84,8 @@ export function normalizeProgressPayload(value) {
     // Vida em meios corações (6 = 3 corações) e o que matou o personagem, se a run acabou em derrota
     health: normalizeHealth(source.health),
     deathCause: normalizeDeathCause(source.deathCause),
+    // Garfos que sobraram (inteiro de 0 a 99). Save antigo, sem o campo, começa com o garfo do início da run.
+    forks: Number.isInteger(source.forks) ? clamp(source.forks, 0, MAX_FORKS) : STARTING_FORKS,
   }
 }
 
@@ -97,6 +103,7 @@ export function createProgressSnapshot({
   roomStates,
   health,
   deathCause,
+  forks,
 }) {
   return normalizeProgressPayload({
     roomId,
@@ -111,5 +118,6 @@ export function createProgressSnapshot({
     roomStates,
     health,
     deathCause,
+    forks,
   })
 }

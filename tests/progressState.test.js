@@ -24,6 +24,7 @@ describe('normalizeProgressPayload', () => {
       roomStates: {},
       health: 6,
       deathCause: null,
+      forks: 1,
     })
   })
 
@@ -79,9 +80,9 @@ describe('normalizeProgressPayload', () => {
       },
     })
     assert.deepEqual(payload.roomStates, {
-      '3-3': { removed: ['2-1', '9-4'], hits: 0 },
-      '4-2': { removed: [], hits: 3 },
-      '6-1': { removed: ['1-1'], hits: 3 },
+      '3-3': { removed: ['2-1', '9-4'], hits: 0, unlocked: false },
+      '4-2': { removed: [], hits: 3, unlocked: false },
+      '6-1': { removed: ['1-1'], hits: 3, unlocked: false },
     })
   })
 
@@ -130,6 +131,7 @@ describe('normalizeProgressPayload com dados estranhos', () => {
         roomStates: {},
         health: 6,
         deathCause: null,
+        forks: 1,
       })
     }
   })
@@ -156,6 +158,7 @@ describe('createProgressSnapshot', () => {
       roomStates: {},
       health: 6,
       deathCause: null,
+      forks: 1,
     })
   })
 
@@ -168,7 +171,7 @@ describe('createProgressSnapshot', () => {
     })
     assert.equal(snapshot.health, 3)
     assert.equal(snapshot.deathCause, 'chapa')
-    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0 } })
+    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0, unlocked: false } })
   })
 
   test('inclui as salas visitadas', () => {
@@ -193,5 +196,24 @@ describe('marca de fim da run', () => {
   test('createProgressSnapshot guarda a marca de fim', () => {
     assert.equal(createProgressSnapshot({ finished: true }).finished, true)
     assert.equal(createProgressSnapshot({}).finished, false)
+  })
+})
+
+describe('garfos e salas trancadas no progresso', () => {
+  test('forks: inteiro de 0 a 99; save antigo (sem o campo) começa com 1', () => {
+    assert.equal(normalizeProgressPayload({}).forks, 1)
+    assert.equal(normalizeProgressPayload({ forks: 0 }).forks, 0)
+    assert.equal(normalizeProgressPayload({ forks: 3 }).forks, 3)
+    assert.equal(normalizeProgressPayload({ forks: -2 }).forks, 0)
+    assert.equal(normalizeProgressPayload({ forks: 500 }).forks, 99)
+    assert.equal(normalizeProgressPayload({ forks: 2.5 }).forks, 1)
+    assert.equal(normalizeProgressPayload({ forks: '2' }).forks, 1)
+  })
+
+  test('a sala aberta com garfo vai para o save, mesmo sem nada quebrado; só true conta', () => {
+    const { roomStates } = normalizeProgressPayload({
+      roomStates: { '4-2': { removed: [], hits: 0, unlocked: true }, '5-3': { removed: [], hits: 0, unlocked: 'sim' } },
+    })
+    assert.deepEqual(roomStates, { '4-2': { removed: [], hits: 0, unlocked: true } })
   })
 })

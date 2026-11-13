@@ -65,6 +65,7 @@ function createRoom(col, row, type) {
     cleared: false,
     removed: [],
     hits: 0,
+    unlocked: false, // sala trancada já aberta com um garfo (fica aberta até o fim da run neste andar)
   }
 }
 
@@ -193,11 +194,13 @@ function addCellar(rooms, occupied, number, random) {
   occupied.set(cellar.id, cellar)
 }
 
-// Pacto ou Mamãe (andares 1 a 4, 1 chance em 2): ao lado da sala do chefe.
+// Pacto ou Mamãe (andares 2 a 4, 1 chance em 2): ao lado da sala do chefe. Nunca no andar 1 (pedido do Victor).
 // Enquanto não há luta, a seed escolhe uma das duas, meio a meio.
 // A porta é normal nos dois sentidos; quem esconde a porta até o chefe ficar limpo é doors.js.
 function addPactRoom(rooms, occupied, number, random) {
-  if (number > 4 || !chance(random, 0.5)) return
+  // A chance é sorteada também no andar 1 (e descartada): assim o resto do sorteio do andar 1 quase não muda
+  const rolled = chance(random, 0.5)
+  if (number < 2 || number > 4 || !rolled) return
 
   const boss = rooms.find((room) => room.type === 'chefe')
   const sides = getFreeSides(occupied, boss)
