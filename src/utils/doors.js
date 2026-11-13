@@ -1,4 +1,4 @@
-import { ROOM_PLAYER_BOUNDS } from './roomMovement.js'
+import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS } from './roomMovement.js'
 
 // Portas da sala: os 4 lados, o vão, onde o personagem surge ao entrar e quando ele atravessa.
 // Os lados usam os mesmos nomes das direções do personagem.
@@ -26,15 +26,21 @@ export const DOOR_CELLS = {
 const DOOR_CENTER_X = 800
 const SIDE_DOOR_TOP = 464.5 // 525,5 - 61
 const SIDE_DOOR_BOTTOM = 586.5 // 525,5 + 61
-// Os pés (44 u de largura) cabem no vão quando o meio deles está a até 39 u do centro: 61 - 22
-const DOOR_FEET_RANGE = 39
+// Os pés cabem no vão quando o meio deles está a até 61 - largura/2 do centro (35 u com 52 u de largura)
+const DOOR_FEET_RANGE = 61 - PLAYER_FEET_BOX.width / 2
 
-// Onde os pés aparecem ao entrar pela porta daquele lado (30 u para dentro da porta)
+// Altura dos pés nas portas laterais: a caixa dos pés fica centrada no meio do vão (y = 525,5)
+const SIDE_DOOR_FEET_Y = 525.5 + PLAYER_FEET_BOX.height / 2
+
+// Onde os pés aparecem ao entrar pela porta daquele lado: 24 u para dentro do limite dos pés.
+// Calculado dos limites, então acompanha o tamanho do personagem (o validador dos layouts
+// confere que essa entrada tem folga em toda sala).
+const ENTRY_INSET = 24
 const ENTRY_POSITIONS = {
-  up: { x: 800, y: 321 },
-  down: { x: 800, y: 756 },
-  left: { x: 170, y: 534.5 },
-  right: { x: 1430, y: 534.5 },
+  up: { x: DOOR_CENTER_X, y: ROOM_PLAYER_BOUNDS.minY + ENTRY_INSET },
+  down: { x: DOOR_CENTER_X, y: ROOM_PLAYER_BOUNDS.maxY - ENTRY_INSET },
+  left: { x: ROOM_PLAYER_BOUNDS.minX + ENTRY_INSET, y: SIDE_DOOR_FEET_Y },
+  right: { x: ROOM_PLAYER_BOUNDS.maxX - ENTRY_INSET, y: SIDE_DOOR_FEET_Y },
 }
 
 // Sair pela porta "up" da sala A leva para a sala B, entrando pelo lado "down" de B:
@@ -50,7 +56,7 @@ export function getExitSide(position, movement, doors) {
   const { x, y } = position
   const { minX, maxX, minY, maxY } = ROOM_PLAYER_BOUNDS
   const insideTopBottomGap = Math.abs(x - DOOR_CENTER_X) <= DOOR_FEET_RANGE
-  const insideSideGap = y - 18 >= SIDE_DOOR_TOP && y <= SIDE_DOOR_BOTTOM
+  const insideSideGap = y - PLAYER_FEET_BOX.height >= SIDE_DOOR_TOP && y <= SIDE_DOOR_BOTTOM
 
   const crosses = {
     up: y <= minY + 0.5 && insideTopBottomGap && movement.y < 0,
@@ -73,10 +79,10 @@ export const DOOR_HIT_ZONES = {
 
 // Ponto de cada porta na borda do piso, para saber se o personagem está perto dela
 export const DOOR_POINTS = {
-  up: { x: 800, y: 291 },
-  down: { x: 800, y: 786 },
-  left: { x: 140, y: 534.5 },
-  right: { x: 1460, y: 534.5 },
+  up: { x: DOOR_CENTER_X, y: ROOM_PLAYER_BOUNDS.minY },
+  down: { x: DOOR_CENTER_X, y: ROOM_PLAYER_BOUNDS.maxY },
+  left: { x: ROOM_PLAYER_BOUNDS.minX, y: SIDE_DOOR_FEET_Y },
+  right: { x: ROOM_PLAYER_BOUNDS.maxX, y: SIDE_DOOR_FEET_Y },
 }
 
 // "De perto" = até 1 casa (120 u) entre os pés e o ponto da porta. A marca da adega só aparece assim.
@@ -88,6 +94,8 @@ export function isNearDoor(feet, side) {
 }
 
 const NORMAL_ROOM_TYPES = ['inicial', 'comum']
+// Salas que saem da sala do chefe (as únicas ligadas a outra sala especial)
+const BOSS_BRANCH_TYPES = ['pacto', 'mamae']
 
 function isSpecial(room) {
   return !NORMAL_ROOM_TYPES.includes(room.type)
@@ -106,7 +114,10 @@ function getTargetId(room, side) {
 
 // Tipo do desenho da porta. A porta de uma sala especial é temática dos dois lados (como no protótipo):
 // primeiro vale a sala do outro lado; se ela não for especial, vale a própria sala.
+// Entre o chefe e o pacto (ou a mamãe) as duas são especiais: vale a do pacto (ou da mamãe) dos dois lados,
+// então dentro do pacto a porta de volta continua sendo a do tubarão, e não a do chefe.
 export function getDoorKind(floor, room, side) {
+  if (BOSS_BRANCH_TYPES.includes(room.type)) return room.type
   const target = findRoom(floor, getTargetId(room, side))
   if (target && isSpecial(target)) return target.type
   if (isSpecial(room)) return room.type
@@ -138,7 +149,7 @@ export function getRoomDoors(floor, room) {
 
     if (room.secret && room.secret.side === side) {
       state = getSecretState(room.hits)
-    } else if (room.type === 'chefe' && target && ['pacto', 'mamae'].includes(target.type)) {
+    } else if (room.type === 'chefe' && target && BOSS_BRANCH_TYPES.includes(target.type)) {
       // A porta do pacto ou da mamãe só aparece depois que a sala do chefe fica limpa
       if (!room.cleared) continue
     }

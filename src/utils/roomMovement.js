@@ -4,9 +4,14 @@ import { moveAndCollide } from './collision.js'
 // assim a sala ocupa telas largas e celulares deitados sem deixar faixas grandes nos lados.
 export const ROOM_SIZE = { width: 1600, height: 853 }
 
+// Escala do personagem na sala. 1 era o tamanho antigo (118,8 u para o quadro de 296 px), que ficava pequeno
+// perto dos obstáculos; 1,35 ficou grande demais. 1,18 é o meio-termo. O desenho, a caixa dos pés, a sombra e
+// o golpe saem desta constante. Antes de mudar, confira os layouts (npm test): a caixa dos pés maior pode fechar portas.
+export const PLAYER_SCALE = 1.18
+
 // A posição do personagem é o centro dos pés. A colisão usa só uma caixa nos pés
 // (e não o corpo todo), então a cabeça pode passar por cima da parede de cima.
-export const PLAYER_FEET_BOX = { width: 44, height: 18 }
+export const PLAYER_FEET_BOX = { width: Math.round(44 * PLAYER_SCALE), height: Math.round(18 * PLAYER_SCALE) } // 52 x 21
 
 // Paredes (sólidos), em unidades da sala. Elas passam da borda da sala e têm mais de
 // 100 de espessura, bem mais que o passo máximo (260 x 0,05 = 13), então nada atravessa.
@@ -23,8 +28,7 @@ export const ROOM_WALLS = [
   { x: ROOM_FLOOR.right, y: -OUTSIDE, width: ROOM_SIZE.width - ROOM_FLOOR.right + OUTSIDE, height: ROOM_SIZE.height + 2 * OUTSIDE }, // direita
 ]
 
-// Onde os pés podem ficar, calculado das paredes: x de 140 a 1460 e y de 291 a 786.
-// O corpo e o bastão alcançam até cerca de 58 u para cada lado dos pés, então ficam dentro da sala.
+// Onde os pés podem ficar, calculado das paredes: x de 144 a 1456 e y de 294 a 786.
 export const ROOM_PLAYER_BOUNDS = {
   minX: ROOM_FLOOR.left + PLAYER_FEET_BOX.width / 2,
   maxX: ROOM_FLOOR.right - PLAYER_FEET_BOX.width / 2,
@@ -53,9 +57,12 @@ const ATTACK_KEYS = {
   ArrowRight: 'right',
 }
 
+// Segurar esta tecla recomeça a run (veja updateRestartHold em run.js)
+export const RESTART_KEY = 'KeyR'
+
 // A tecla faz parte dos controles da sala? (a página usa para decidir o preventDefault)
 export function isRoomKey(code) {
-  return code in ATTACK_KEYS || Object.values(MOVEMENT_KEYS).some((codes) => codes.includes(code))
+  return code === RESTART_KEY || code in ATTACK_KEYS || Object.values(MOVEMENT_KEYS).some((codes) => codes.includes(code))
 }
 
 // Direção do ataque: a última seta pressionada que ainda está segurada.
