@@ -24,9 +24,9 @@ export const CHARACTER_SPRITES = {
     idleFrame: 12, // pernas paradas (sem andar, ou "reduzir movimento")
     rows: { down: 0, left: 1, right: 2, up: 3 },
   },
-  // 2) Tronco (na frente): cabeça, corpo, braço e bastão do original, sem as pernas, com balanço de 12 quadros
-  //    (um quique por passo: sobe até 7 px nas laterais e até 9 px de frente e de costas, onde também joga 5 px
-  //    para os lados; o bastão balança 9° e 13°, com atraso). O tronco só é movido, nunca girado: rosto e paleta
+  // 2) Tronco (na frente): cabeça, corpo, braço e bastão do original, sem as pernas, com 12 quadros
+  //    (um quique macio por passo: sobe até 5 px nas laterais e até 6 px de frente e de costas, sem ir para os lados;
+  //    o bastão balança 5° e 6°, com atraso). O tronco só é movido, nunca girado: rosto e paleta
   //    não mudam. O quadro 0 é a pose parada (o golpe e o dano terminam nela).
   // Os pés ficam no mesmo ponto de todos os quadros (feetPadding), então não há "pulo".
   tungTungSahurAndar: {
@@ -70,23 +70,26 @@ export const CHARACTER_SPRITES = {
     directionScale: LEFT_VIEW_SCALE,
   },
   // Sala: morte, uma linha só (sempre de frente, seja qual for a direção em que ele estava).
-  // Ele tomba como árvore cortada: o bastão escapa, o corpo cai duro de lado, quica e fica deitado.
+  // Morte com expressão: o bastão escapa, ele olha o bastão subir, para e olha para quem joga com a boca triste,
+  // tomba pedalando no ar, bate no chão (lascas de madeira), fica tonto chutando e apaga.
   // O último quadro é o que fica na tela. A célula é larga porque o corpo deitado e o bastão saem do quadro de 296x259.
   // - durations: ms de cada quadro
-  // Quadros: 0 parado (igual à pose do jogo), 1 leva o golpe e o bastão escapa, 2 e 3 cambaleia, 4 a 6 tomba
-  // cada vez mais rápido, 7 bate no chão (voam lascas de madeira), 8 quica, 9 e 10 deita e o bastão cai e rola,
-  // 11 tudo parado. É diferente da morte dos inimigos: o corpo não achata, o rosto não muda e não há poeira.
+  // Quadros: 0 parado (igual à pose do jogo), 1 tranco e o bastão escapa, 2 olha o bastão subir, 3 "ih...": olha
+  // para a tela com a boca triste, 4 a 7 tomba pedalando (uma rachadura desce pela cabeça), 8 bate no chão,
+  // 9 quica, 10 e 11 chuta deitado com os olhos tontos, 12 os olhos pesam e um fecha, 13 os dois fechados.
+  // É diferente da morte dos inimigos: o corpo não achata, sem olhos em X, estrelas ou poeira.
   // A folha já traz a sombra dele (o jogo não desenha a sombra dos pés durante a morte).
-  // Gerada por gerar_morte.py (fora do repositório), só com peças do original; os números vêm do morte.json dele.
+  // Gerada por gerar_morte_v2.py (fora do repositório, proposta 2) com peças do original: íris movidas, boca girada,
+  // pálpebras feitas com a pele do próprio rosto e a rachadura na grade de 3 px. Os números vêm do morte.json dele.
   tungTungSahurMorte: {
     src: '/sprites/characters/tung-tung-sahur/morte.png',
     frameWidth: 600,
     frameHeight: 400,
     feetX: 380,
     feetPadding: 40,
-    framesPerRow: 12,
+    framesPerRow: 14,
     rows: { down: 0 },
-    durations: [100, 80, 100, 90, 80, 70, 60, 120, 120, 120, 150, 300],
+    durations: [100, 80, 110, 220, 90, 80, 70, 60, 120, 110, 110, 110, 220, 300],
   },
   // Tela inicial: corpo inteiro piscando (quadros: aberto, meio, fechado, meio)
   tungTungSahurPiscar: {

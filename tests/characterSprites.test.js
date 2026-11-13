@@ -97,12 +97,12 @@ describe('folhas do personagem na sala', () => {
     assert.deepEqual([start, end], [160, 350])
   })
 
-  test('a morte tem uma linha só, um tempo por quadro e dura 1390 ms', () => {
+  test('a morte tem uma linha só, um tempo por quadro e dura 1780 ms', () => {
     const death = CHARACTER_SPRITES.tungTungSahurMorte
     assert.deepEqual(death.rows, { down: 0 })
     assert.equal(death.durations.length, death.framesPerRow)
     assert.ok(death.durations.every((ms) => ms > 0))
-    assert.equal(death.durations.reduce((a, b) => a + b, 0), 1390)
+    assert.equal(death.durations.reduce((a, b) => a + b, 0), 1780)
     // os pés (o pivô) ficam dentro da célula, com espaço para o corpo deitado à esquerda e o bastão à direita
     assert.ok(death.feetX > 296 && death.feetX < death.frameWidth - 100)
     assert.ok(death.feetPadding > 0 && death.feetPadding < death.frameHeight / 2)
@@ -163,14 +163,14 @@ describe('drawSprite (tamanho igual nos dois lados)', () => {
 
 describe('folhas do Tung Tung Sahur (o jogo nunca reamostra nem redesenha: só muda a escala de desenho)', () => {
   // md5 de cada folha. As folhas saem dos scripts do protagonista (fora do repositório), só com peças do original.
-  // Em 2026-11-12 o andar foi refeito (andar.png e pernas.png, a pedido: estava duro) e a morte foi criada;
-  // o ataque, o dano e o piscar são os de antes. Se uma folha for regerada de propósito, atualize o md5 dela aqui.
+  // Em 2026-11-13 o andar ficou sem o balanço lateral (andar.png e pernas.png) e a morte ganhou expressão (morte.png),
+  // os dois a pedido; o ataque, o dano e o piscar são os de antes. Se uma folha for regerada de propósito, atualize o md5 dela aqui.
   const ORIGINALS = {
-    'tung-tung-sahur/andar.png': '7a409dbae5d5033674eabbb2a4158c2b',
+    'tung-tung-sahur/andar.png': '13327d75d725bfc4d19edd65ba6dc060',
     'tung-tung-sahur/ataque.png': '997d1d744c41acbb3541236c7d977770',
     'tung-tung-sahur/dano.png': '1703162b5ccfd15dbbc59d1addef1e09',
-    'tung-tung-sahur/morte.png': 'b08e29062b2e2d46754db6e354e43eae',
-    'tung-tung-sahur/pernas.png': 'a51b137259c7eaf4b8ea0bbeee01e913',
+    'tung-tung-sahur/morte.png': 'e6516e25d86d33c0f3dc0af66042554b',
+    'tung-tung-sahur/pernas.png': '966cca8e4b54137429a06167340d8f5b',
     'tung-tung-sahur-piscar.png': '41439f99db89c773334818bac41d14fd',
   }
 

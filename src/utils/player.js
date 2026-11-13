@@ -1,5 +1,5 @@
 import { CHARACTER_SPRITES } from '../data/characterSprites.js'
-import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance, WALK_CYCLE_DISTANCE } from './spriteAnimation.js'
+import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance } from './spriteAnimation.js'
 import { moveRoomPlayer, PLAYER_SCALE, ROOM_WALLS } from './roomMovement.js'
 
 // Estado do personagem na sala, em funções puras (sem React, sem canvas), para testar.
@@ -188,33 +188,21 @@ export function getAttackArc(player) {
   return { x: player.x + box.x, y: player.y + box.y, width: box.width, height: box.height, direction, opacity }
 }
 
-// Andar de frente e de costas: o tronco cobre boa parte das pernas, então além do passo da folha o corpo inteiro
-// (pernas e tronco) inclina para um lado e para o outro em volta dos pés, acompanhando a passada. A inclinação
-// muda a cada quadro desenhado (e não só a cada quadro da folha), por isso deixa o andar mais fluido.
-// É o mesmo quadro da folha desenhado inclinado, não um quadro novo.
-export const WALK_TILT_DEGREES = 3
-
-// Inclinação do corpo, em graus: 0 de lado, senão segue o ciclo do andar (+ e - a cada passo)
-function getWalkTilt(direction, walkDistance) {
-  if (direction !== 'up' && direction !== 'down') return 0
-  return WALK_TILT_DEGREES * Math.sin((2 * Math.PI * walkDistance) / WALK_CYCLE_DISTANCE)
-}
-
 // Qual folha, direção e quadro desenhar. reduceMotion deixa o andar parado no quadro 0 e a morte já deitada;
 // o golpe sempre anima, porque é informação de jogo.
 // O personagem é desenhado em camadas: as pernas (legs) atrás e o tronco (sheet/direction/frame) na frente.
 // legs é null no dano e na morte, que têm o corpo inteiro numa folha só.
-// tilt é a inclinação do corpo em graus (só andando de frente ou de costas; 0 no golpe, no dano e parado).
+// O corpo não inclina ao andar: o Victor rejeitou o balanço (2026-11-13); o passo fica todo na folha.
 // Parado (ou reduzir movimento), as pernas ficam no quadro parado; andando, o quadro das pernas e o do tronco vêm da mesma distância andada, inclusive no golpe.
 export function getPlayerPose(player, reduceMotion = false) {
   if (player.dead) {
     // Depois do fim (ou com reduzir movimento, sem a queda), fica no último quadro: deitado
     const last = DEATH.durations.length - 1
     const timed = getTimedFrame(DEATH.durations, player.dead.elapsed)
-    return { sheet: 'death', direction: 'down', frame: reduceMotion || timed === -1 ? last : timed, legs: null, tilt: 0 }
+    return { sheet: 'death', direction: 'down', frame: reduceMotion || timed === -1 ? last : timed, legs: null }
   }
   if (player.hurt) {
-    return { sheet: 'hurt', direction: player.hurt.direction, frame: getTimedFrame(HURT.durations, player.hurt.elapsed), legs: null, tilt: 0 }
+    return { sheet: 'hurt', direction: player.hurt.direction, frame: getTimedFrame(HURT.durations, player.hurt.elapsed), legs: null }
   }
   const walking = player.walkDistance > 0 && !reduceMotion
   const walkFrame = walking ? getWalkFrame(player.walkDistance) : 0
@@ -226,10 +214,8 @@ export function getPlayerPose(player, reduceMotion = false) {
       direction,
       frame: getTimedFrame(ATTACK.durations, elapsed),
       legs: { direction, frame: legsFrame },
-      tilt: 0,
     }
   }
   const { direction } = player
-  const tilt = walking ? getWalkTilt(direction, player.walkDistance) : 0
-  return { sheet: 'walk', direction, frame: walkFrame, legs: { direction, frame: legsFrame }, tilt }
+  return { sheet: 'walk', direction, frame: walkFrame, legs: { direction, frame: legsFrame } }
 }
