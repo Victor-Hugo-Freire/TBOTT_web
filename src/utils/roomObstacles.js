@@ -93,27 +93,56 @@ export function touchesHot(obstacles, feet) {
   return obstacles.some((obstacle) => obstacle.mechanic === 'quente' && !obstacle.removed && overlaps(box, obstacle.box))
 }
 
-// O passo anterior foi bloqueado? Sim se havia movimento num eixo e a posição não mudou nele.
-// (moveAndCollide encaixa os pés na borda, então encostado num sólido o eixo fica parado.)
-// Um quadro sem tempo (deltaSeconds 0, como o primeiro quadro ou a volta do foco) não anda e não conta como bloqueio.
-export function isBlockedStep(before, after, movement, deltaSeconds = 1) {
-  if (deltaSeconds <= 0) return false
-  return (movement.x !== 0 && after.x === before.x) || (movement.y !== 0 && after.y === before.y)
+// ---------- piso escorregadio (vinho, azeite, sorvete e poça) ----------
+// O personagem tem uma VELOCIDADE guardada (slip = { x, y }, em fração da velocidade de andar, com módulo
+// no máximo 1) que se aproxima aos poucos do que as teclas pedem. Assim ele acelera e freia devagar
+// e continua deslizando um pouco depois de soltar a tecla. Fora do líquido, nada disso existe.
+export const SLIP_ACCELERATION = 2 // por segundo, no líquido: parado até a velocidade cheia em 0,5 s; ao soltar, desliza ~65 u
+export const SLIP_EXIT_DECAY = 10 // por segundo, ao sair do líquido: a sobra some em até 0,2 s, sem tranco
+const SLIP_MIN_SPEED = 0.01 // abaixo disso, sem tecla, a velocidade vira 0 (senão ele nunca ficaria parado)
+const SLIP_MAX_STEP = 0.05 // passo máximo de tempo, o mesmo de moveRoomPlayer: o deslize nunca pula uma parede
+
+// Anda de `from` até `to`, no máximo maxDelta. Os dois dentro do círculo de raio 1: o caminho reto também fica.
+function approach(from, to, maxDelta) {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const distance = Math.hypot(dx, dy)
+  if (distance <= maxDelta) return { x: to.x, y: to.y }
+  return { x: from.x + (dx / distance) * maxDelta, y: from.y + (dy / distance) * maxDelta }
 }
 
-// Piso escorregadio: decide o movimento deste quadro.
-//   slip: a direção guardada ({ x, y }) ou null se o jogador não está escorregando;
+// Decide o movimento deste quadro.
+//   slip: a velocidade guardada ({ x, y }) ou null se o jogador não está escorregando;
 //   effect: o de getFloorEffect nos pés;
 //   movement: o movimento das teclas (getRoomMovement);
-//   blocked: o passo anterior foi bloqueado (isBlockedStep com o movimento usado nele).
+//   deltaSeconds: o tempo do quadro.
 // Devolve { slip, movement }: guarde o slip para o próximo quadro e ande com o movement.
 // Regras:
-// - fora do piso escorregadio, ou se bateu em algo: sem slip, valem as teclas (o jogador nunca fica preso);
-// - já escorregando: segue a direção guardada, ignorando as teclas;
-// - em cima, sem slip: andando, guarda a direção das teclas; parado, espera até começar a andar.
-export function getSlipMovement(slip, effect, movement, blocked = false) {
-  if (!effect.slippery || blocked) return { slip: null, movement }
-  if (slip) return { slip, movement: slip }
-  if (movement.x === 0 && movement.y === 0) return { slip: null, movement }
-  return { slip: { x: movement.x, y: movement.y }, movement }
+// - em cima do líquido: a velocidade vai das teclas com SLIP_ACCELERATION. Ao entrar vindo de fora, ela começa
+//   igual às teclas (sem tranco); parado em cima, começa em 0 e acelera;
+// - fora do líquido com velocidade sobrando: ela some com SLIP_EXIT_DECAY e, ao chegar nas teclas, o slip acaba;
+// - sem velocidade e fora do líquido, valem as teclas (o jogador nunca fica preso).
+export function getSlipMovement(slip, effect, movement, deltaSeconds = 0) {
+  if (!effect.slippery && !slip) return { slip: null, movement }
+
+  const step = Math.max(0, Math.min(deltaSeconds, SLIP_MAX_STEP))
+  const rate = effect.slippery ? SLIP_ACCELERATION : SLIP_EXIT_DECAY
+  let velocity = approach(slip ?? movement, movement, rate * step)
+
+  const noKeys = movement.x === 0 && movement.y === 0
+  if (noKeys && Math.hypot(velocity.x, velocity.y) < SLIP_MIN_SPEED) velocity = { x: 0, y: 0 }
+
+  if (!effect.slippery && velocity.x === movement.x && velocity.y === movement.y) return { slip: null, movement }
+  return { slip: velocity, movement: velocity }
+}
+
+// Bateu numa parede ou obstáculo: o eixo em que a posição não mudou perde a velocidade.
+// (moveAndCollide encaixa os pés na borda, então encostado num sólido o eixo fica parado.)
+// Um quadro sem tempo (deltaSeconds 0, como o primeiro quadro ou a volta do foco) não anda e não conta.
+export function stopBlockedAxes(slip, before, after, deltaSeconds = 1) {
+  if (!slip || deltaSeconds <= 0) return slip
+  return {
+    x: slip.x !== 0 && after.x === before.x ? 0 : slip.x,
+    y: slip.y !== 0 && after.y === before.y ? 0 : slip.y,
+  }
 }

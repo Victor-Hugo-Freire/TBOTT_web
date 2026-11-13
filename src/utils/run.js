@@ -1,7 +1,8 @@
 import { overlaps } from './collision.js'
 import { DOOR_HIT_ZONES, getEntryPosition, HITS_TO_OPEN, getExitSide, getRoomDoors, isNearDoor, OPPOSITE_SIDE } from './doors.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
-import { createPlayer, getAttackHitbox, hurtPlayer, updatePlayer } from './player.js'
+import { applyDamage, DAMAGE_LIGHT, MAX_HEALTH } from './health.js'
+import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
 import { createProgressSnapshot } from './progress.js'
 import { buildRoomObstacles } from './roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
@@ -10,8 +11,8 @@ import {
   getRoomSolids,
   getSlipMovement,
   hitObstacles,
-  isBlockedStep,
   pushPlayer,
+  stopBlockedAxes,
   touchesHot,
   updateRollingObstacles,
 } from './roomObstacles.js'
@@ -27,6 +28,12 @@ import {
 export const BANNER_TOTAL_MS = 2800 // faixa do andar: entra 300, fica 2200, sai 300
 export const ROOM_TRANSITION_MS = 350
 export const FLOOR_TRANSITION_MS = 900 // escurece 450, troca de andar, clareia 450
+export const DEATH_HOLD_MS = 500 // depois da animação de morte, ele fica deitado esse tempo antes do aviso
+export const RESTART_HOLD_MS = 1000 // segurar R por 1 s recomeça a run com outra seed (como no Isaac)
+
+// O que machuca hoje: só a chapa quente. A causa vai para o aviso de morte (veja health.js).
+const HOT_PLATE_CAUSE = 'chapa'
+const NO_INPUT = { movement: { x: 0, y: 0 }, attackDirection: null }
 
 const NORMAL_ROOM_TYPES = ['inicial', 'comum']
 
@@ -83,8 +90,7 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     roomId: room.id,
     player: { ...createPlayer(position), direction },
     obstacles: getRoomObstacles(floor, room),
-    slip: null,
-    blocked: false, // o passo anterior bateu em algo? (usado pelo piso escorregadio)
+    slip: null, // velocidade do deslize no líquido ({ x, y }) ou null (veja getSlipMovement)
     swingCounted: false,
   }
 }
@@ -112,12 +118,53 @@ function createBanner(floor) {
   return { text: floor.name, elapsedMs: 0 }
 }
 
+// Ids das salas visitadas do andar, para o progresso salvo. A fonte única é room.visited:
+// o minimapa (F3 hoje, o do jogo depois) lê esse mesmo campo.
+export function getVisitedRoomIds(floor) {
+  return floor.rooms.filter((room) => room.visited).map((room) => room.id)
+}
+
+// O que mudou em cada sala do andar, para o progresso salvo: obstáculos quebrados e batidas
+// (parede da adega e tambor). Só entram as salas em que algo mudou.
+export function getRoomStates(floor) {
+  const states = {}
+  for (const room of floor.rooms) {
+    if (room.removed.length > 0 || room.hits > 0) states[room.id] = { removed: [...room.removed], hits: room.hits }
+  }
+  return states
+}
+
 // Começa a run (nova ou continuada). roomId inválido (ou o antigo 'sala-inicial') = sala inicial.
-export function createRun({ seed, floorNumber = 1, roomId = null, position = null, characterId }) {
+// Do progresso salvo vêm também:
+// - visitedRoomIds: as salas já visitadas;
+// - roomStates: o que quebrou e as batidas de cada sala (formato de getRoomStates);
+// - health: a vida, em meios corações.
+// Ids que não existem neste andar são ignorados (os ids repetem de um andar para outro).
+export function createRun({
+  seed,
+  floorNumber = 1,
+  roomId = null,
+  position = null,
+  characterId,
+  visitedRoomIds = [],
+  roomStates = {},
+  health = MAX_HEALTH,
+}) {
   const floor = generateFloor(seed, floorNumber)
   const room = findRoom(floor, roomId) ?? findRoom(floor, floor.startRoomId)
+  for (const id of visitedRoomIds) {
+    const visited = findRoom(floor, id)
+    if (visited) visited.visited = true
+  }
+  // O que quebrou continua quebrado, e as batidas na parede da adega e no tambor continuam contadas
+  for (const [id, state] of Object.entries(roomStates)) {
+    const saved = findRoom(floor, id)
+    if (!saved) continue
+    saved.removed = [...state.removed]
+    saved.hits = state.hits
+  }
 
-  // O estado das salas não vai para o save: se o save está dentro da adega, a parede da origem abre
+  // Save antigo (sem o estado das salas) dentro da adega: a parede da origem abre, senão ele ficaria preso
   if (room.type === 'adega') {
     floor.rooms.find((other) => other.secret?.roomId === room.id).hits = HITS_TO_OPEN
   }
@@ -127,6 +174,8 @@ export function createRun({ seed, floorNumber = 1, roomId = null, position = nul
     characterId,
     grains: 0,
     forks: 1,
+    health, // vida em meios corações (veja health.js)
+    death: null, // { cause } depois que a vida acaba: toca a animação de morte e a run termina
     transition: null,
     banner: room.id === floor.startRoomId ? createBanner(floor) : null,
     finished: false,
@@ -143,7 +192,12 @@ export function createRunSnapshot(run, elapsedMs) {
     roomId: run.roomId,
     seed: run.seed,
     floor: run.floor.number,
-    finished: run.finished,
+    // Morreu = acabou: um save feito durante a animação de morte já conta como run encerrada
+    finished: run.finished || Boolean(run.death),
+    visitedRoomIds: getVisitedRoomIds(run.floor),
+    roomStates: getRoomStates(run.floor),
+    health: run.health,
+    deathCause: run.death?.cause ?? null,
   })
 }
 
@@ -154,10 +208,11 @@ function advanceBanner(banner, stepMs) {
   return elapsedMs >= BANNER_TOTAL_MS ? null : { ...banner, elapsedMs }
 }
 
-// Ids que quebraram agora vão para room.removed (não voltam ao sair e entrar de novo)
+// Ids que quebraram agora vão para room.removed (não voltam ao sair e entrar de novo, nem ao continuar a run).
+// O que está rolando também conta: ele sempre quebra no fim, então sair da sala no meio do caminho não o traz de volta.
 function saveRemoved(room, obstacles) {
   for (const obstacle of obstacles) {
-    if (obstacle.removed && !room.removed.includes(obstacle.id)) room.removed.push(obstacle.id)
+    if ((obstacle.removed || obstacle.rolling) && !room.removed.includes(obstacle.id)) room.removed.push(obstacle.id)
   }
 }
 
@@ -176,18 +231,33 @@ function hitsTarget(room, obstacles, hitbox, player) {
 function updateRoom(run, input, deltaSeconds) {
   const room = getCurrentRoom(run)
 
-  // Piso: escorregadio (segue a direção guardada), grudento (mais lento) e esteira (empurra)
+  // Piso: escorregadio (inércia), grudento (mais lento) e esteira (empurra)
   const effect = getFloorEffect(run.obstacles, run.player)
-  const { slip, movement } = getSlipMovement(run.slip, effect, input.movement, run.blocked)
+  const slipping = getSlipMovement(run.slip, effect, input.movement, deltaSeconds)
+  const { movement } = slipping
   const solids = getRoomSolids(run.obstacles)
 
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
     solids,
     speedMultiplier: effect.speedMultiplier,
   })
-  const blocked = isBlockedStep(run.player, player, movement, deltaSeconds)
+  const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
   player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
-  if (touchesHot(run.obstacles, player)) player = hurtPlayer(player)
+
+  // Chapa quente: meio coração por queimadura. hurtPlayer devolve o mesmo objeto enquanto ele está
+  // invencível, então só o golpe que vale tira vida. Sem vida, ele morre (e a animação de dano nem toca).
+  let { health, death } = run
+  if (touchesHot(run.obstacles, player)) {
+    const hurt = hurtPlayer(player)
+    if (hurt !== player) {
+      player = hurt
+      health = applyDamage(health, DAMAGE_LIGHT)
+      if (health === 0) {
+        player = killPlayer(player)
+        death = { cause: HOT_PLATE_CAUSE }
+      }
+    }
+  }
 
   // Golpe novo: não havia golpe, ou o tempo dele voltou a ser menor (outro golpe começou)
   const previous = run.player.attack
@@ -207,10 +277,12 @@ function updateRoom(run, input, deltaSeconds) {
   obstacles = updateRollingObstacles(obstacles, deltaSeconds)
   saveRemoved(room, obstacles)
 
-  const next = { ...run, player, obstacles, slip, blocked, swingCounted }
+  const next = { ...run, player, obstacles, slip, swingCounted, health, death }
+  if (death) return next // morto não atravessa porta nem passa de andar
 
   const doors = getRoomDoors(run.floor, room)
-  const side = getExitSide(player, movement, doors)
+  // A porta vale só com a tecla apertada para ela: o deslize sozinho nunca troca de sala
+  const side = getExitSide(player, input.movement, doors)
   if (side) {
     const toRoomId = doors.find((door) => door.side === side).targetId
     // A sala nova já fica limpa: assim as portas dela aparecem abertas enquanto ela desliza para dentro
@@ -268,10 +340,30 @@ function updateFloorTransition(run, stepMs) {
   return next
 }
 
+// Morte: só a animação do personagem anda (o resto da sala fica parado). Quando ela acaba e ele já ficou
+// DEATH_HOLD_MS deitado, a run termina: a página mostra o aviso de morte.
+function updateDeath(run, deltaSeconds) {
+  const player = updatePlayer(run.player, NO_INPUT, deltaSeconds)
+  return { ...run, player, finished: player.dead.elapsed >= DEATH_DURATION_MS + DEATH_HOLD_MS }
+}
+
+// Segurar R para recomeçar: o tempo segurado cresce até RESTART_HOLD_MS; soltar antes desfaz (3x mais rápido).
+// A página escurece a tela conforme getRestartFade e cria outra run quando o tempo completa.
+export function updateRestartHold(holdMs, isHeld, stepMs) {
+  if (isHeld) return Math.min(RESTART_HOLD_MS, holdMs + stepMs)
+  return Math.max(0, holdMs - stepMs * 3)
+}
+
+// Escurecimento da tela enquanto o R é segurado: 0 (nada) a 1 (preto)
+export function getRestartFade(holdMs) {
+  return Math.min(1, Math.max(0, holdMs / RESTART_HOLD_MS))
+}
+
 // Avança a run um quadro. input = { movement, attackDirection }, como em updatePlayer.
-// Durante as transições os controles são ignorados. Depois do fim (finished), nada muda.
+// Durante as transições e a morte os controles são ignorados. Depois do fim (finished), nada muda.
 export function updateRun(run, input, deltaSeconds) {
   if (run.finished) return run
+  if (run.death) return updateDeath(run, deltaSeconds)
   const stepMs = Math.max(0, deltaSeconds * 1000)
 
   // A faixa só começa a contar depois da troca de andar; na troca de sala ela continua contando
