@@ -6,14 +6,19 @@ import {
   getRoomSolids,
   getSlipMovement,
   hitObstacles,
-  isBlockedStep,
   pushPlayer,
   ROLL_SPEED,
+  SLIP_ACCELERATION,
+  SLIP_EXIT_DECAY,
   STICKY_SPEED,
+  stopBlockedAxes,
   touchesHot,
   updateRollingObstacles,
 } from '../src/utils/roomObstacles.js'
-import { moveRoomPlayer, PLAYER_FEET_BOX, ROOM_FLOOR, ROOM_PLAYER_BOUNDS, ROOM_WALLS } from '../src/utils/roomMovement.js'
+import { overlaps } from '../src/utils/collision.js'
+import { createRandom, pick } from '../src/utils/random.js'
+import { buildRoomObstacles, ROOM_LAYOUTS } from '../src/utils/roomLayout.js'
+import { getFeetBox, moveRoomPlayer, PLAYER_FEET_BOX, ROOM_FLOOR, ROOM_PLAYER_BOUNDS, ROOM_WALLS } from '../src/utils/roomMovement.js'
 
 // Obstáculos montados à mão, no formato de roomLayout.js (a caixa é o que importa aqui)
 const BLOCKING = ['solido', 'quebravel', 'rolante', 'quente', 'cenario', 'tambor']
@@ -141,42 +146,105 @@ describe('escorregadio', () => {
     assert.equal(getFloorEffect([ice], { x: 399, y: 500 }).slippery, false)
   })
 
-  test('ao entrar andando, guarda a direção e segue nela ignorando as teclas', () => {
-    const effect = { slippery: true, speedMultiplier: 1, push: { x: 0, y: 0 } }
-    let state = getSlipMovement(null, effect, { x: 1, y: 0 })
+  const SLIPPING = { slippery: true, speedMultiplier: 1, push: { x: 0, y: 0 } }
+  const OUTSIDE = { slippery: false, speedMultiplier: 1, push: { x: 0, y: 0 } }
+  const NO_KEYS = { x: 0, y: 0 }
+  const DT = 1 / 60
+
+  test('ao entrar andando, a velocidade começa igual às teclas (sem tranco)', () => {
+    const state = getSlipMovement(null, SLIPPING, { x: 1, y: 0 }, DT)
     assert.deepEqual(state, { slip: { x: 1, y: 0 }, movement: { x: 1, y: 0 } })
-    state = getSlipMovement(state.slip, effect, { x: 0, y: -1 })
-    assert.deepEqual(state.movement, { x: 1, y: 0 })
-    state = getSlipMovement(state.slip, effect, { x: 0, y: 0 })
-    assert.deepEqual(state.movement, { x: 1, y: 0 }, 'soltar as teclas não para')
   })
 
-  test('parado ao entrar, espera a tecla para começar a escorregar', () => {
-    const effect = { slippery: true, speedMultiplier: 1, push: { x: 0, y: 0 } }
-    assert.deepEqual(getSlipMovement(null, effect, { x: 0, y: 0 }), { slip: null, movement: { x: 0, y: 0 } })
-    assert.deepEqual(getSlipMovement(null, effect, { x: 0, y: 1 }).slip, { x: 0, y: 1 })
+  test('parado em cima do líquido, acelera aos poucos até a velocidade cheia em 0,5 s', () => {
+    let state = getSlipMovement(null, SLIPPING, NO_KEYS, DT)
+    assert.deepEqual(state.slip, { x: 0, y: 0 }, 'parado em cima guarda velocidade 0 (e não volta às teclas)')
+    state = getSlipMovement(state.slip, SLIPPING, { x: 1, y: 0 }, DT)
+    assert.ok(Math.abs(state.movement.x - SLIP_ACCELERATION * DT) < 1e-9, 'o primeiro quadro anda só 2/60 da velocidade')
+    let frames = 1
+    while (state.movement.x < 1) {
+      state = getSlipMovement(state.slip, SLIPPING, { x: 1, y: 0 }, DT)
+      frames++
+    }
+    assert.ok(frames * DT >= 0.49 && frames * DT <= 0.52, `levou ${frames} quadros`)
   })
 
-  test('ao sair do piso, volta a obedecer às teclas', () => {
-    const outside = { slippery: false, speedMultiplier: 1, push: { x: 0, y: 0 } }
-    assert.deepEqual(getSlipMovement({ x: 1, y: 0 }, outside, { x: -1, y: 0 }), { slip: null, movement: { x: -1, y: 0 } })
+  test('soltar as teclas: continua deslizando, freia aos poucos e para depois de cerca de 65 u', () => {
+    let slip = { x: 1, y: 0 }
+    let position = { x: 500, y: 500 }
+    let previous = 1
+    for (let frame = 0; frame < 60; frame++) {
+      const state = getSlipMovement(slip, SLIPPING, NO_KEYS, DT)
+      assert.ok(state.movement.x <= previous && state.movement.x >= 0, 'só freia, nunca volta para trás')
+      previous = state.movement.x
+      position = moveRoomPlayer(position, state.movement, DT, 1, ROOM_WALLS)
+      slip = state.slip
+    }
+    const slid = position.x - 500
+    assert.ok(slid > 55 && slid < 75, `deslizou ${slid.toFixed(1)} u`)
+    assert.deepEqual(slip, { x: 0, y: 0 }, 'parou de vez')
   })
 
-  test('bateu: volta a obedecer às teclas', () => {
-    const effect = { slippery: true, speedMultiplier: 1, push: { x: 0, y: 0 } }
-    assert.deepEqual(getSlipMovement({ x: 1, y: 0 }, effect, { x: 0, y: 1 }, true), { slip: null, movement: { x: 0, y: 1 } })
+  test('ao sair do líquido, a sobra de velocidade some em até 0,2 s, sem salto', () => {
+    let slip = { x: 1, y: 0 }
+    let previous = 1
+    let frames = 0
+    while (slip) {
+      const state = getSlipMovement(slip, OUTSIDE, NO_KEYS, DT)
+      assert.ok(previous - state.movement.x <= SLIP_EXIT_DECAY * DT + 1e-9, 'a velocidade cai no máximo 10 por segundo')
+      previous = state.movement.x
+      slip = state.slip
+      frames++
+      assert.ok(frames < 30, 'o slip acaba')
+    }
+    assert.ok(frames * DT <= 0.2, `levou ${frames} quadros`)
+    assert.equal(previous, 0)
   })
 
-  test('isBlockedStep: eixo com movimento e sem mudança de posição', () => {
-    assert.equal(isBlockedStep({ x: 10, y: 10 }, { x: 10, y: 12 }, { x: 1, y: 1 }), true)
-    assert.equal(isBlockedStep({ x: 10, y: 10 }, { x: 11, y: 12 }, { x: 1, y: 1 }), false)
-    assert.equal(isBlockedStep({ x: 10, y: 10 }, { x: 10, y: 12 }, { x: 0, y: 1 }), false)
+  test('ao sair do líquido andando para o mesmo lado, nada muda (as teclas já valem)', () => {
+    assert.deepEqual(getSlipMovement({ x: 1, y: 0 }, OUTSIDE, { x: 1, y: 0 }, DT), { slip: null, movement: { x: 1, y: 0 } })
   })
 
-  test('isBlockedStep: um quadro sem tempo (dt 0) não conta como bloqueio', () => {
-    assert.equal(isBlockedStep({ x: 10, y: 10 }, { x: 10, y: 10 }, { x: 1, y: 0 }, 0), false)
-    assert.equal(isBlockedStep({ x: 10, y: 10 }, { x: 10, y: 10 }, { x: 1, y: 0 }, 1 / 60), true)
+  test('fora do líquido e sem velocidade, valem as teclas', () => {
+    assert.deepEqual(getSlipMovement(null, OUTSIDE, { x: -1, y: 0 }, DT), { slip: null, movement: { x: -1, y: 0 } })
   })
+
+  test('o módulo da velocidade nunca passa de 1 (o passo máximo de 13 u continua valendo)', () => {
+    let slip = null
+    const keys = [{ x: 1, y: 0 }, { x: 0, y: -1 }, { x: -Math.SQRT1_2, y: Math.SQRT1_2 }, NO_KEYS]
+    for (let frame = 0; frame < 400; frame++) {
+      const state = getSlipMovement(slip, frame % 90 < 70 ? SLIPPING : OUTSIDE, keys[Math.floor(frame / 20) % keys.length], DT)
+      assert.ok(Math.hypot(state.movement.x, state.movement.y) <= 1 + 1e-9)
+      slip = state.slip
+    }
+  })
+
+  test('sem tecla, a velocidade pequena demais vira 0 (senão ele nunca ficaria parado)', () => {
+    assert.deepEqual(getSlipMovement({ x: 0.005, y: 0 }, SLIPPING, NO_KEYS, DT).movement, { x: 0, y: 0 })
+  })
+
+  test('o tempo do quadro é limitado a 0,05 s (como no andar)', () => {
+    const state = getSlipMovement({ x: 0, y: 0 }, SLIPPING, { x: 1, y: 0 }, 5)
+    assert.ok(Math.abs(state.movement.x - SLIP_ACCELERATION * 0.05) < 1e-9)
+  })
+
+  test('stopBlockedAxes: só o eixo em que a posição não mudou perde a velocidade', () => {
+    assert.deepEqual(stopBlockedAxes({ x: 1, y: 0.5 }, { x: 10, y: 10 }, { x: 10, y: 12 }, DT), { x: 0, y: 0.5 })
+    assert.deepEqual(stopBlockedAxes({ x: 1, y: 0.5 }, { x: 10, y: 10 }, { x: 11, y: 12 }, DT), { x: 1, y: 0.5 })
+    assert.equal(stopBlockedAxes(null, { x: 10, y: 10 }, { x: 10, y: 10 }, DT), null)
+  })
+
+  test('stopBlockedAxes: um quadro sem tempo (dt 0) não conta como bloqueio', () => {
+    assert.deepEqual(stopBlockedAxes({ x: 1, y: 0 }, { x: 10, y: 10 }, { x: 10, y: 10 }, 0), { x: 1, y: 0 })
+  })
+
+  // Anda um quadro com o deslize, como run.js faz. Devolve a posição e o slip novos.
+  function slideFrame(obstacles, solids, position, slip, keys) {
+    const effect = getFloorEffect(obstacles, position)
+    const state = getSlipMovement(slip, effect, keys, DT)
+    const next = moveRoomPlayer(position, state.movement, DT, effect.speedMultiplier, solids)
+    return { position: next, slip: stopBlockedAxes(state.slip, position, next, DT) }
+  }
 
   test('escorregando contra um bloco, o jogador não fica preso', () => {
     // piso escorregadio grande, com um bloco à direita: escorrega até o bloco e depois sobe com a tecla W
@@ -186,18 +254,58 @@ describe('escorregadio', () => {
     const solids = getRoomSolids(obstacles)
     let position = { x: 500, y: 500 }
     let slip = null
-    let blocked = false
     let keys = { x: 1, y: 0 }
-    for (let frame = 0; frame < 120; frame++) {
-      if (frame === 10) keys = { x: 0, y: -1 } // troca de tecla no meio: não muda nada enquanto escorrega
-      const state = getSlipMovement(slip, getFloorEffect(obstacles, position), keys, blocked)
-      const next = moveRoomPlayer(position, state.movement, 1 / 60, 1, solids)
-      blocked = isBlockedStep(position, next, state.movement)
-      slip = state.slip
-      position = next
+    for (let frame = 0; frame < 240; frame++) {
+      if (frame === 90) keys = { x: 0, y: -1 } // troca de tecla no meio do deslize
+      ;({ position, slip } = slideFrame(obstacles, solids, position, slip, keys))
     }
     assert.ok(position.y < 450 - 60, `subiu depois de bater (y = ${position.y})`)
     assert.equal(position.x, 800 - FEET.width / 2, 'parou encostado no bloco antes de subir')
+  })
+
+  test('em todo layout com líquido, 900 quadros de teclas sorteadas nunca atravessam nada nem prendem', () => {
+    const random = createRandom(2026)
+    const options = [NO_KEYS, { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }, { x: Math.SQRT1_2, y: Math.SQRT1_2 }, { x: -Math.SQRT1_2, y: -Math.SQRT1_2 }]
+    const { minX, maxX, minY, maxY } = ROOM_PLAYER_BOUNDS
+    const layouts = ROOM_LAYOUTS.filter((layout) => layout.tiles.join('').includes('~'))
+    assert.equal(layouts.length, 7, 'comum-01, 02, 04, 05, 07, tesouro-02 e adega têm líquido')
+
+    for (const layout of layouts) {
+      for (const theme of ['cantina', 'cucina', 'piazza', 'porto']) {
+        const obstacles = buildRoomObstacles(layout.id, theme)
+        const solids = getRoomSolids(obstacles)
+        const liquid = obstacles.find((item) => item.mechanic === 'escorregadio')
+        // começa sobre um líquido; se o ponto cair dentro de um obstáculo, usa um canto livre do piso
+        let position = { x: liquid.box.x + 10, y: liquid.box.y + 20 }
+        if (solids.some((solid) => overlaps(getFeetBox(position), solid))) position = { x: minX + 30, y: maxY - 30 }
+        let slip = null
+        let keys = NO_KEYS
+        for (let frame = 0; frame < 900; frame++) {
+          if (frame % 25 === 0) keys = pick(random, options)
+          ;({ position, slip } = slideFrame(obstacles, solids, position, slip, keys))
+          const where = `${layout.id} ${theme} quadro ${frame}`
+          assert.ok(position.x >= minX && position.x <= maxX && position.y >= minY && position.y <= maxY, `fora dos limites: ${where}`)
+          assert.ok(!solids.some((solid) => overlaps(getFeetBox(position), solid)), `dentro de um sólido: ${where}`)
+          if (slip) assert.ok(Math.hypot(slip.x, slip.y) <= 1 + 1e-9, `velocidade acima de 1: ${where}`)
+        }
+        // sem teclas ele para (não desliza para sempre) e, de lá, pelo menos um lado anda
+        for (let frame = 0; frame < 60; frame++) ({ position, slip } = slideFrame(obstacles, solids, position, slip, NO_KEYS))
+        const stopped = position
+        const moves = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }].filter((direction) => {
+          let probe = { position: stopped, slip: null }
+          for (let frame = 0; frame < 30; frame++) probe = slideFrame(obstacles, solids, probe.position, probe.slip, direction)
+          return Math.hypot(probe.position.x - stopped.x, probe.position.y - stopped.y) > 1
+        })
+        assert.ok(moves.length > 0, `preso: ${layout.id} ${theme}`)
+      }
+    }
+  })
+
+  test('os 4 líquidos (vinho, azeite, sorvete e poça) são escorregadios', () => {
+    for (const [theme, kind] of [['cantina', 'vinho'], ['cucina', 'azeite'], ['piazza', 'sorvete'], ['porto', 'poca']]) {
+      const liquids = buildRoomObstacles('comum-02', theme).filter((item) => item.kind === kind)
+      assert.ok(liquids.length > 0 && liquids.every((item) => item.mechanic === 'escorregadio' && !item.blocking), kind)
+    }
   })
 })
 

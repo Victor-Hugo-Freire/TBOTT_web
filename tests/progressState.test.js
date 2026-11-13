@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { createProgressSnapshot, normalizeProgressPayload } from '../src/utils/progress.js'
+import { ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 
 describe('normalizeProgressPayload', () => {
   test('mantém o payload mínimo e usa padrões seguros', () => {
@@ -19,6 +20,10 @@ describe('normalizeProgressPayload', () => {
       seed: null,
       floor: 1,
       finished: false,
+      visitedRoomIds: [],
+      roomStates: {},
+      health: 6,
+      deathCause: null,
     })
   })
 
@@ -29,7 +34,7 @@ describe('normalizeProgressPayload', () => {
       elapsedMs: -10,
     })
 
-    assert.equal(payload.playerX, 140)
+    assert.equal(payload.playerX, ROOM_PLAYER_BOUNDS.minX)
     assert.equal(payload.playerY, 786)
     assert.equal(payload.elapsedMs, 0)
   })
@@ -41,6 +46,62 @@ describe('normalizeProgressPayload', () => {
     assert.equal(payload.roomId, '3-5')
     assert.equal(normalizeProgressPayload({ seed: 0 }).seed, 0)
     assert.equal(normalizeProgressPayload({ seed: 4294967295 }).seed, 4294967295)
+  })
+
+  test('guarda as salas visitadas sem repetição e descarta o que não é id', () => {
+    const payload = normalizeProgressPayload({ visitedRoomIds: ['3-3', '3-4', '3-3', 5, null, '', 'x'.repeat(40), '4-4'] })
+    assert.deepEqual(payload.visitedRoomIds, ['3-3', '3-4', '4-4'])
+  })
+
+  test('salas visitadas inválidas viram lista vazia e a lista tem limite', () => {
+    for (const value of [undefined, null, 'texto', 7, {}, true]) {
+      assert.deepEqual(normalizeProgressPayload({ visitedRoomIds: value }).visitedRoomIds, [], String(value))
+    }
+    const many = Array.from({ length: 200 }, (_, index) => `${index}-0`)
+    assert.equal(normalizeProgressPayload({ visitedRoomIds: many }).visitedRoomIds.length, 72)
+  })
+
+  test('ids de sala precisam ter o formato col-row', () => {
+    const payload = normalizeProgressPayload({ visitedRoomIds: ['3-3', 'sala', '3', '3-3-3', '__proto__', '12-7'] })
+    assert.deepEqual(payload.visitedRoomIds, ['3-3', '12-7'])
+  })
+
+  test('guarda o estado das salas: obstáculos quebrados e batidas', () => {
+    const payload = normalizeProgressPayload({
+      roomStates: {
+        '3-3': { removed: ['2-1', '2-1', '9-4', 'lixo', 7], hits: 0 },
+        '4-2': { removed: [], hits: 3 },
+        '5-5': { removed: [], hits: 0 }, // nada mudou: não precisa ir
+        '6-1': { removed: ['1-1'], hits: 99 }, // batidas acima de 3 ficam em 3
+        '7-7': { removed: 'texto', hits: 2.5 }, // inválido: sem quebrados e sem batidas
+        'sala-x': { removed: ['1-1'], hits: 1 }, // id de sala inválido
+        '8-8': null,
+      },
+    })
+    assert.deepEqual(payload.roomStates, {
+      '3-3': { removed: ['2-1', '9-4'], hits: 0 },
+      '4-2': { removed: [], hits: 3 },
+      '6-1': { removed: ['1-1'], hits: 3 },
+    })
+  })
+
+  test('estado das salas inválido vira objeto vazio (e não aceita chave perigosa)', () => {
+    for (const value of [undefined, null, 'texto', 7, [], true]) {
+      assert.deepEqual(normalizeProgressPayload({ roomStates: value }).roomStates, {}, String(value))
+    }
+    const tricky = JSON.parse('{"roomStates": {"__proto__": {"removed": ["1-1"], "hits": 1}, "constructor": {"hits": 2}}}')
+    assert.deepEqual(normalizeProgressPayload(tricky).roomStates, {})
+    assert.equal({}.hits, undefined)
+  })
+
+  test('guarda a vida de 0 a 6 e a causa da morte; valor inválido vira vida cheia e sem causa', () => {
+    assert.equal(normalizeProgressPayload({ health: 0 }).health, 0)
+    assert.equal(normalizeProgressPayload({ health: 3 }).health, 3)
+    for (const health of [-1, 7, 2.5, '3', null]) assert.equal(normalizeProgressPayload({ health }).health, 6, String(health))
+    assert.equal(normalizeProgressPayload({ deathCause: 'chapa' }).deathCause, 'chapa')
+    for (const deathCause of ['', 'x'.repeat(33), 5, {}, undefined]) {
+      assert.equal(normalizeProgressPayload({ deathCause }).deathCause, null, String(deathCause))
+    }
   })
 
   test('seed inválida vira null e andar inválido vira 1', () => {
@@ -65,6 +126,10 @@ describe('normalizeProgressPayload com dados estranhos', () => {
         seed: null,
         floor: 1,
         finished: false,
+        visitedRoomIds: [],
+        roomStates: {},
+        health: 6,
+        deathCause: null,
       })
     }
   })
@@ -87,7 +152,28 @@ describe('createProgressSnapshot', () => {
       seed: null,
       floor: 1,
       finished: false,
+      visitedRoomIds: [],
+      roomStates: {},
+      health: 6,
+      deathCause: null,
     })
+  })
+
+  test('inclui a vida, a causa da morte e o estado das salas', () => {
+    const snapshot = createProgressSnapshot({
+      player: { x: 200, y: 330 },
+      health: 3,
+      deathCause: 'chapa',
+      roomStates: { '3-3': { removed: ['2-1'], hits: 0 } },
+    })
+    assert.equal(snapshot.health, 3)
+    assert.equal(snapshot.deathCause, 'chapa')
+    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0 } })
+  })
+
+  test('inclui as salas visitadas', () => {
+    const snapshot = createProgressSnapshot({ player: { x: 200, y: 330 }, visitedRoomIds: ['3-3', '3-4'] })
+    assert.deepEqual(snapshot.visitedRoomIds, ['3-3', '3-4'])
   })
 
   test('inclui a seed e o andar', () => {

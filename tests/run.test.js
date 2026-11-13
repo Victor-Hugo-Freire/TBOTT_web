@@ -2,20 +2,28 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { getEntryPosition, getRoomDoors, OPPOSITE_SIDE, SIDE_VECTORS } from '../src/utils/doors.js'
 import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
-import { createPlayer, getAttackHitbox } from '../src/utils/player.js'
-import { ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
+import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
+import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
+import { normalizeProgressPayload } from '../src/utils/progress.js'
+import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
 import {
   BANNER_TOTAL_MS,
   createRun,
   createRunSnapshot,
+  DEATH_HOLD_MS,
   FLOOR_TRANSITION_MS,
   getCurrentRoom,
   getDrumBox,
   getObstacleTheme,
+  getRestartFade,
+  getRoomStates,
   getRoomTheme,
+  getVisitedRoomIds,
   isDrumVisible,
   isSecretMarkVisible,
+  RESTART_HOLD_MS,
   ROOM_TRANSITION_MS,
+  updateRestartHold,
   updateRun,
 } from '../src/utils/run.js'
 
@@ -29,8 +37,8 @@ const { minX, maxX, minY, maxY } = ROOM_PLAYER_BOUNDS
 const DOOR_EDGES = {
   up: { x: 800, y: minY },
   down: { x: 800, y: maxY },
-  left: { x: minX, y: 534.5 },
-  right: { x: maxX, y: 534.5 },
+  left: { x: minX, y: 536 },
+  right: { x: maxX, y: 536 },
 }
 
 const findRoom = (floor, id) => floor.rooms.find((room) => room.id === id)
@@ -79,6 +87,32 @@ function hitSecret(run, side) {
   return swing(run, side)
 }
 
+// Sai da run e volta: o que o jogo salva vira JSON (como na API) e a run é recriada com o que voltou
+function saveAndContinue(run) {
+  const progress = normalizeProgressPayload(JSON.parse(JSON.stringify(createRunSnapshot(run, 5000))))
+  return createRun({
+    seed: progress.seed,
+    floorNumber: progress.floor,
+    roomId: progress.roomId,
+    position: { x: progress.playerX, y: progress.playerY },
+    characterId: progress.characterId,
+    visitedRoomIds: progress.visitedRoomIds,
+    roomStates: progress.roomStates,
+    health: progress.health,
+  })
+}
+
+// Primeira run (seed a partir de 1) numa sala comum do andar 1 que tem um obstáculo daquele tipo
+function findRunWith(kind) {
+  for (let seed = 1; seed < 200; seed++) {
+    for (const room of generateFloor(seed, 1).rooms.filter((item) => item.type === 'comum')) {
+      const run = createRun({ seed, roomId: room.id, characterId: 'x' })
+      if (run.obstacles.some((obstacle) => obstacle.kind === kind)) return run
+    }
+  }
+  throw new Error(`nenhuma sala com ${kind}`)
+}
+
 // Primeira seed (a partir de 1) cujo andar tem uma sala que passa no teste
 function findSeed(floorNumber, check) {
   for (let seed = 1; seed < 1000; seed++) {
@@ -98,6 +132,8 @@ describe('createRun', () => {
     assert.deepEqual(run.banner, { text: 'CANTINA', elapsedMs: 0 })
     assert.equal(run.grains, 0)
     assert.equal(run.forks, 1)
+    assert.equal(run.health, MAX_HEALTH, 'começa com os 3 corações cheios')
+    assert.equal(run.death, null)
     assert.equal(run.transition, null)
     assert.equal(run.finished, false)
     assert.ok(room.visited && room.cleared)
@@ -163,6 +199,10 @@ describe('createRun', () => {
       seed: 99,
       floor: 3,
       finished: false,
+      visitedRoomIds: [run.roomId],
+      roomStates: {},
+      health: MAX_HEALTH,
+      deathCause: null,
     })
   })
 
@@ -379,6 +419,90 @@ describe('mecânicas do piso na run', () => {
     assert.ok(run.player.hurt)
   })
 
+  const hotPlate = () => obstacle('quente', { x: 900, y: 500, width: 84, height: 60 })
+  const TOUCHING = { x: 900 - PLAYER_FEET_BOX.width / 2, y: 540 } // pés encostados à esquerda da chapa
+
+  test('chapa quente: cada queimadura tira meio coração e a invencibilidade segura a próxima', () => {
+    let run = runWith([hotPlate()], TOUCHING)
+    assert.equal(run.health, MAX_HEALTH)
+    run = updateRun(run, IDLE, STEP)
+    assert.equal(run.health, MAX_HEALTH - DAMAGE_LIGHT)
+    run = steps(run, 10) // 500 ms depois: ainda invencível
+    assert.equal(run.health, 5)
+    run = steps(run, 12) // passou de 1000 ms: queima de novo, uma vez só
+    assert.equal(run.health, 4)
+  })
+
+  test('longe da chapa a vida não muda', () => {
+    const run = steps(runWith([hotPlate()], { x: 600, y: 540 }), 40)
+    assert.equal(run.health, MAX_HEALTH)
+    assert.equal(run.death, null)
+  })
+
+  test('sem vida ele morre: animação de morte, controles ignorados e fim da run', () => {
+    let run = { ...runWith([hotPlate()], TOUCHING), health: 1 }
+    run = updateRun(run, IDLE, STEP)
+    assert.equal(run.health, 0)
+    assert.deepEqual(run.death, { cause: 'chapa' })
+    assert.deepEqual(run.player.dead, { elapsed: 0 })
+    assert.equal(run.player.hurt, null, 'a animação de dano não toca: vai direto para a morte')
+    assert.equal(run.finished, false)
+
+    const { x, y } = run.player
+    run = updateRun(run, { movement: { x: -1, y: 0 }, attackDirection: 'left' }, STEP)
+    assert.deepEqual({ x: run.player.x, y: run.player.y }, { x, y }, 'morto não anda')
+    assert.equal(run.player.attack, null, 'nem ataca')
+    assert.equal(run.health, 0)
+
+    const total = DEATH_DURATION_MS + DEATH_HOLD_MS
+    run = steps(run, Math.ceil(total / STEP_MS) - 2)
+    assert.equal(run.finished, false, 'ainda está caindo ou deitado')
+    run = steps(run, 2)
+    assert.equal(run.finished, true)
+    assert.deepEqual(run.death, { cause: 'chapa' }, 'a causa fica para o aviso')
+    assert.equal(updateRun(run, IDLE, STEP), run, 'depois do fim nada muda')
+  })
+
+  test('o save feito durante a animação de morte já marca a run como encerrada, com a causa', () => {
+    let run = { ...runWith([hotPlate()], TOUCHING), health: 1 }
+    run = updateRun(run, IDLE, STEP)
+    const snapshot = createRunSnapshot(run, 9000)
+    assert.equal(snapshot.finished, true)
+    assert.equal(snapshot.health, 0)
+    assert.equal(snapshot.deathCause, 'chapa')
+  })
+
+  test('vivo, o save não tem causa de morte', () => {
+    const snapshot = createRunSnapshot(updateRun(runWith([hotPlate()], TOUCHING), IDLE, STEP), 9000)
+    assert.equal(snapshot.finished, false)
+    assert.equal(snapshot.health, 5)
+    assert.equal(snapshot.deathCause, null)
+  })
+
+  test('morto não atravessa porta nem passa de andar', () => {
+    let run = createRun({ seed: 1, characterId: 'x' })
+    const door = getRoomDoors(run.floor, getCurrentRoom(run))[0]
+    run.player = killPlayer(createPlayer(DOOR_EDGES[door.side]))
+    run.death = { cause: 'chapa' }
+    run = updateRun(run, { movement: SIDE_VECTORS[door.side], attackDirection: null }, STEP)
+    assert.equal(run.transition, null)
+  })
+
+  test('a vida continua de uma sala para outra, de um andar para outro e no save', () => {
+    let run = createRun({ seed: 7, characterId: 'x', health: 3 })
+    assert.equal(run.health, 3)
+    run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run))[0].side)
+    assert.equal(run.health, 3)
+    assert.equal(saveAndContinue(run).health, 3)
+
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    run = createRun({ seed, roomId, characterId: 'x', health: 2 })
+    getCurrentRoom(run).hits = 3 // o tambor já foi batido
+    run = steps(run, Math.ceil(FLOOR_TRANSITION_MS / STEP_MS) + 2)
+    assert.equal(run.floor.number, 2)
+    assert.equal(run.health, 2)
+  })
+
   test('esteira empurra para a direita', () => {
     const run = updateRun(runWith([obstacle('esteira', { x: 700, y: 500, width: 105, height: 75 })], { x: 750, y: 540 }), IDLE, STEP)
     assert.ok(Math.abs(run.player.x - (750 + 130 * STEP)) < 1e-6)
@@ -390,14 +514,55 @@ describe('mecânicas do piso na run', () => {
     assert.ok(Math.abs(run.player.x - (700 + 260 * 0.5 * STEP)) < 1e-6)
   })
 
-  test('escorregadio segue a direção em que entrou', () => {
-    let run = runWith([obstacle('escorregadio', { x: 500, y: 400, width: 600, height: 300 })], { x: 600, y: 540 })
+  const ice = () => obstacle('escorregadio', { x: 500, y: 400, width: 600, height: 300 })
+
+  test('escorregadio: entra andando sem tranco, solta a tecla e continua deslizando até parar', () => {
+    let run = runWith([ice()], { x: 600, y: 540 })
     run = updateRun(run, right, STEP)
-    assert.deepEqual(run.slip, { x: 1, y: 0 })
-    const x = run.player.x
+    assert.deepEqual(run.slip, { x: 1, y: 0 }, 'ao entrar, a velocidade é a das teclas')
+    assert.ok(Math.abs(run.player.x - (600 + 260 * STEP)) < 1e-6)
+
+    const before = run.player.x
+    run = updateRun(run, IDLE, STEP)
+    assert.ok(run.player.x > before, 'sem tecla, continua deslizando')
+    assert.ok(run.slip.x < 1 && run.slip.x > 0, 'e freia aos poucos')
+
+    run = steps(run, 12)
+    assert.deepEqual(run.slip, { x: 0, y: 0 }, 'por fim para')
+    assert.ok(run.player.x - 600 < 130, 'sem passar de ~65 u depois de soltar')
+  })
+
+  test('escorregadio: trocar de tecla muda a direção aos poucos, não de uma vez', () => {
+    let run = runWith([ice()], { x: 600, y: 540 })
+    run = steps(run, 4, right)
+    const { x, y } = run.player
     run = updateRun(run, up, STEP)
-    assert.ok(run.player.x > x, 'continua para a direita')
-    assert.equal(run.player.y, 540, 'ignora a tecla para cima')
+    assert.ok(run.player.x > x, 'ainda vai para a direita')
+    assert.ok(run.player.y < y, 'e já começa a subir')
+    assert.ok(y - run.player.y < 260 * STEP * 0.5, 'mas sobe menos que a metade do passo cheio')
+  })
+
+  test('escorregadio: ao sair do líquido a sobra de velocidade some sem tranco e as teclas voltam', () => {
+    let run = runWith([obstacle('escorregadio', { x: 500, y: 400, width: 200, height: 300 })], { x: 650, y: 540 })
+    run = steps(run, 6, right) // sai do líquido (x = 700) com velocidade
+    assert.ok(run.player.x > 700)
+    run = steps(run, 6) // soltou as teclas: a sobra some
+    assert.equal(run.slip, null)
+    const x = run.player.x
+    run = updateRun(run, right, STEP)
+    assert.ok(Math.abs(run.player.x - (x + 260 * STEP)) < 1e-6, 'fora do líquido vale o andar normal')
+  })
+
+  test('escorregadio: o deslize sozinho não atravessa a porta, só com a tecla apertada', () => {
+    let run = createRun({ seed: 1, characterId: 'x' })
+    const door = getRoomDoors(run.floor, getCurrentRoom(run))[0]
+    run.obstacles = [obstacle('escorregadio', { x: 0, y: 0, width: 1600, height: 853 })]
+    run.player = createPlayer(DOOR_EDGES[door.side])
+    run.slip = { ...SIDE_VECTORS[door.side] } // deslizando para a porta, sem tecla
+    run = steps(run, 10)
+    assert.equal(run.transition, null, 'sem tecla, nada de trocar de sala')
+    run = updateRun(run, { movement: SIDE_VECTORS[door.side], attackDirection: null }, STEP)
+    assert.equal(run.transition?.type, 'room', 'com a tecla apertada, troca')
   })
 })
 
@@ -437,6 +602,176 @@ function explore(run, parentId, seen) {
   }
   return run
 }
+
+describe('estado das salas no progresso: o que quebrou não volta', () => {
+  test('sala sem nada quebrado não entra no save', () => {
+    assert.deepEqual(getRoomStates(createRun({ seed: 7, characterId: 'x' }).floor), {})
+  })
+
+  test('garrafão quebrado continua quebrado depois de sair da run e voltar', () => {
+    let run = findRunWith('garrafao')
+    const room = getCurrentRoom(run)
+    const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
+    run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height + 30 })
+    run = swing(run, 'up').run
+    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0 } })
+
+    const back = saveAndContinue(run)
+    assert.equal(back.roomId, room.id)
+    assert.equal(back.obstacles.some((obstacle) => obstacle.id === jar.id), false, 'o garrafão não voltou')
+    assert.ok(getCurrentRoom(back).removed.includes(jar.id))
+  })
+
+  test('barril deitado: golpeado, não volta nem se o jogador sair com ele ainda rolando', () => {
+    let run = findRunWith('barril-deitado')
+    const room = getCurrentRoom(run)
+    const barrel = run.obstacles.find((obstacle) => obstacle.kind === 'barril-deitado')
+    run.player = createPlayer({ x: barrel.box.x + barrel.box.width / 2, y: barrel.box.y + barrel.box.height + 30 })
+    run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    const isRolling = () => run.obstacles.find((obstacle) => obstacle.id === barrel.id)?.rolling
+    for (let frame = 0; frame < 12 && !isRolling(); frame++) run = updateRun(run, IDLE, STEP)
+    assert.ok(isRolling(), 'o golpe pôs o barril para rolar')
+    assert.ok(room.removed.includes(barrel.id), 'rolando, ele já conta como quebrado')
+
+    // sai da run com o barril ainda no meio do caminho e volta
+    const back = saveAndContinue(run)
+    assert.equal(back.obstacles.some((obstacle) => obstacle.id === barrel.id), false, 'o barril não voltou ao continuar')
+
+    // e também não volta ao sair da sala e entrar de novo
+    const door = getRoomDoors(run.floor, room)[0]
+    run = goThrough(run, door.side)
+    run = goThrough(run, OPPOSITE_SIDE[door.side])
+    assert.equal(run.roomId, room.id)
+    assert.equal(run.obstacles.some((obstacle) => obstacle.id === barrel.id), false, 'o barril não voltou ao reentrar')
+  })
+
+  test('a adega aberta continua aberta (as batidas são salvas)', () => {
+    const { seed, roomId } = findSeed(2, (room) => room.secret !== null)
+    let run = createRun({ seed, floorNumber: 2, roomId, characterId: 'x' })
+    const { side } = getCurrentRoom(run).secret
+    for (let hit = 0; hit < 3; hit++) run = hitSecret(run, side).run
+    assert.equal(getCurrentRoom(run).hits, 3)
+
+    const back = saveAndContinue(run)
+    const origin = getCurrentRoom(back)
+    assert.equal(origin.hits, 3)
+    assert.equal(getRoomDoors(back.floor, origin).find((door) => door.side === side).state, 'open')
+  })
+
+  test('uma batida só também é salva: a parede continua trincada', () => {
+    const { seed, roomId } = findSeed(2, (room) => room.secret !== null)
+    let run = createRun({ seed, floorNumber: 2, roomId, characterId: 'x' })
+    const { side } = getCurrentRoom(run).secret
+    run = hitSecret(run, side).run
+    const back = saveAndContinue(run)
+    assert.equal(getRoomDoors(back.floor, getCurrentRoom(back)).find((door) => door.side === side).state, 'cracked')
+  })
+
+  test('estado de sala que não existe neste andar é ignorado', () => {
+    const run = createRun({ seed: 7, characterId: 'x', roomStates: { '99-99': { removed: ['1-1'], hits: 2 } } })
+    assert.deepEqual(getRoomStates(run.floor), {})
+  })
+
+  test('o estado salvo não é o mesmo objeto da sala (mexer num não muda o outro)', () => {
+    const states = { }
+    const run = createRun({ seed: 7, characterId: 'x' })
+    states[run.roomId] = { removed: ['1-1'], hits: 0 }
+    const back = createRun({ seed: 7, characterId: 'x', roomStates: states })
+    getCurrentRoom(back).removed.push('2-2')
+    assert.deepEqual(states[run.roomId].removed, ['1-1'])
+    getRoomStates(back.floor)[back.roomId].removed.push('3-3')
+    assert.deepEqual(getCurrentRoom(back).removed, ['1-1', '2-2'])
+  })
+})
+
+describe('recomeçar a run segurando R', () => {
+  test('segurar por 1 s completa, e a tela escurece junto', () => {
+    assert.equal(RESTART_HOLD_MS, 1000)
+    let hold = 0
+    assert.equal(getRestartFade(hold), 0)
+    hold = updateRestartHold(hold, true, 250)
+    assert.equal(hold, 250)
+    assert.equal(getRestartFade(hold), 0.25)
+    for (let frame = 0; frame < 60; frame++) hold = updateRestartHold(hold, true, 50)
+    assert.equal(hold, RESTART_HOLD_MS, 'não passa do total')
+    assert.equal(getRestartFade(hold), 1)
+  })
+
+  test('soltar antes desfaz, 3x mais rápido, e nunca fica negativo', () => {
+    let hold = updateRestartHold(0, true, 600)
+    hold = updateRestartHold(hold, false, 100)
+    assert.equal(hold, 300)
+    hold = updateRestartHold(hold, false, 500)
+    assert.equal(hold, 0)
+    assert.equal(updateRestartHold(0, false, 16), 0)
+  })
+
+  test('o escurecimento fica sempre entre 0 e 1', () => {
+    for (const hold of [-50, 0, 400, 1000, 5000]) {
+      const fade = getRestartFade(hold)
+      assert.ok(fade >= 0 && fade <= 1, String(hold))
+    }
+  })
+})
+
+describe('salas visitadas no progresso', () => {
+  const sorted = (ids) => [...ids].sort()
+
+  test('a run nova começa só com a sala inicial visitada', () => {
+    const run = createRun({ seed: 7, characterId: 'x' })
+    assert.deepEqual(getVisitedRoomIds(run.floor), [run.floor.startRoomId])
+  })
+
+  test('visitar salas, sair da run e voltar: as mesmas salas continuam visitadas', () => {
+    let run = createRun({ seed: 7, characterId: 'x' })
+    for (let i = 0; i < 3; i++) run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run))[0].side)
+    const visited = getVisitedRoomIds(run.floor)
+    assert.ok(visited.length >= 2, 'visitou pelo menos duas salas')
+
+    // O que o jogo salva e a API devolve (JSON), e a run recriada com isso
+    const saved = JSON.parse(JSON.stringify(createRunSnapshot(run, 5000)))
+    const progress = normalizeProgressPayload(saved)
+    const back = createRun({
+      seed: progress.seed,
+      floorNumber: progress.floor,
+      roomId: progress.roomId,
+      characterId: progress.characterId,
+      visitedRoomIds: progress.visitedRoomIds,
+    })
+    assert.deepEqual(sorted(getVisitedRoomIds(back.floor)), sorted(visited))
+    // a fonte única: o campo que o minimapa lê (room.visited) é o mesmo
+    for (const room of back.floor.rooms) assert.equal(room.visited, visited.includes(room.id), room.id)
+  })
+
+  test('save antigo, sem a lista: só a sala atual fica visitada', () => {
+    const progress = normalizeProgressPayload({ seed: 7, floor: 1, roomId: 'sala-inicial' })
+    const run = createRun({ seed: 7, characterId: 'x', visitedRoomIds: progress.visitedRoomIds })
+    assert.deepEqual(getVisitedRoomIds(run.floor), [run.floor.startRoomId])
+  })
+
+  test('ids que não existem no andar são ignorados (os ids repetem entre andares)', () => {
+    const run = createRun({ seed: 7, floorNumber: 2, characterId: 'x', visitedRoomIds: ['0-0', '99-99', 'lixo'] })
+    const ids = run.floor.rooms.map((room) => room.id)
+    assert.ok(getVisitedRoomIds(run.floor).every((id) => ids.includes(id)))
+    assert.ok(getVisitedRoomIds(run.floor).includes(run.floor.startRoomId))
+  })
+
+  test('trocar de andar: o novo andar começa só com a sala inicial visitada', () => {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    let run = createRun({ seed, roomId, characterId: 'x' })
+    getCurrentRoom(run).hits = 3 // o tambor já foi batido
+    run = steps(run, Math.ceil(FLOOR_TRANSITION_MS / STEP_MS) + 2)
+    assert.equal(run.floor.number, 2)
+    assert.deepEqual(getVisitedRoomIds(run.floor), [run.floor.startRoomId])
+
+    // e o save do andar 2 volta com as salas do andar 2
+    run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run))[0].side)
+    const progress = normalizeProgressPayload(JSON.parse(JSON.stringify(createRunSnapshot(run, 1))))
+    const back = createRun({ seed, floorNumber: progress.floor, roomId: progress.roomId, characterId: 'x', visitedRoomIds: progress.visitedRoomIds })
+    assert.equal(back.floor.number, 2)
+    assert.deepEqual(sorted(getVisitedRoomIds(back.floor)), sorted(getVisitedRoomIds(run.floor)))
+  })
+})
 
 describe('ponta a ponta', () => {
   test('300 seeds: todas as salas dos 5 andares pelas portas, adega aberta, tambor até o fim', () => {

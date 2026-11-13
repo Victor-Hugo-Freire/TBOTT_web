@@ -4,6 +4,7 @@ import {
   getAttackDirection,
   getRoomMovement,
   isRoomKey,
+  RESTART_KEY,
   moveRoomPlayer,
   PLAYER_FEET_BOX,
   ROOM_PLAYER_BOUNDS,
@@ -70,7 +71,12 @@ describe('teclas por código (event.code)', () => {
     assert.deepEqual(getRoomMovement(new Set(['w'])), { x: 0, y: 0 })
   })
 
-  test('isRoomKey reconhece WASD e as setas, e só elas', () => {
+  test('isRoomKey reconhece o R de recomeçar a run', () => {
+    assert.equal(RESTART_KEY, 'KeyR')
+    assert.equal(isRoomKey('KeyR'), true)
+  })
+
+  test('isRoomKey reconhece WASD e as setas (e o R), e só elas', () => {
     for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
       assert.equal(isRoomKey(code), true, code)
     }
@@ -121,16 +127,16 @@ describe('moveRoomPlayer (colisão com as bordas)', () => {
   test('mantém os pés dentro do piso da sala de 1600x853', () => {
     assert.deepEqual(ROOM_SIZE, { width: 1600, height: 853 })
     assert.deepEqual(ROOM_PLAYER_BOUNDS, {
-      minX: 140,
-      maxX: 1460,
-      minY: 291,
+      minX: 144,
+      maxX: 1456,
+      minY: 294,
       maxY: 786,
     })
   })
 
-  test('o personagem inteiro (até 59 u dos pés para cada lado) fica dentro da sala', () => {
-    assert.ok(ROOM_PLAYER_BOUNDS.minX - 59 >= 0)
-    assert.ok(ROOM_PLAYER_BOUNDS.maxX + 59 <= ROOM_SIZE.width)
+  test('o personagem inteiro (até 70 u dos pés para cada lado, com a escala 1,18) fica dentro da sala', () => {
+    assert.ok(ROOM_PLAYER_BOUNDS.minX - 70 >= 0)
+    assert.ok(ROOM_PLAYER_BOUNDS.maxX + 70 <= ROOM_SIZE.width)
   })
 
   test('o personagem começa no meio da sala, dentro dos limites', () => {

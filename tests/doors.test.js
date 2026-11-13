@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   DOOR_HIT_ZONES,
+  DOOR_POINTS,
   getDoorKind,
   getEntryPosition,
   getExitSide,
@@ -64,8 +65,8 @@ describe('lados e entradas', () => {
   })
 
   test('sair por um lado leva à entrada do lado oposto, perto daquela porta', () => {
-    assert.deepEqual(getEntryPosition(OPPOSITE_SIDE.up), { x: 800, y: 756 })
-    assert.deepEqual(getEntryPosition(OPPOSITE_SIDE.left), { x: 1430, y: 534.5 })
+    assert.deepEqual(getEntryPosition(OPPOSITE_SIDE.up), { x: 800, y: 762 })
+    assert.deepEqual(getEntryPosition(OPPOSITE_SIDE.left), { x: 1432, y: 536 })
     for (const side of SIDES) assert.ok(isNearDoor(getEntryPosition(OPPOSITE_SIDE[side]), OPPOSITE_SIDE[side]))
   })
 
@@ -80,17 +81,17 @@ describe('getExitSide (atravessar a porta)', () => {
 
   test('atravessa encostado na parede, dentro do vão e apertando para fora', () => {
     assert.equal(getExitSide({ x: 800, y: minY }, { x: 0, y: -1 }, openDoors), 'up')
-    assert.equal(getExitSide({ x: 839, y: maxY }, { x: 0, y: 1 }, openDoors), 'down')
-    assert.equal(getExitSide({ x: minX, y: 534.5 }, { x: -1, y: 0 }, openDoors), 'left')
+    assert.equal(getExitSide({ x: 835, y: maxY }, { x: 0, y: 1 }, openDoors), 'down')
+    assert.equal(getExitSide({ x: minX, y: 536 }, { x: -1, y: 0 }, openDoors), 'left')
     assert.equal(getExitSide({ x: maxX, y: 586.5 }, { x: 1, y: 0 }, openDoors), 'right')
   })
 
   test('não atravessa fora do vão, longe da parede ou andando de lado', () => {
-    assert.equal(getExitSide({ x: 840, y: minY }, { x: 0, y: -1 }, openDoors), null)
+    assert.equal(getExitSide({ x: 836, y: minY }, { x: 0, y: -1 }, openDoors), null) // o vão é de 800 ± 35
     assert.equal(getExitSide({ x: 800, y: minY + 1 }, { x: 0, y: -1 }, openDoors), null)
     assert.equal(getExitSide({ x: 800, y: minY }, { x: 1, y: 0 }, openDoors), null)
     assert.equal(getExitSide({ x: minX, y: 480 }, { x: -1, y: 0 }, openDoors), null)
-    assert.equal(getExitSide({ x: minX, y: 534.5 }, { x: 0, y: 1 }, openDoors), null)
+    assert.equal(getExitSide({ x: minX, y: 536 }, { x: 0, y: 1 }, openDoors), null)
   })
 
   test('só atravessa porta aberta', () => {
@@ -103,8 +104,9 @@ describe('getExitSide (atravessar a porta)', () => {
 
 describe('perto da porta e zona de golpe', () => {
   test('de perto = até 120 u do ponto da porta', () => {
-    assert.equal(isNearDoor({ x: 140, y: 534.5 + 120 }, 'left'), true)
-    assert.equal(isNearDoor({ x: 140, y: 534.5 + 121 }, 'left'), false)
+    const left = DOOR_POINTS.left
+    assert.equal(isNearDoor({ x: left.x, y: left.y + 120 }, 'left'), true)
+    assert.equal(isNearDoor({ x: left.x, y: left.y + 121 }, 'left'), false)
     assert.equal(isNearDoor({ x: 800, y: 560 }, 'up'), false)
   })
 
@@ -136,8 +138,8 @@ describe('getRoomDoors e getDoorKind', () => {
     assert.equal(getDoorKind(floor, findRoom(floor, '5-3'), 'left'), 'loja')
     assert.equal(getDoorKind(floor, findRoom(floor, '4-4'), 'up'), 'chefe')
     assert.equal(getDoorKind(floor, findRoom(floor, '4-4'), 'down'), 'pacto')
-    // Entre duas especiais vale a do outro lado: no pacto, a porta de volta é a do chefe
-    assert.equal(getDoorKind(floor, findRoom(floor, '4-5'), 'up'), 'chefe')
+    // Entre o chefe e o pacto vale a do pacto dos dois lados: dentro do pacto, a porta de volta é a do tubarão
+    assert.equal(getDoorKind(floor, findRoom(floor, '4-5'), 'up'), 'pacto')
   })
 
   test('porta secreta: escondida, trincada e aberta pelas batidas', () => {
