@@ -16,7 +16,7 @@ const DIRECTION_VECTORS = {
 
 export const ROLL_SPEED = 520 // u/s do barril deitado e da roda de parmesão depois do golpe
 export const CONVEYOR_SPEED = 130 // u/s da esteira, metade do andar (260): dá para andar contra ela
-export const STICKY_SPEED = 0.5 // fração da velocidade em cima do piso grudento
+export const STICKY_SPEED = 0.35 // fração da velocidade em cima do piso grudento (era 0,5: segurava pouco)
 const HOT_MARGIN = 2 // a chapa bloqueia, então os pés só encostam: a margem faz o encostar contar
 
 // O que bloqueia o jogador agora: as paredes, os obstáculos que bloqueiam (sem os quebrados e sem
@@ -67,7 +67,7 @@ function containsPoint(box, point) {
 }
 
 // Efeito do piso onde estão os pés (feet = { x, y }, a posição do jogador):
-// slippery: em cima do piso escorregadio; speedMultiplier: 0,5 no grudento, senão 1;
+// slippery: em cima do piso escorregadio; speedMultiplier: STICKY_SPEED no grudento, senão 1;
 // push: empurrão da esteira em u/s (aplique com pushPlayer, que respeita os sólidos).
 export function getFloorEffect(obstacles, feet) {
   const effect = { slippery: false, speedMultiplier: 1, push: { x: 0, y: 0 } }
@@ -97,8 +97,9 @@ export function touchesHot(obstacles, feet) {
 // O personagem tem uma VELOCIDADE guardada (slip = { x, y }, em fração da velocidade de andar, com módulo
 // no máximo 1) que se aproxima aos poucos do que as teclas pedem. Assim ele acelera e freia devagar
 // e continua deslizando um pouco depois de soltar a tecla. Fora do líquido, nada disso existe.
-export const SLIP_ACCELERATION = 2 // por segundo, no líquido: parado até a velocidade cheia em 0,5 s; ao soltar, desliza ~65 u
-export const SLIP_EXIT_DECAY = 10 // por segundo, ao sair do líquido: a sobra some em até 0,2 s, sem tranco
+// Valores de 2026-11-13: com 2 e 10 as poças quase não faziam diferença (pedido do Victor: deslizar mais)
+export const SLIP_ACCELERATION = 0.8 // por segundo, no líquido: parado até a velocidade cheia em 1,25 s; ao soltar, desliza ~160 u
+export const SLIP_EXIT_DECAY = 2 // por segundo, ao sair do líquido: a sobra some em até 0,5 s, sem tranco
 const SLIP_MIN_SPEED = 0.01 // abaixo disso, sem tecla, a velocidade vira 0 (senão ele nunca ficaria parado)
 const SLIP_MAX_STEP = 0.05 // passo máximo de tempo, o mesmo de moveRoomPlayer: o deslize nunca pula uma parede
 

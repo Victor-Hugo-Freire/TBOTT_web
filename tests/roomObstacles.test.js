@@ -156,24 +156,24 @@ describe('escorregadio', () => {
     assert.deepEqual(state, { slip: { x: 1, y: 0 }, movement: { x: 1, y: 0 } })
   })
 
-  test('parado em cima do líquido, acelera aos poucos até a velocidade cheia em 0,5 s', () => {
+  test('parado em cima do líquido, acelera aos poucos até a velocidade cheia em 1,25 s', () => {
     let state = getSlipMovement(null, SLIPPING, NO_KEYS, DT)
     assert.deepEqual(state.slip, { x: 0, y: 0 }, 'parado em cima guarda velocidade 0 (e não volta às teclas)')
     state = getSlipMovement(state.slip, SLIPPING, { x: 1, y: 0 }, DT)
-    assert.ok(Math.abs(state.movement.x - SLIP_ACCELERATION * DT) < 1e-9, 'o primeiro quadro anda só 2/60 da velocidade')
+    assert.ok(Math.abs(state.movement.x - SLIP_ACCELERATION * DT) < 1e-9, 'o primeiro quadro anda só 0,8/60 da velocidade')
     let frames = 1
     while (state.movement.x < 1) {
       state = getSlipMovement(state.slip, SLIPPING, { x: 1, y: 0 }, DT)
       frames++
     }
-    assert.ok(frames * DT >= 0.49 && frames * DT <= 0.52, `levou ${frames} quadros`)
+    assert.ok(frames * DT >= 1.24 && frames * DT <= 1.27, `levou ${frames} quadros`)
   })
 
-  test('soltar as teclas: continua deslizando, freia aos poucos e para depois de cerca de 65 u', () => {
+  test('soltar as teclas: continua deslizando, freia aos poucos e para depois de cerca de 160 u', () => {
     let slip = { x: 1, y: 0 }
     let position = { x: 500, y: 500 }
     let previous = 1
-    for (let frame = 0; frame < 60; frame++) {
+    for (let frame = 0; frame < 100; frame++) {
       const state = getSlipMovement(slip, SLIPPING, NO_KEYS, DT)
       assert.ok(state.movement.x <= previous && state.movement.x >= 0, 'só freia, nunca volta para trás')
       previous = state.movement.x
@@ -181,23 +181,23 @@ describe('escorregadio', () => {
       slip = state.slip
     }
     const slid = position.x - 500
-    assert.ok(slid > 55 && slid < 75, `deslizou ${slid.toFixed(1)} u`)
+    assert.ok(slid > 150 && slid < 175, `deslizou ${slid.toFixed(1)} u`)
     assert.deepEqual(slip, { x: 0, y: 0 }, 'parou de vez')
   })
 
-  test('ao sair do líquido, a sobra de velocidade some em até 0,2 s, sem salto', () => {
+  test('ao sair do líquido, a sobra de velocidade some em até 0,5 s, sem salto', () => {
     let slip = { x: 1, y: 0 }
     let previous = 1
     let frames = 0
     while (slip) {
       const state = getSlipMovement(slip, OUTSIDE, NO_KEYS, DT)
-      assert.ok(previous - state.movement.x <= SLIP_EXIT_DECAY * DT + 1e-9, 'a velocidade cai no máximo 10 por segundo')
+      assert.ok(previous - state.movement.x <= SLIP_EXIT_DECAY * DT + 1e-9, 'a velocidade cai no máximo 2 por segundo')
       previous = state.movement.x
       slip = state.slip
       frames++
-      assert.ok(frames < 30, 'o slip acaba')
+      assert.ok(frames < 60, 'o slip acaba')
     }
-    assert.ok(frames * DT <= 0.2, `levou ${frames} quadros`)
+    assert.ok(frames * DT <= 0.51, `levou ${frames} quadros`)
     assert.equal(previous, 0)
   })
 
@@ -332,11 +332,11 @@ describe('quente', () => {
 })
 
 describe('grudento', () => {
-  test('não bloqueia e deixa o jogador a 50%', () => {
+  test('não bloqueia e deixa o jogador a 35%', () => {
     const net = obstacle('grudento', 400, 400, 100, 75)
     assert.deepEqual(getRoomSolids([net]), ROOM_WALLS)
-    assert.equal(STICKY_SPEED, 0.5)
-    assert.equal(getFloorEffect([net], { x: 450, y: 450 }).speedMultiplier, 0.5)
+    assert.equal(STICKY_SPEED, 0.35)
+    assert.equal(getFloorEffect([net], { x: 450, y: 450 }).speedMultiplier, 0.35)
     assert.equal(getFloorEffect([net], { x: 450, y: 475 }).speedMultiplier, 1, 'a borda de baixo já é a casa vizinha')
   })
 })
