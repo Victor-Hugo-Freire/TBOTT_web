@@ -51,6 +51,29 @@ export const SMALL_FONT = {
   },
 }
 
+// Fonte só de números para o contador de tempo e o HUD: 4 pixels de largura (a SMALL_FONT tem 5) e 6 de altura
+// (a SMALL_FONT tem 7), então sai menor e mais limpa. Todos os dígitos têm a mesma largura, para o contador não
+// tremer quando os números mudam; ':' e '.' são estreitos (1 pixel).
+// Foi desenhada aqui, pixel por pixel, como a SMALL_FONT: não vem de terceiros e não precisa de crédito.
+export const NUMBER_FONT = {
+  spacing: 1,
+  glyphs: {
+    0: ['.##.', '#..#', '#..#', '#..#', '#..#', '.##.'],
+    1: ['.#..', '##..', '.#..', '.#..', '.#..', '###.'],
+    2: ['.##.', '#..#', '...#', '..#.', '.#..', '####'],
+    3: ['###.', '...#', '.##.', '...#', '...#', '###.'],
+    4: ['..##', '.#.#', '#..#', '####', '...#', '...#'],
+    5: ['####', '#...', '###.', '...#', '#..#', '.##.'],
+    6: ['.##.', '#...', '###.', '#..#', '#..#', '.##.'],
+    7: ['####', '...#', '..#.', '..#.', '.#..', '.#..'],
+    8: ['.##.', '#..#', '.##.', '#..#', '#..#', '.##.'],
+    9: ['.##.', '#..#', '#..#', '.###', '...#', '.##.'],
+    ':': ['.', '#', '.', '.', '#', '.'],
+    '.': ['.', '.', '.', '.', '.', '#'],
+    '?': ['.##.', '#..#', '...#', '..#.', '....', '..#.'],
+  },
+}
+
 // Letra que ainda não existe na fonte aparece como '?'
 function getGlyph(font, char) {
   return font.glyphs[char.toUpperCase()] ?? font.glyphs['?']

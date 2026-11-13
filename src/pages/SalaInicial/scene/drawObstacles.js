@@ -6,6 +6,8 @@
 // Peça sem transparência ganha contorno escuro (se não for fina) e chanfro de luz em cima e sombra embaixo.
 // Peça preta ('#000') é sombra: vai por baixo de tudo e sem contorno.
 
+import { CONVEYOR_SPEED } from '../../../utils/roomObstacles.js'
+
 const GRID = 20
 const OBSTACLE_SIZE = 92 // tamanho do desenho, em unidades da sala (o protótipo usava 84 px num quadro menor)
 const FLOOR_OBSTACLE_SIZE = 104 // os de piso ficam um pouco maiores, para cobrir a casa
@@ -19,12 +21,22 @@ const SHADOW = ['e', 10, 18.3, 8.5, 1.8, '#000', 0.3]
 const NET = [[2, 5, 16, 12, '#8a7a50', 0.18]]
 for (let k = 0; k < 5; k++) NET.push([2, 5 + k * 3, 16, 1, '#8a7a50'], [2 + k * 4, 5, 1, 13, '#8a7a50'])
 
-// Setas amarelas da esteira, apontando para a direita (o lado para onde ela empurra)
-const CONVEYOR_ARROWS = [4.5, 9.5, 14.5].flatMap((x) => [
-  [x, 10, 0.9, 3, '#e0b040'],
-  [x + 0.9, 10.7, 0.9, 1.6, '#e0b040'],
-  [x + 1.8, 11.3, 0.7, 0.5, '#e0b040'],
-])
+// Setas amarelas da esteira, apontando para a direita (o lado para onde ela empurra). Não ficam na lista de
+// peças do desenho porque andam: drawConveyorArrows as desenha por cima, recortadas dentro da lona.
+// CONVEYOR_ARROW_FIRST_X é o x (na grade) da ponta de trás da 1ª seta; no desenho parado as três ficam em 4,5, 9,5 e 14,5.
+const CONVEYOR_ARROW_COLOR = '#e0b040'
+const CONVEYOR_ARROW_SPACING = 5 // casas da grade entre uma seta e a seguinte
+const CONVEYOR_ARROW_FIRST_X = 4.5
+const CONVEYOR_BELT_CLIP = { x: 3.5, y: 9.5, width: 13.5, height: 4 } // a lona entre os rolos (não passa por cima deles)
+
+// Quanto as setas já andaram (em casas da grade, de 0 até o espaçamento) depois de timeMs.
+// Andam na velocidade da esteira (CONVEYOR_SPEED), então mostram o empurrão de verdade: 130 u/s são 25 casas por
+// segundo, ou seja, o desenho se repete 5 vezes por segundo. Com reduzir movimento ficam paradas (e visíveis).
+export function getConveyorShift(timeMs, reduceMotion = false) {
+  if (reduceMotion) return 0
+  const gridPerSecond = CONVEYOR_SPEED / (FLOOR_OBSTACLE_SIZE / GRID)
+  return ((timeMs / 1000) * gridPerSecond) % CONVEYOR_ARROW_SPACING
+}
 
 // Os 20 obstáculos, 4 por andar. flat = fica no piso (sem sombra projetada nem contorno).
 const OBSTACLE_SHAPES = {
@@ -94,7 +106,7 @@ const OBSTACLE_SHAPES = {
   },
   esteira: {
     parts: [SHADOW, [1, 14.6, 18, 2.4, '#4a4e54'], [3, 16.4, 2, 1.8, '#3a3e44'], [15, 16.4, 2, 1.8, '#3a3e44'], [1, 7.8, 18, 7.4, '#2a2a2e'], [1, 7.8, 18, 1.2, '#7a8088'], [1, 13.8, 18, 1.2, '#7a8088'],
-      ['e', 2, 11.4, 1.5, 3.7, '#9aa0a8'], ['e', 18, 11.4, 1.5, 3.7, '#9aa0a8'], ...CONVEYOR_ARROWS],
+      ['e', 2, 11.4, 1.5, 3.7, '#9aa0a8'], ['e', 18, 11.4, 1.5, 3.7, '#9aa0a8']],
   },
   massa: {
     flat: true,
@@ -134,9 +146,12 @@ export function drawObstacle(ctx, obstacle) {
 }
 
 // Desenha os obstáculos de piso (vinho, massa, esteira...), que ficam sempre por baixo de tudo.
-export function drawFloorObstacles(ctx, obstacles) {
+// timeMs (relógio do desenho) e reduceMotion só servem para as setas da esteira andarem.
+export function drawFloorObstacles(ctx, obstacles, timeMs = 0, reduceMotion = false) {
   for (const obstacle of obstacles) {
-    if (!obstacle.removed && !obstacle.blocking) drawShapeAtBox(ctx, obstacle, FLOOR_OBSTACLE_SIZE)
+    if (obstacle.removed || obstacle.blocking) continue
+    drawShapeAtBox(ctx, obstacle, FLOOR_OBSTACLE_SIZE)
+    if (obstacle.kind === 'esteira') drawConveyorArrows(ctx, obstacle, FLOOR_OBSTACLE_SIZE, getConveyorShift(timeMs, reduceMotion))
   }
 }
 
@@ -149,6 +164,26 @@ function drawShapeAtBox(ctx, obstacle, size) {
   const centerX = box.x + box.width / 2
   const centerY = box.y + box.height / 2
   drawShape(ctx, shape, centerX - size / 2, centerY - size * 0.55, size)
+}
+
+// Setas da esteira: três setas andando para a direita, na mesma posição e escala do desenho da esteira.
+// Uma seta que sai pela direita é a mesma que entra pela esquerda (o desenho se repete a cada espaçamento).
+function drawConveyorArrows(ctx, obstacle, size, shift) {
+  const { box } = obstacle
+  ctx.save()
+  ctx.translate(box.x + box.width / 2 - size / 2, box.y + box.height / 2 - size * 0.55)
+  ctx.scale(size / GRID, size / GRID)
+  const { x, y, width, height } = CONVEYOR_BELT_CLIP
+  ctx.beginPath()
+  ctx.rect(x, y, width, height)
+  ctx.clip()
+  for (let k = -1; k <= 2; k++) {
+    const left = CONVEYOR_ARROW_FIRST_X + k * CONVEYOR_ARROW_SPACING + shift
+    paintRect(ctx, CONVEYOR_ARROW_COLOR, left, 10, 0.9, 3, 1)
+    paintRect(ctx, CONVEYOR_ARROW_COLOR, left + 0.9, 10.7, 0.9, 1.6, 1)
+    paintRect(ctx, CONVEYOR_ARROW_COLOR, left + 1.8, 11.3, 0.7, 0.5, 1)
+  }
+  ctx.restore()
 }
 
 // Porta do ob() do protótipo: sombra projetada, sombras das peças, contorno escuro, peças e chanfro de luz.

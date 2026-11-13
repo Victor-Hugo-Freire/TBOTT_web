@@ -14,13 +14,15 @@ import { drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
 import { drawRoomScenery } from './drawSpecialRooms.js'
+import { ROOM_VIEW_BOTTOM_EXTRA } from './view.js'
 import { ROOM_THEMES } from './themes.js'
 
 // Desenha a run em unidades da sala (o ctx já vem com a escala da tela): a sala atual ou,
 // na troca de sala, a sala de origem e a nova deslizando juntas.
 // screen = a área da tela em unidades da sala: { left, top, width, height } (left e top ficam <= 0 quando sobra tela).
 export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
-  const options = { sheets, reduceMotion, extraX: -screen.left }
+  // timeMs: um só relógio para as duas salas da transição (as setas da esteira andam com ele)
+  const options = { sheets, reduceMotion, extraX: -screen.left, timeMs: performance.now() }
   const { transition } = run
   if (transition?.type !== 'room') {
     drawRoomScene(ctx, run.floor, getCurrentRoom(run), run.obstacles, run.player, isSecretMarkVisible(run), options)
@@ -45,19 +47,22 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
   }
 
   // A câmera anda na direção da porta: a sala de origem sai pelo lado oposto e a nova entra pela porta.
-  // Andar uma tela inteira (pelo menos uma sala) faz as duas salas nunca se cobrirem.
+  // Andar uma tela inteira (pelo menos uma sala, com a faixa de rodapé dela) faz as duas salas nunca se cobrirem.
   const vector = SIDE_VECTORS[transition.side]
   const distanceX = screen.width
-  const distanceY = Math.max(ROOM_SIZE.height, screen.height)
+  const distanceY = Math.max(ROOM_SIZE.height + ROOM_VIEW_BOTTOM_EXTRA, screen.height)
   const eased = smoothStep(progress)
   drawShifted(ctx, vector.x * -eased * distanceX, vector.y * -eased * distanceY, drawFrom)
   drawShifted(ctx, vector.x * (1 - eased) * distanceX, vector.y * (1 - eased) * distanceY, drawTo)
 }
 
+// Na morte a sala só escurece em parte: o personagem caído continua aparecendo atrás do aviso
+const DEATH_DIM = 0.6
+
 // Escurecimento da troca de andar: 0 (nada) a 1 (preto). Escurece até 450 ms e clareia até 900 ms.
 // Depois do fim da run a tela fica escura, atrás do aviso.
 export function getFloorFade(run) {
-  if (run.finished) return 1
+  if (run.finished) return run.death ? DEATH_DIM : 1
   if (run.transition?.type !== 'floor') return 0
   const half = FLOOR_TRANSITION_MS / 2
   const { elapsedMs } = run.transition
@@ -67,10 +72,10 @@ export function getFloorFade(run) {
 // Uma sala, de baixo para cima: sala, piso, cenário, portas, marca da adega,
 // depois obstáculos, tambor e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // player = null desenha a sala sem o jogador.
-function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, { sheets, reduceMotion, extraX }) {
+function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, { sheets, reduceMotion, extraX, timeMs }) {
   const theme = getRoomTheme(floor, room)
   drawRoom(ctx, extraX, theme)
-  drawFloorObstacles(ctx, obstacles)
+  drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
   drawRoomScenery(ctx, room.type)
 
   const doors = getRoomDoors(floor, room)

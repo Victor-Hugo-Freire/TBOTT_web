@@ -5,12 +5,14 @@ import { drawWallPattern } from './drawWallPattern.js'
 import { drawFloorPattern } from './drawFloorPattern.js'
 import { drawWallDecor } from './drawWallDecor.js'
 import { ROOM_FLOOR, ROOM_SIZE } from '../../../utils/roomMovement.js'
+import { ROOM_VIEW_BOTTOM_EXTRA } from './view.js'
 
 // Desenho da sala, igual ao protótipo do Figma. A estrutura é a mesma em todos os andares e salas especiais;
 // o tema troca as cores, o padrão da parede e do piso e os enfeites (themes.js).
 // A sala é desenhada em unidades da sala (1600x853), de cima para baixo. As faixas (y) foram medidas no protótipo.
 const W = ROOM_SIZE.width
-const H = ROOM_SIZE.height
+// O desenho desce além da sala: o rodapé e as paredes laterais continuam na faixa dos enfeites da porta de baixo
+const H = ROOM_SIZE.height + ROOM_VIEW_BOTTOM_EXTRA
 const TOP_WALL_END = 85
 const BEAM_TOP = 91
 const BRICKS_TOP = 134
@@ -130,13 +132,17 @@ function getFloorShade(ctx) {
   return shade
 }
 
-// Rodapé de lajotas, que desce até a borda da tela (sem faixa escura embaixo)
+// Rodapé de lajotas em duas fiadas: a da sala (até a borda dela) e a de baixo, com as juntas desencontradas,
+// que desce até a borda da tela (sem faixa escura embaixo). A porta de baixo e o enfeite dela ficam sobre ele.
 function drawBaseboard(ctx, { left, right }, palette) {
   const width = right - left
+  const roomEnd = ROOM_SIZE.height
   rect(ctx, palette.base, left, FLOOR_END, width, H - FLOOR_END)
   for (let x = Math.floor(left / 80) * 80; x < right; x += 80) {
-    rect(ctx, palette.baseLine, x, FLOOR_END, 2, H - FLOOR_END)
+    rect(ctx, palette.baseLine, x, FLOOR_END, 2, roomEnd - FLOOR_END)
+    rect(ctx, palette.baseLine, x + 40, roomEnd, 2, H - roomEnd)
   }
+  rect(ctx, palette.baseLine, left, roomEnd, width, 2)
   rect(ctx, palette.beamShadow, left, FLOOR_END, width, 3)
 }
 

@@ -3,24 +3,26 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
+import { getDeathCauseLabel } from '../../utils/health.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
 import { createRunSeed } from '../../utils/random.js'
 import {
   getAttackDirection,
   getRoomMovement,
   isRoomKey,
+  RESTART_KEY,
   ROOM_FLOOR,
   ROOM_SIZE,
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
-import { createRun, createRunSnapshot, updateRun } from '../../utils/run.js'
+import { createRun, createRunSnapshot, getRestartFade, RESTART_HOLD_MS, updateRestartHold, updateRun } from '../../utils/run.js'
 import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
 import { drawHud, loadHudImages } from './scene/drawHud.js'
 import { drawRunScene, getFloorFade } from './scene/drawScene.js'
 import { drawTimer } from './scene/drawTimer.js'
 import { loadSheets } from './scene/sheets.js'
-import { getRoomView, ROOM_VIEW_CROP } from './scene/view.js'
+import { getHudTop, getRoomView } from './scene/view.js'
 import './SalaInicial.css'
 
 // De quanto em quanto tempo o progresso é salvo na API (também é salvo ao sair da sala)
@@ -31,11 +33,12 @@ const MAX_STEP_MS = 100
 // A sala é só de teclado: cliques e menu de contexto não fazem nada aqui (só no aviso de fim da run)
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
 
-// Texto do aviso de fim conforme o envio ao ranking
+// Texto do aviso de fim conforme o resultado (vitória ou morte) e o envio à API.
+// Só a vitória vai para o ranking; a derrota é enviada para a API encerrar a partida salva.
 function getEndingMessage(ending) {
-  if (ending.status === 'sending') return 'Enviando o tempo ao ranking...'
-  if (ending.status === 'sent') return 'Tempo enviado ao ranking.'
-  return ending.message
+  if (ending.status === 'error') return ending.message
+  if (ending.outcome === 'defeat') return ending.status === 'sending' ? 'Encerrando a run...' : 'A run acabou.'
+  return ending.status === 'sending' ? 'Enviando o tempo ao ranking...' : 'Tempo enviado ao ranking.'
 }
 
 // A sala é um canvas em tela cheia. A run (andar, sala, jogador, transições) fica em
@@ -51,7 +54,8 @@ export default function SalaInicial() {
   const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
   const [floorInfo, setFloorInfo] = useState(null) // { number, name } do andar atual
-  const [ending, setEnding] = useState(null) // aviso de fim: { time, status: 'sending' | 'sent' | 'error', message }
+  // Aviso de fim: { outcome: 'victory' | 'defeat', cause, time, status: 'sending' | 'sent' | 'error', message }
+  const [ending, setEnding] = useState(null)
   const endingStatus = ending?.status
 
   // Personagem escolhido na seleção: o id vai para a run (e para o ranking) e o nome para o leitor de tela.
@@ -93,6 +97,10 @@ export default function SalaInicial() {
     let saving = null // salvamento em andamento (o fim da run espera por ele)
     let saveAgain = false
     let resultSent = false
+    let outcome = 'victory' // resultado da run que acabou: 'victory' (tambor do andar 5) ou 'defeat' (morreu)
+    let deathCause = null // o que matou o personagem (id de health.js), para o aviso
+    let restartHoldMs = 0 // há quanto tempo o R está segurado (a tela escurece junto)
+    let restartLocked = false // depois de recomeçar, o R só vale de novo quando for solto
     let announcedFloor = 0
     let showDebug = false // F3, só no npm run dev
     let view = getRoomView(0, 0)
@@ -130,6 +138,9 @@ export default function SalaInicial() {
         roomId: progress.roomId,
         position: { x: progress.playerX, y: progress.playerY },
         characterId,
+        visitedRoomIds: progress.visitedRoomIds,
+        roomStates: progress.roomStates,
+        health: progress.health,
       })
       elapsedMs = progress.elapsedMs
 
@@ -137,12 +148,22 @@ export default function SalaInicial() {
       // não deixa jogar de novo nem envia sozinho (o primeiro envio pode ainda estar a caminho e o tempo
       // entraria duas vezes). Mostra o aviso de fim, com o botão para enviar de novo se for preciso.
       if (progress.finished) {
-        run = { ...run, finished: true }
+        // Sem vida (ou com a causa da morte salva), a run acabou em derrota
+        const died = progress.deathCause !== null || progress.health <= 0
+        outcome = died ? 'defeat' : 'victory'
+        deathCause = progress.deathCause
+        run = { ...run, finished: true, death: died ? { cause: deathCause } : null }
+        // Morto, ele já aparece caído atrás do aviso (tempo infinito = último quadro da animação de morte)
+        if (died) run.player = { ...run.player, dead: { elapsed: Infinity } }
         resultSent = true
         setEnding({
+          outcome,
+          cause: deathCause,
           time: formatRunTime(elapsedMs),
           status: 'error',
-          message: 'Esta run já terminou. Se o tempo ainda não aparece no ranking, envie de novo.',
+          message: died
+            ? 'Esta run já terminou. Envie o resultado de novo para poder começar outra.'
+            : 'Esta run já terminou. Se o tempo ainda não aparece no ranking, envie de novo.',
         })
         return
       }
@@ -176,34 +197,47 @@ export default function SalaInicial() {
       }
     }
 
-    // Fim da run: salva uma última vez (na sala do chefe) e envia o tempo ao ranking.
+    // Fim da run (vitória no andar 5 ou morte): salva uma última vez e envia o resultado.
     // O último PUT leva finished: true. Se o envio falhar, o Continue reabre este aviso para enviar de novo.
     async function finishRun() {
+      outcome = run.death ? 'defeat' : 'victory'
+      deathCause = run.death?.cause ?? null
       sendingResult = true
-      setEnding({ time: formatRunTime(elapsedMs), status: 'sending' })
+      setEnding({ outcome, cause: deathCause, time: formatRunTime(elapsedMs), status: 'sending' })
       if (saving) await saving
       if (canSave) await putProgress()
       await sendRunResult()
     }
 
-    // Enquanto o POST não termina, não dá para sair: o menu leria o progresso antes de a API apagá-lo
+    // O POST /api/runs grava a run (vitória ou derrota) e apaga o progresso salvo.
+    // Enquanto ele não termina, não dá para sair: o menu leria o progresso antes de a API apagá-lo
     // e mostraria um Continue que leva a uma partida já encerrada
     async function sendRunResult() {
-      const time = formatRunTime(elapsedMs)
+      const result = { outcome, cause: deathCause, time: formatRunTime(elapsedMs) }
       sendingResult = true
-      setEnding({ time, status: 'sending' })
+      setEnding({ ...result, status: 'sending' })
       try {
-        const body = { characterId: run.characterId, durationMs: Math.max(1, Math.round(elapsedMs)), status: 'victory' }
+        const body = { characterId: run.characterId, durationMs: Math.max(1, Math.round(elapsedMs)), status: outcome }
         await apiRequest('/api/runs', { method: 'POST', credentials: 'include', body: JSON.stringify(body) })
-        if (!isCancelled) setEnding({ time, status: 'sent' })
+        if (!isCancelled) setEnding({ ...result, status: 'sent' })
       } catch (error) {
         if (isCancelled) return
-        setEnding({ time, status: 'error', message: error?.message || 'Não foi possível enviar o tempo ao ranking.' })
+        setEnding({ ...result, status: 'error', message: error?.message || 'Não foi possível enviar o resultado da run.' })
       } finally {
         sendingResult = false
       }
     }
     retryRef.current = sendRunResult
+
+    // Recomeça do andar 1 com outra seed, vida cheia e o tempo zerado, e salva por cima da partida anterior.
+    // A tela está preta nesta hora. restartLocked faz o R parar de valer até ser solto: a tela clareia
+    // e a run não recomeça de novo com a tecla ainda segurada.
+    function restartRun() {
+      run = createRun({ seed: createRunSeed(), characterId: run.characterId })
+      elapsedMs = 0
+      restartLocked = true
+      void saveProgress()
+    }
 
     // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
     function resize() {
@@ -239,10 +273,12 @@ export default function SalaInicial() {
 
     function handleKeyUp(event) {
       pressedKeys.delete(event.code)
+      if (event.code === RESTART_KEY) restartLocked = false
     }
 
     function clearPressedKeys() {
       pressedKeys.clear()
+      restartLocked = false
     }
 
     // Só os botões do aviso de fim da run aceitam o mouse
@@ -266,13 +302,19 @@ export default function SalaInicial() {
       previousTime = time
 
       if (run) {
-        // O contador para com a janela sem foco e no fim da run
-        if (!isPaused && !run.finished) elapsedMs += deltaMs
+        const stepMs = Math.min(deltaMs, MAX_STEP_MS)
+        // O contador para com a janela sem foco, quando o personagem morre e no fim da run
+        if (!isPaused && !run.finished && !run.death) elapsedMs += deltaMs
         run = updateRun(
           run,
           { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
-          Math.min(deltaMs, MAX_STEP_MS) / 1000,
+          stepMs / 1000,
         )
+
+        // Segurar R escurece a tela e, ao completar, recomeça a run (não vale na morte nem depois do fim)
+        const holdingRestart = pressedKeys.has(RESTART_KEY) && !restartLocked && !run.finished && !run.death
+        restartHoldMs = updateRestartHold(restartHoldMs, holdingRestart, stepMs)
+        if (holdingRestart && restartHoldMs >= RESTART_HOLD_MS) restartRun()
 
         // Chegou a um andar novo: o leitor de tela anuncia o nome
         if (run.floor.number !== announcedFloor) {
@@ -312,7 +354,7 @@ export default function SalaInicial() {
       const toScreenX = (x) => Math.round((view.offsetX + x * view.scale) * pixelRatio)
       const toScreenY = (y) => Math.round((view.offsetY + y * view.scale) * pixelRatio)
       const pixelSize = Math.max(2, Math.round(4 * scale))
-      // Parte da sala que aparece na tela (a tela pode cortar até ROOM_VIEW_CROP em cima e embaixo)
+      // Parte da sala que aparece na tela (a tela larga corta um pouco da parede de cima, veja view.js)
       const visibleTop = Math.max(0, screen.top)
       const visibleHeight = Math.min(ROOM_SIZE.height, screen.top + screen.height) - visibleTop
 
@@ -328,20 +370,24 @@ export default function SalaInicial() {
         })
       }
 
-      // HUD sobre a parede lateral esquerda (ou na sobra da tela, quando a tela é mais larga que a sala)
+      // O contador e o HUD começam na mesma altura, no alto da tela
+      const hudTop = toScreenY(getHudTop(visibleTop))
+
+      // HUD no canto de cima à esquerda, sobre a parede lateral (ou na sobra da tela, quando ela é mais larga que a sala):
+      // os corações em cima e os contadores de grão e de garfo embaixo deles
       drawHud(ctx, hudImages, {
+        health: run.health,
         grains: run.grains,
         forks: run.forks,
         left: toScreenX(screen.left + 20),
-        top: toScreenY(visibleTop + visibleHeight * 0.2),
+        top: hudTop,
         pixelSize,
       })
 
-      const timerTop = Math.round((view.offsetY + (ROOM_VIEW_CROP + 12) * view.scale) * pixelRatio)
-      drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), timerTop, pixelSize)
+      drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
-      // Troca de andar e fim da run: a tela escurece por cima de tudo
-      const fade = getFloorFade(run)
+      // Troca de andar, fim da run e R segurado: a tela escurece por cima de tudo
+      const fade = Math.max(getFloorFade(run), getRestartFade(restartHoldMs))
       if (fade > 0) {
         ctx.fillStyle = `rgba(0, 0, 0, ${fade})`
         ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -398,7 +444,8 @@ export default function SalaInicial() {
       <title>Jogo | The Binding of Tung Tung</title>
       <h1 className="visually-hidden">Jogo</h1>
       <p className="visually-hidden">
-        Use as teclas W, A, S e D para mover o personagem pela sala e as setas para atacar.
+        Use as teclas W, A, S e D para mover o personagem pela sala e as setas para atacar. Segure a tecla R para
+        recomeçar a run.
       </p>
       {/* Anuncia o nome do andar ao chegar a cada andar */}
       <p className="visually-hidden" aria-live="polite">
@@ -415,7 +462,14 @@ export default function SalaInicial() {
       {ending && (
         <div className="sala-inicial__fim" ref={endingRef}>
           <section className="sala-inicial__fim-painel" role="dialog" aria-modal="true" aria-labelledby="sala-inicial-fim-titulo">
-            <h2 id="sala-inicial-fim-titulo" className="sala-inicial__fim-titulo">Fim da run</h2>
+            <h2 id="sala-inicial-fim-titulo" className="sala-inicial__fim-titulo">
+              {ending.outcome === 'defeat' ? 'Você morreu' : 'Fim da run'}
+            </h2>
+            {ending.outcome === 'defeat' && (
+              <p className="sala-inicial__fim-mensagem">
+                O {characterName} morreu para {getDeathCauseLabel(ending.cause)}.
+              </p>
+            )}
             <p className="sala-inicial__fim-tempo">{ending.time}</p>
             <p className="sala-inicial__fim-mensagem" role="status">{getEndingMessage(ending)}</p>
             <div className="sala-inicial__fim-botoes">
