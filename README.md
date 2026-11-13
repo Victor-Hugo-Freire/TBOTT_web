@@ -150,7 +150,7 @@ A tela recebe o personagem escolhido em `location.state.character` (sem ele, usa
 
 - **W**, **A**, **S** e **D** movem o personagem; segurar uma tecla mantém o movimento e as diagonais são aceitas (a velocidade não aumenta). Com teclas opostas seguradas (A e D, ou W e S), vale a última apertada. As teclas valem pela posição física (`event.code`), em qualquer layout de teclado.
 - **Setas** atacam com o bastão na direção da seta. Segurar repete o golpe; com duas setas apertadas, vale a última pressionada.
-- **R (segurando 1 s):** recomeça a run, como no Isaac. A tela escurece enquanto a tecla é segurada; ao completar, começa outra run no andar 1, com outra seed, a vida cheia e o tempo zerado, e ela é salva por cima da anterior. Soltar antes desfaz. Não vale durante a morte nem depois do fim da run (`updateRestartHold` em `src/utils/run.js`).
+- **R (segurando 1 s):** recomeça a run, como no Isaac. A tela escurece enquanto a tecla é segurada; ao completar, começa outra run no andar 1, com outra seed, a vida cheia e o tempo zerado, e ela é salva por cima da anterior. Soltar antes desfaz. Continuar segurando recomeça de novo a cada 1 s, uma run atrás da outra (como no Isaac, para sortear seeds). Soltar ou perder o foco da janela para; o repeat do teclado não religa o R sem um aperto novo. Não vale durante a morte nem depois do fim da run (`updateRestartHold` e `updateRestartKey` em `src/utils/run.js`).
 - **Esc:** retorna provisoriamente ao menu principal.
 - **F3** (só em `npm run dev`): mostra a camada de teste (veja abaixo). Não existe no build.
 
@@ -185,7 +185,7 @@ Cada andar tem a sua parede, o seu piso e os seus enfeites (`scene/themes.js`); 
 | Fliperama | todos | 1 chance em 3, se sobrar beco. |
 | Descanso | todos | 1 chance em 4, se sobrar beco. |
 | Adega secreta | 2 a 5 | 1 chance em 2, ao lado de uma sala comum a 3 ou mais salas da inicial. Escondida. |
-| Pacto ou Mamãe | 1 a 4 | 1 chance em 2, ao lado da sala do chefe; a porta aparece com a sala do chefe limpa. |
+| Pacto ou Mamãe | 2 a 4 (nunca no 1º) | 1 chance em 2, ao lado da sala do chefe; a porta aparece com a sala do chefe limpa. |
 
 As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/drawSpecialRooms.js`). A função de cada uma (comprar, pacto, dormir...) ainda não existe.
 
@@ -203,9 +203,9 @@ As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/dr
 | Sólido | barril, balcão, Vespa, mesa, máquina, caixote de peixe | Bloqueia. |
 | Quebrável | garrafão, saco, caixote de tomate, lagosta | Bloqueia e some com 1 golpe. |
 | Rolante | barril deitado, roda de parmesão | Com 1 golpe, rola na direção do golpe e quebra ao bater. |
-| Escorregadio | vinho, azeite, sorvete, poça | Em cima, o personagem tem inércia: acelera e freia devagar e continua deslizando (cerca de 65 u) depois de soltar a tecla. Ao sair, a sobra de velocidade some em até 0,2 s. Bater numa parede ou obstáculo tira a velocidade daquele eixo. |
+| Escorregadio | vinho, azeite, sorvete, poça | Em cima, o personagem tem inércia: acelera e freia devagar (1,25 s para virar ou ganhar velocidade) e continua deslizando (cerca de 160 u) depois de soltar a tecla. Ao sair, a sobra de velocidade some em até 0,5 s. Bater numa parede ou obstáculo tira a velocidade daquele eixo. |
 | Quente | chapa | Encostar queima: toca a animação de dano e tira meio coração (no máximo uma vez por segundo). |
-| Grudento | massa crua, rede | Em cima, anda a 50%. |
+| Grudento | massa crua, rede | Em cima, anda a 35%. |
 | Esteira | esteira | Empurra para a direita, mais devagar que o andar. As setas andam na mesma velocidade do empurrão (paradas, mas visíveis, com "reduzir movimento"). |
 
 Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
@@ -214,6 +214,7 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 
 - Uma porta em cada lado que tem sala vizinha. O desenho segue o tipo da sala especial do outro lado (ou da própria sala especial). Entre o chefe e o pacto (ou a mamãe), a porta é a do pacto (ou da mamãe) dos dois lados. A porta abre quando a sala está limpa; como ainda não há inimigos, toda sala fica limpa ao entrar.
 - Para atravessar, os pés encostam na parede dentro do vão e o jogador continua apertando para aquele lado.
+- **Portas trancadas com garfo** (`needsFork`): a Sala do Tesouro (do andar 2 em diante) e a Sala de Descanso. A porta mostra a chapa com o nó de espaguete, sem garfo. Empurrar a porta com pelo menos 1 garfo gasta o garfo e toca a animação (o garfo aparece no nó, enrola e tira o nó em 990 ms, depois as folhas se abrem em 260 ms); só então dá para passar. Sem garfo, ela fica trancada. Aberta, fica aberta até o fim do andar, também ao continuar a run (`unlocked` no estado da sala). A Loja fica sempre aberta; vida cheia no Palco e grão no Fliperama ainda não trancam.
 - A câmera desliza 350 ms na direção da porta, com a sala antiga saindo e a nova entrando. Com "reduzir movimento" no sistema, a tela escurece e clareia já na sala nova. O jogador surge do outro lado, um pouco para dentro da porta.
 
 **Adega secreta: como achar**
@@ -234,14 +235,14 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 
 - O personagem tem **3 corações**, contados em meios corações (`MAX_HEALTH = 6`). Batida de inimigo e obstáculo que machuca tiram **meio coração** (`DAMAGE_LIGHT`); explosões e ataques mais pesados tiram **1 coração** (`DAMAGE_HEAVY`). Hoje só a chapa quente machuca.
 - Depois de cada dano ele fica invencível por 1 s. A vida continua de uma sala para outra, de um andar para outro e no progresso salvo.
-- Sem vida, toca a **animação de morte** (`morte.png`, 1390 ms): o bastão escapa da mão, ele tomba de lado como árvore cortada, quica e fica deitado, com lascas de madeira. É diferente da morte dos inimigos de propósito (o corpo não achata, o rosto não muda e não há poeira). Com "reduzir movimento", ele já aparece deitado. Durante a morte os controles são ignorados e o contador para.
+- Sem vida, toca a **animação de morte** (`morte.png`, 1780 ms): o bastão escapa da mão, ele olha o bastão subir, para e olha para quem joga com a boca triste, tomba pedalando no ar (uma rachadura desce pela cabeça), bate no chão com lascas de madeira, fica tonto chutando e os olhos fecham, um de cada vez. É diferente da morte dos inimigos de propósito (o corpo não achata, sem olhos em X, estrelas ou poeira). Com "reduzir movimento", ele já aparece deitado. Durante a morte os controles são ignorados e o contador para.
 - Meio segundo depois, aparece o aviso **"Você morreu"**, com o que o matou ("O Tung Tung Sahur morreu para a chapa quente.") e o tempo, sobre a sala escurecida (ele continua caído ao fundo). O jogo envia `POST /api/runs` com `status: 'defeat'`: a API grava a derrota e apaga o progresso. O botão leva ao menu. Se o envio falhar, vale o mesmo **Tentar de novo** da vitória.
 - A causa da morte é o id do obstáculo (e, depois, do inimigo ou do chefe); o texto fica em `getDeathCauseLabel`.
 
 **Faixa e HUD**
 
 - Ao chegar à sala inicial de cada andar, uma faixa de tinta preta atravessa a sala com o nome do andar (`scene/drawFloorBanner.js`). Ela entra, fica cerca de 2 s e sai, sem travar o movimento; com "reduzir movimento", só aparece e some.
-- No canto de cima à esquerda, na altura do contador de tempo, ficam os **corações** de vida (`scene/drawHearts.js`): de madeira, como o corpo do Tung Tung, desenhados por código a partir de `src/data/heartPixels.js` (cheio, meio e vazio). Logo abaixo deles ficam os contadores de grão de café e de garfo (`scene/drawHud.js`): ícone em múltiplo inteiro da arte de 20 x 20 e o número ao lado, na `NUMBER_FONT` (`src/utils/pixelFont.js`, dígitos de 4 x 6 feitos no projeto, a mesma do contador de tempo). A run começa com 00 grão e 01 garfo, e eles ainda não mudam.
+- No canto de cima à esquerda, na altura do contador de tempo, ficam os **corações** de vida (`scene/drawHearts.js`): de madeira, como o corpo do Tung Tung, desenhados por código a partir de `src/data/heartPixels.js` (cheio, meio e vazio). Logo abaixo deles ficam os contadores de grão de café e de garfo (`scene/drawHud.js`): ícone em múltiplo inteiro da arte de 20 x 20 e o número ao lado, na `NUMBER_FONT` (`src/utils/pixelFont.js`, dígitos de 4 x 6 feitos no projeto, a mesma do contador de tempo). A run começa com 00 grão e 01 garfo; o garfo diminui ao abrir uma porta trancada, e ainda não há onde ganhar mais.
 - O leitor de tela anuncia o nome do andar ao chegar a cada andar.
 
 **F3: camada de teste** (`scene/drawDebug.js`, só em `npm run dev`)
@@ -254,7 +255,8 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 - A seed, o andar, a sala atual (id na grade), a posição dos pés, o tempo e o personagem, a cada 5 s e ao sair da sala.
 - As salas já visitadas do andar (`visitedRoomIds`, ids `col-row`). A fonte única é `room.visited`, o campo que o mapa do F3 lê (e o minimapa do jogo vai ler). Save antigo sem a lista marca só a sala atual.
 - A partida nova da seleção é salva sem seed; a sala cria a seed ao abrir e salva na hora. O jogo só começa depois de ler o progresso.
-- O estado das salas (`roomStates`): os obstáculos quebrados e as batidas na parede da adega e no tambor. O que quebrou não volta ao continuar a run, e a adega aberta continua aberta. O que está rolando conta como quebrado na hora do golpe (ele sempre quebra no fim).
+- O estado das salas (`roomStates`): os obstáculos quebrados, as batidas na parede da adega e no tambor e as salas trancadas já abertas com garfo (`unlocked`). O que quebrou não volta ao continuar a run, e a adega e as portas trancadas abertas continuam abertas.
+- Os garfos que sobraram (`forks`, de 0 a 99). Save antigo, sem o campo, começa com 1. O que está rolando conta como quebrado na hora do golpe (ele sempre quebra no fim).
 - A vida (`health`, em meios corações) e, se a run acabou em derrota, o que matou o personagem (`deathCause`).
 
 **Como funciona**
@@ -272,12 +274,12 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 | Andar (tronco) | 12 | igual ao das pernas | 296x259 |
 | Ataque | 8 | 630 ms (70, 90, 40, 40, 110, 80, 90 e 110) | 420x380 |
 | Dano | 4 | 410 ms (70, 110, 110 e 120) | 296x259 |
-| Morte (uma linha só, sempre de frente) | 12 | 1390 ms (100, 80, 100, 90, 80, 70, 60, 120, 120, 120, 150 e 300) | 600x400 |
+| Morte (uma linha só, sempre de frente) | 14 | 1780 ms (100, 80, 110, 220, 90, 80, 70, 60, 120, 110, 110, 110, 220 e 300) | 600x400 |
 
 - O quadro do andar depende da **distância andada**, e não do tempo: ao parar (depois de 120 ms), ou ao empurrar a parede, as pernas voltam ao quadro parado. Com "reduzir movimento" no sistema, o andar fica parado.
 - O personagem é desenhado em **duas camadas**: as pernas (`pernas.png`) atrás e o tronco (`andar.png` ou `ataque.png`) na frente. Por isso as pernas continuam andando durante o golpe.
-- O tronco (cabeça, corpo, braço e bastão) vem do original, sem as pernas; no andar ele dá um quique por passo (7 px de lado, 9 px de frente e de costas) e o bastão balança com atraso. De lado, o pé apoiado anda para trás em linha reta, como o chão passando, e o outro volta pelo ar; de frente e de costas, um pé fica no chão e o outro sobe. De frente e de costas o jogo ainda inclina o corpo até 3° a cada passo (`WALK_TILT_DEGREES` em `player.js`). As pernas foram desenhadas por código com o mesmo material do tronco (grade de 3 px, tom, grão e contorno de 9 px): o rosto e a paleta não mudam.
-- O ataque, o dano e a morte vêm da pesquisa de sprites e têm os pixels do original (o ataque sem as pernas e o último quadro do dano com a pose parada nova). A morte gira o corpo; o último quadro, deitado, é uma rotação exata de 90°.
+- O tronco (cabeça, corpo, braço e bastão) vem do original, sem as pernas; no andar ele dá um quique macio por passo (5 px de lado, 6 px de frente e de costas), sem balançar para os lados, e o bastão balança pouco, com atraso. De lado, o pé apoiado anda para trás em linha reta, como o chão passando, e o outro volta pelo ar; de frente e de costas, um pé fica no chão e o outro sobe. O corpo não inclina (a inclinação e o balanço lateral saíram a pedido em 2026-11-13). As pernas foram desenhadas por código com o mesmo material do tronco (grade de 3 px, tom, grão e contorno de 9 px): o rosto e a paleta não mudam.
+- O ataque, o dano e a morte vêm da pesquisa de sprites e têm os pixels do original (o ataque sem as pernas e o último quadro do dano com a pose parada nova). A morte gira o corpo; o último quadro, deitado, é uma rotação exata de 90°. As expressões da morte são feitas com o próprio rosto: íris recortadas e movidas, a boca girada, pálpebras feitas com a pele do rosto e uma rachadura na grade de 3 px.
 
 **Ataque**
 
@@ -308,5 +310,5 @@ A seleção de personagem usa `/api/characters`, o jogo lê e salva `/api/progre
 - Cadastro, login e sessão dependem das issues de autenticação (veja o README da TBOTT_api).
 - Antes da primeira chamada à API, a TBOTT_api precisa liberar o CORS para o endereço do front-end. O pacote `cors` está instalado lá, mas ainda não é usado em `src/app.js`.
 - Em celular e tablet sem teclado não há como avançar, porque a Issue #6 pede uma tecla. Definir se o toque também deve avançar.
-- Andares e salas: minimapa; inimigos, itens e chefe (a vida já existe, mas só a chapa quente a tira); trancas das portas com garfo e grão (hoje todas abertas); a função de cada sala especial (comprar, pacto, prato da mamãe, sorteio do fliperama, ondas do palco e dormir na rede); a animação do aviso de morte e o que fazer depois dela (hoje o aviso leva ao menu).
+- Andares e salas: minimapa; inimigos, itens e chefe (a vida já existe, mas só a chapa quente a tira); tranca do Fliperama (grão) e do Palco (vida cheia), e onde ganhar garfos (hoje só o do começo da run); a função de cada sala especial (comprar, pacto, prato da mamãe, sorteio do fliperama, ondas do palco e dormir na rede); a animação do aviso de morte e o que fazer depois dela (hoje o aviso leva ao menu).
 - Os sprites dos outros dois personagens e os atributos entram quando forem definidos. Falta preencher o `sprite_path` do Tung Tung Sahur na TBOTT_api (a imagem reservada é `/sprites/characters/tung-tung-sahur.png`).
