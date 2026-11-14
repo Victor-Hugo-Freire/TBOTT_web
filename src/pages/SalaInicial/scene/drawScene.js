@@ -1,4 +1,5 @@
 import { applyUnlocking, getRoomDoors, SIDE_VECTORS } from '../../../utils/doors.js'
+import { TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 import {
   FLOOR_TRANSITION_MS,
@@ -13,6 +14,7 @@ import { drawDrum, drawDrumText } from './drawDrum.js'
 import { drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
+import { drawSharkGrab } from './drawShark.js'
 import { drawGodStatue, drawRoomScenery, GOD_STATUE_FEET_Y } from './drawSpecialRooms.js'
 import { ROOM_VIEW_BOTTOM_EXTRA } from './view.js'
 import { ROOM_THEMES } from './themes.js'
@@ -23,7 +25,16 @@ import { ROOM_THEMES } from './themes.js'
 export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
   // timeMs: um só relógio para as duas salas da transição (as setas da esteira andam com ele)
   // unlocking: a porta trancada que está abrindo agora (só existe na sala atual)
-  const options = { sheets, reduceMotion, extraX: -screen.left, timeMs: performance.now(), unlocking: run.unlocking }
+  // death: a morte (a do Tralalero tem o seu próprio desenho); finMs: o relógio da barbatana, o mesmo da lógica
+  const options = {
+    sheets,
+    reduceMotion,
+    extraX: -screen.left,
+    timeMs: performance.now(),
+    unlocking: run.unlocking,
+    death: run.death,
+    finMs: run.finMs,
+  }
   const { transition } = run
   if (transition?.type !== 'room') {
     drawRoomScene(ctx, run.floor, getCurrentRoom(run), run.obstacles, run.player, isSecretMarkVisible(run), options)
@@ -74,11 +85,13 @@ export function getFloorFade(run) {
 // Uma sala, de baixo para cima: sala, piso, cenário, portas, marca da adega,
 // depois obstáculos, tambor e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // player = null desenha a sala sem o jogador.
-function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, { sheets, reduceMotion, extraX, timeMs, unlocking }) {
+function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, options) {
+  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs } = options
+  const pulledByShark = death?.cause === TRALALERO_CAUSE
   const theme = getRoomTheme(floor, room)
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
-  drawRoomScenery(ctx, room.type)
+  drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark })
 
   const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
   drawDoors(ctx, doors, ROOM_THEMES[theme])
@@ -95,7 +108,14 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, { sh
   if (drum) sprites.push({ feetY: getFeetY(drum.box), draw: () => drawDrum(ctx, drum.box) })
   // A estátua do Tung Tung God também entra na ordem dos pés: o jogador passa por trás dela
   if (room.type === 'god') sprites.push({ feetY: GOD_STATUE_FEET_Y, draw: () => drawGodStatue(ctx) })
-  if (player) sprites.push({ feetY: player.y, draw: () => drawPlayer(ctx, sheets, player, reduceMotion) })
+  if (player) {
+    const drawTung = () => {
+      // Puxado pelo Tralalero: no lugar do personagem caído, a animação dele sendo levado para a piscina
+      if (pulledByShark) drawSharkGrab(ctx, sheets, player, death.fin, reduceMotion)
+      else drawPlayer(ctx, sheets, player, reduceMotion)
+    }
+    sprites.push({ feetY: player.y, draw: drawTung })
+  }
   sprites.sort((a, b) => a.feetY - b.feetY).forEach((sprite) => sprite.draw())
 
   // O "TUNG" fica acima do tambor: desenhado de novo por último, o jogador não o cobre

@@ -72,6 +72,7 @@ describe('getHeartStates (corações do HUD)', () => {
 describe('getDeathCauseLabel (aviso de morte)', () => {
   test('diz o que matou, completando a frase "morreu para ..."', () => {
     assert.equal(getDeathCauseLabel('chapa'), 'a chapa quente')
+    assert.equal(getDeathCauseLabel('tralalero'), 'o Tralalero')
   })
 
   test('causa desconhecida (ou save sem causa) tem um texto genérico', () => {

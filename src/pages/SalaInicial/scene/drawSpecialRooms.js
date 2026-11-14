@@ -1,5 +1,7 @@
 import { ellipse, polygon, rect } from '../../../utils/canvas.js'
 import { getCellRect } from '../../../utils/roomLayout.js'
+import { getSharkFinPosition, PUDDLE } from '../../../utils/roomInteractions.js'
+import { drawSharkFin } from './drawShark.js'
 
 // Cenário das 9 salas especiais, portado do especial() e de SALAS do protótipo da issue #18
 // (docs/referencias/prototipo-salas-issue-18/salas.js). Tudo em unidades da sala (1600x853).
@@ -35,11 +37,13 @@ const SCENERY = {
 
 // Desenha o cenário da sala especial, por cima do piso e por baixo das portas e do jogador.
 // type = tipo da sala ('chefe', 'loja'...). Sala inicial e comum não têm cenário.
-export function drawRoomScenery(ctx, type) {
+// options = { finMs, hideFin }: o relógio da barbatana do pacto (run.finMs, o mesmo da lógica do perigo) e se a
+// barbatana parada some (quando o Tralalero está puxando o Tung, drawSharkGrab desenha a dele).
+export function drawRoomScenery(ctx, type, options = {}) {
   const draw = SCENERY[type]
   if (!draw) return
   ctx.save()
-  draw(ctx)
+  draw(ctx, options)
   ctx.restore()
 }
 
@@ -265,40 +269,31 @@ function drawGrainSack(ctx, cell) {
   }
 }
 
-// ---------- Sala do Pacto: piscina escura com a barbatana, tênis de oferenda e bolhas ----------
+// ---------- Sala do Pacto: poça escura do Tralalero, com a barbatana contornando a borda, tênis de oferenda e bolhas ----------
 
-const SNEAKER_XS = [545, 598, 651]
-const BUBBLES = [[560, 372, 5], [1040, 382, 7], [690, 396, 4], [930, 360, 6]]
+const SNEAKER_XS = [470, 523, 576]
+const BUBBLES = [[600, 330, 5], [1010, 350, 7], [700, 680, 6], [930, 660, 4]]
 
-function drawPactRoom(ctx) {
-  const pool = getCellsArea(3, 1, 9, 1)
-  const centerX = pool.x + pool.width / 2
-  const centerY = pool.y + pool.height / 2
+function drawPactRoom(ctx, { finMs = 0, hideFin = false }) {
+  const { x, y, radiusX, radiusY } = PUDDLE
 
-  // A piscina cobre a fileira 1 e não sobe para a casa da porta de cima
-  roundRect(ctx, '#2a6a8a', pool.x - 4, pool.y, pool.width + 8, pool.height + 4, 12)
-  roundRect(ctx, '#0c2a40', pool.x + 4, pool.y + 6, pool.width - 8, pool.height - 10, 8)
-  strokeEllipse(ctx, 'rgba(74, 138, 168, 0.5)', 2, centerX, centerY + 4, 250, 20)
-  strokeEllipse(ctx, 'rgba(74, 138, 168, 0.4)', 2, centerX, centerY + 4, 140, 11)
-  ctx.strokeStyle = OUTLINE
-  ctx.lineWidth = OUTLINE_WIDTH
-  ctx.beginPath()
-  ctx.roundRect(pool.x - 2.5, pool.y + 1.5, pool.width + 5, pool.height + 1, 12)
-  ctx.stroke()
+  // Poça oval (como no protótipo): contorno escuro, borda clara, água escura e anéis na água
+  ellipse(ctx, OUTLINE, x, y, radiusX + OUTLINE_WIDTH, radiusY + OUTLINE_WIDTH)
+  ellipse(ctx, '#2a6a8a', x, y, radiusX, radiusY)
+  ellipse(ctx, '#0c2a40', x, y + 3, radiusX - 9, radiusY - 8)
+  strokeEllipse(ctx, 'rgba(74, 138, 168, 0.5)', 2, x, y + 3, radiusX * 0.72, radiusY * 0.64)
+  strokeEllipse(ctx, 'rgba(74, 138, 168, 0.4)', 2, x, y + 3, radiusX * 0.41, radiusY * 0.36)
 
-  // Barbatana do Tralalero saindo da água (a ponta fica abaixo da casa da porta)
-  polygon(ctx, '#3a6a8a', [[centerX - 32, centerY + 22], [centerX, centerY - 28], [centerX + 34, centerY + 22]])
-  polygon(ctx, '#2a5a7a', [[centerX, centerY - 28], [centerX + 34, centerY + 22], [centerX + 14, centerY + 22]])
-  rect(ctx, 'rgba(138, 184, 216, 0.5)', centerX - 12, centerY - 4, 3, 18)
-  strokeEllipse(ctx, 'rgba(138, 184, 216, 0.6)', 2, centerX + 1, centerY + 22, 42, 5)
+  // Barbatana do Tralalero dando voltas na poça
+  if (!hideFin) drawSharkFin(ctx, getSharkFinPosition(finMs), finMs)
 
-  for (const [x, y, radius] of BUBBLES) strokeEllipse(ctx, 'rgba(90, 154, 192, 0.6)', 2, x, y, radius, radius)
-  SNEAKER_XS.forEach((x, index) => drawSneaker(ctx, x, 432 + index * 2))
+  for (const [bubbleX, bubbleY, radius] of BUBBLES) strokeEllipse(ctx, 'rgba(90, 154, 192, 0.6)', 2, bubbleX, bubbleY, radius, radius)
+  SNEAKER_XS.forEach((sneakerX, index) => drawSneaker(ctx, sneakerX, 610 + index * 2))
 
-  glow(ctx, centerX, centerY, 400, '60, 140, 180', 0.18)
+  glow(ctx, x, y, 420, '60, 140, 180', 0.18)
 }
 
-// Tênis azul do Tralalero, deixado de oferenda na frente da piscina
+// Tênis azul do Tralalero, deixado de oferenda perto da poça
 function drawSneaker(ctx, x, y) {
   rect(ctx, '#f0f0f0', x, y + 10, 38, 12)
   rect(ctx, '#2a6ac0', x + 4, y, 24, 12)
@@ -805,7 +800,7 @@ function drawLantern(ctx, x, bottom) {
   outline(ctx, x - 13, bottom - 32, 26, 32)
 }
 
-// ---------- Descanso: tapete, rede entre os postes, mesinha com abajur e chinelos ----------
+// ---------- Descanso: tapete, rede entre os postes, e mesinha com abajur ----------
 
 function drawRestRoom(ctx) {
   // Tapete oval no meio do piso, longe da casa da porta de baixo
@@ -815,10 +810,6 @@ function drawRestRoom(ctx) {
 
   drawHammock(ctx, getCellsArea(1, 1, 5, 2))
   drawLampTable(ctx, getCellRect(10, 1))
-
-  // Chinelos ao lado do tapete
-  rect(ctx, '#c03a4a', 680, 690, 22, 10)
-  rect(ctx, '#c03a4a', 708, 694, 22, 10)
 }
 
 // Rede de dormir presa a dois postes, nas pontas da área

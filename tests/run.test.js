@@ -5,6 +5,7 @@ import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
 import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
+import { FIN_LAP_MS, PUDDLE, SHARK_DEATH_MS } from '../src/utils/roomInteractions.js'
 import { CONVEYOR_SPEED, SLIP_SPEED, STICKY_SPEED } from '../src/utils/roomObstacles.js'
 import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
 import {
@@ -964,5 +965,65 @@ describe('portas trancadas: gastar o garfo', () => {
     run = push(run, side)
     while (run.unlocking) run = updateRun(run, { movement: SIDE_VECTORS[side], attackDirection: null }, STEP)
     assert.equal(run.forks, 1)
+  })
+})
+
+describe('poça do Tralalero (Sala do Pacto)', () => {
+  // Run dentro da sala do pacto, com o jogador onde o teste mandar e a barbatana no ponto finMs da volta
+  function pactRun(position, finMs) {
+    const { seed, roomId } = findSeed(2, (room) => room.type === 'pacto')
+    const run = createRun({ seed, floorNumber: 2, roomId, characterId: 'x' })
+    run.player = createPlayer(position)
+    run.finMs = finMs
+    return run
+  }
+  const top = PUDDLE.y - PUDDLE.radiusY // borda de cima da poça
+  const FIN_AT_TOP = FIN_LAP_MS * 0.75 // a barbatana passando no alto da poça, no meio
+  const FIN_AT_RIGHT = 0 // a barbatana na ponta direita da poça
+  const BESIDE_TOP = { x: PUDDLE.x, y: top - 6 } // pés na borda de cima, do lado de fora
+  const down = { movement: { x: 0, y: 1 }, attackDirection: null }
+  const right = { movement: { x: 1, y: 0 }, attackDirection: null }
+
+  test('na borda, com a barbatana longe, nada acontece', () => {
+    const run = steps(pactRun(BESIDE_TOP, FIN_AT_RIGHT), 4)
+    assert.equal(run.death, null)
+    assert.equal(run.health, MAX_HEALTH)
+  })
+
+  test('a barbatana passando perto puxa na hora, com qualquer vida', () => {
+    const run = updateRun(pactRun(BESIDE_TOP, FIN_AT_TOP), IDLE, STEP)
+    assert.equal(run.death.cause, 'tralalero')
+    assert.equal(run.health, 0)
+    assert.ok(run.player.dead)
+    assert.ok(run.death.fin, 'guarda onde a barbatana estava, para a animação')
+  })
+
+  test('pular na poça também: ele é puxado ao pisar dentro dela', () => {
+    let run = pactRun({ x: PUDDLE.x, y: top - 40 }, FIN_AT_RIGHT)
+    run = steps(run, 2, down)
+    assert.equal(run.death, null, 'ainda fora')
+    run = steps(run, 6, down)
+    assert.equal(run.death?.cause, 'tralalero')
+  })
+
+  test('andar ao lado da poça sem pisar nela, com a barbatana longe, não mata', () => {
+    const run = steps(pactRun({ x: PUDDLE.x - 150, y: top - 50 }, FIN_AT_RIGHT), 4, right)
+    assert.equal(run.death, null)
+  })
+
+  test('a run termina depois da animação do tubarão e do tempo parado', () => {
+    let run = updateRun(pactRun(BESIDE_TOP, FIN_AT_TOP), IDLE, STEP)
+    const total = SHARK_DEATH_MS + DEATH_HOLD_MS
+    run = steps(run, Math.ceil(total / STEP_MS) - 2)
+    assert.equal(run.finished, false)
+    run = steps(run, 2)
+    assert.equal(run.finished, true)
+    assert.equal(run.death.cause, 'tralalero')
+  })
+
+  test('o save feito durante a animação já leva a causa e a run encerrada', () => {
+    const snapshot = createRunSnapshot(updateRun(pactRun(BESIDE_TOP, FIN_AT_TOP), IDLE, STEP), 9000)
+    assert.equal(snapshot.finished, true)
+    assert.equal(snapshot.deathCause, 'tralalero')
   })
 })

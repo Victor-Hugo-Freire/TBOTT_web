@@ -33,6 +33,7 @@ export function getHeartStates(health, maxHealth = MAX_HEALTH) {
 // O texto completa a frase "O Tung Tung morreu para ...".
 const DEATH_CAUSES = {
   chapa: 'a chapa quente',
+  tralalero: 'o Tralalero', // puxado para a poça da Sala do Pacto
 }
 
 export function getDeathCauseLabel(cause) {

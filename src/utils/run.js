@@ -14,6 +14,7 @@ import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, MAX_HEALTH } from './health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
 import { createProgressSnapshot } from './progress.js'
+import { getSharkFinPosition, isInPuddle, isNearFin, SHARK_DEATH_MS, TRALALERO_CAUSE } from './roomInteractions.js'
 import { buildRoomObstacles } from './roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
 import {
@@ -194,6 +195,7 @@ export function createRun({
     health, // vida em meios corações (veja health.js)
     death: null, // { cause } depois que a vida acaba: toca a animação de morte e a run termina
     transition: null,
+    finMs: 0, // relógio da barbatana do Tralalero na Sala do Pacto (o desenho usa o mesmo, para bater com o perigo)
     // A faixa com o nome do andar aparece sempre que a run começa (New game, Continue em qualquer sala e R)
     banner: createBanner(floor),
     finished: false,
@@ -278,6 +280,19 @@ function updateRoom(run, input, deltaSeconds) {
     }
   }
 
+  // Poça do Tralalero (Sala do Pacto): a barbatana dá voltas na poça. Passar perto dela ou pular na poça
+  // faz o tubarão puxar o Tung para a água: ele morre na hora, com qualquer vida.
+  // death.fin guarda onde a barbatana estava, para a animação começar dali.
+  const finMs = run.finMs + deltaSeconds * 1000
+  if (room.type === 'pacto' && !death) {
+    const fin = getSharkFinPosition(finMs)
+    if (isNearFin(player, fin) || isInPuddle(player)) {
+      health = 0
+      player = killPlayer(player)
+      death = { cause: TRALALERO_CAUSE, fin: { x: fin.x, y: fin.y } }
+    }
+  }
+
   // Golpe novo: não havia golpe, ou o tempo dele voltou a ser menor (outro golpe começou)
   const previous = run.player.attack
   const newSwing = player.attack && (!previous || player.attack.elapsed < previous.elapsed)
@@ -296,7 +311,7 @@ function updateRoom(run, input, deltaSeconds) {
   obstacles = updateRollingObstacles(obstacles, deltaSeconds)
   saveRemoved(room, obstacles)
 
-  const next = { ...run, player, obstacles, slip, swingCounted, health, death }
+  const next = { ...run, player, obstacles, slip, swingCounted, health, death, finMs }
   if (death) return next // morto não atravessa porta nem passa de andar
 
   // Porta trancada: empurrar com garfo no bolso gasta 1 garfo e abre a sala para o resto da run (target.unlocked).
@@ -375,9 +390,11 @@ function updateFloorTransition(run, stepMs) {
 
 // Morte: só a animação do personagem anda (o resto da sala fica parado). Quando ela acaba e ele já ficou
 // DEATH_HOLD_MS deitado, a run termina: a página mostra o aviso de morte.
+// A morte pelo Tralalero tem outra animação (puxado para a piscina), com outra duração.
 function updateDeath(run, deltaSeconds) {
   const player = updatePlayer(run.player, NO_INPUT, deltaSeconds)
-  return { ...run, player, finished: player.dead.elapsed >= DEATH_DURATION_MS + DEATH_HOLD_MS }
+  const animationMs = run.death.cause === TRALALERO_CAUSE ? SHARK_DEATH_MS : DEATH_DURATION_MS
+  return { ...run, player, finished: player.dead.elapsed >= animationMs + DEATH_HOLD_MS }
 }
 
 // Segurar R para recomeçar: o tempo segurado cresce até RESTART_HOLD_MS; soltar antes desfaz (3x mais rápido).
