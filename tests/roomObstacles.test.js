@@ -10,6 +10,7 @@ import {
   ROLL_SPEED,
   SLIP_ACCELERATION,
   SLIP_EXIT_DECAY,
+  SLIP_SPEED,
   STICKY_SPEED,
   stopBlockedAxes,
   touchesHot,
@@ -17,7 +18,7 @@ import {
 } from '../src/utils/roomObstacles.js'
 import { overlaps } from '../src/utils/collision.js'
 import { createRandom, pick } from '../src/utils/random.js'
-import { buildRoomObstacles, ROOM_LAYOUTS } from '../src/utils/roomLayout.js'
+import { buildRoomObstacles, getConveyorDirection, ROOM_LAYOUTS } from '../src/utils/roomLayout.js'
 import { getFeetBox, moveRoomPlayer, PLAYER_FEET_BOX, ROOM_FLOOR, ROOM_PLAYER_BOUNDS, ROOM_WALLS } from '../src/utils/roomMovement.js'
 
 // Obstáculos montados à mão, no formato de roomLayout.js (a caixa é o que importa aqui)
@@ -151,12 +152,28 @@ describe('escorregadio', () => {
   const NO_KEYS = { x: 0, y: 0 }
   const DT = 1 / 60
 
-  test('ao entrar andando, a velocidade começa igual às teclas (sem tranco)', () => {
+  test('ao pisar no líquido andando, escorrega: a velocidade pula para 1,4 vez a do andar', () => {
+    assert.equal(SLIP_SPEED, 1.4)
     const state = getSlipMovement(null, SLIPPING, { x: 1, y: 0 }, DT)
-    assert.deepEqual(state, { slip: { x: 1, y: 0 }, movement: { x: 1, y: 0 } })
+    assert.deepEqual(state, { slip: { x: 1.4, y: 0 }, movement: { x: 1.4, y: 0 } })
+    // na diagonal também: a direção é a das teclas
+    const diagonal = getSlipMovement(null, SLIPPING, { x: Math.SQRT1_2, y: -Math.SQRT1_2 }, DT).movement
+    assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.y) - 1.4) < 1e-9)
   })
 
-  test('parado em cima do líquido, acelera aos poucos até a velocidade cheia em 1,25 s', () => {
+  test('uma poça de uma casa (105 u): pisou e soltou a tecla, ele só para bem depois dela', () => {
+    const puddle = obstacle('escorregadio', 400, 400, 105, 75)
+    let position = { x: 395, y: 440 }
+    let slip = null
+    for (let frame = 0; frame < 6; frame++) ({ position, slip } = slideFrame([puddle], ROOM_WALLS, position, slip, { x: 1, y: 0 }))
+    assert.ok(position.x > 400 && position.x < 505, 'está em cima da poça')
+    for (let frame = 0; frame < 120; frame++) ({ position, slip } = slideFrame([puddle], ROOM_WALLS, position, slip, NO_KEYS))
+    assert.equal(slip, null, 'parou')
+    const past = position.x - 505
+    assert.ok(past > 90 && past < 200, `parou ${past.toFixed(0)} u depois da poça`)
+  })
+
+  test('parado em cima do líquido, acelera aos poucos até a velocidade do andar em 1,25 s', () => {
     let state = getSlipMovement(null, SLIPPING, NO_KEYS, DT)
     assert.deepEqual(state.slip, { x: 0, y: 0 }, 'parado em cima guarda velocidade 0 (e não volta às teclas)')
     state = getSlipMovement(state.slip, SLIPPING, { x: 1, y: 0 }, DT)
@@ -185,23 +202,28 @@ describe('escorregadio', () => {
     assert.deepEqual(slip, { x: 0, y: 0 }, 'parou de vez')
   })
 
-  test('ao sair do líquido, a sobra de velocidade some em até 0,5 s, sem salto', () => {
-    let slip = { x: 1, y: 0 }
-    let previous = 1
+  test('ao sair do líquido, o embalo some em até 0,9 s, sem salto', () => {
+    let slip = { x: SLIP_SPEED, y: 0 }
+    let previous = SLIP_SPEED
     let frames = 0
     while (slip) {
       const state = getSlipMovement(slip, OUTSIDE, NO_KEYS, DT)
-      assert.ok(previous - state.movement.x <= SLIP_EXIT_DECAY * DT + 1e-9, 'a velocidade cai no máximo 2 por segundo')
+      assert.ok(previous - state.movement.x <= SLIP_EXIT_DECAY * DT + 1e-9, 'a velocidade cai no máximo 1,6 por segundo')
       previous = state.movement.x
       slip = state.slip
       frames++
-      assert.ok(frames < 60, 'o slip acaba')
+      assert.ok(frames < 90, 'o slip acaba')
     }
-    assert.ok(frames * DT <= 0.51, `levou ${frames} quadros`)
+    assert.ok(frames * DT <= 0.9, `levou ${frames} quadros`)
     assert.equal(previous, 0)
   })
 
-  test('ao sair do líquido andando para o mesmo lado, nada muda (as teclas já valem)', () => {
+  test('ao sair do líquido andando para o mesmo lado, a velocidade volta à do andar e o slip acaba', () => {
+    let state = getSlipMovement({ x: SLIP_SPEED, y: 0 }, OUTSIDE, { x: 1, y: 0 }, DT)
+    assert.ok(state.movement.x < SLIP_SPEED && state.movement.x > 1, 'desacelera aos poucos')
+    for (let frame = 0; frame < 30 && state.slip; frame++) state = getSlipMovement(state.slip, OUTSIDE, { x: 1, y: 0 }, DT)
+    assert.deepEqual(state, { slip: null, movement: { x: 1, y: 0 } })
+    // já na velocidade do andar, as teclas valem na hora
     assert.deepEqual(getSlipMovement({ x: 1, y: 0 }, OUTSIDE, { x: 1, y: 0 }, DT), { slip: null, movement: { x: 1, y: 0 } })
   })
 
@@ -209,12 +231,13 @@ describe('escorregadio', () => {
     assert.deepEqual(getSlipMovement(null, OUTSIDE, { x: -1, y: 0 }, DT), { slip: null, movement: { x: -1, y: 0 } })
   })
 
-  test('o módulo da velocidade nunca passa de 1 (o passo máximo de 13 u continua valendo)', () => {
+  test('o módulo da velocidade nunca passa de SLIP_SPEED (passo máximo de 18,2 u, menor que a caixa dos pés)', () => {
+    assert.ok(260 * SLIP_SPEED * 0.05 < FEET.height, 'o passo mais longo não pula nenhum sólido')
     let slip = null
     const keys = [{ x: 1, y: 0 }, { x: 0, y: -1 }, { x: -Math.SQRT1_2, y: Math.SQRT1_2 }, NO_KEYS]
     for (let frame = 0; frame < 400; frame++) {
       const state = getSlipMovement(slip, frame % 90 < 70 ? SLIPPING : OUTSIDE, keys[Math.floor(frame / 20) % keys.length], DT)
-      assert.ok(Math.hypot(state.movement.x, state.movement.y) <= 1 + 1e-9)
+      assert.ok(Math.hypot(state.movement.x, state.movement.y) <= SLIP_SPEED + 1e-9)
       slip = state.slip
     }
   })
@@ -286,10 +309,10 @@ describe('escorregadio', () => {
           const where = `${layout.id} ${theme} quadro ${frame}`
           assert.ok(position.x >= minX && position.x <= maxX && position.y >= minY && position.y <= maxY, `fora dos limites: ${where}`)
           assert.ok(!solids.some((solid) => overlaps(getFeetBox(position), solid)), `dentro de um sólido: ${where}`)
-          if (slip) assert.ok(Math.hypot(slip.x, slip.y) <= 1 + 1e-9, `velocidade acima de 1: ${where}`)
+          if (slip) assert.ok(Math.hypot(slip.x, slip.y) <= SLIP_SPEED + 1e-9, `velocidade acima do escorregão: ${where}`)
         }
         // sem teclas ele para (não desliza para sempre) e, de lá, pelo menos um lado anda
-        for (let frame = 0; frame < 60; frame++) ({ position, slip } = slideFrame(obstacles, solids, position, slip, NO_KEYS))
+        for (let frame = 0; frame < 120; frame++) ({ position, slip } = slideFrame(obstacles, solids, position, slip, NO_KEYS))
         const stopped = position
         const moves = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }].filter((direction) => {
           let probe = { position: stopped, slip: null }
@@ -344,16 +367,36 @@ describe('grudento', () => {
 describe('esteira', () => {
   const belt = obstacle('esteira', 400, 400, 100, 75)
 
-  test('não bloqueia e empurra para a direita a 130 u/s', () => {
+  test('não bloqueia e empurra a 220 u/s, para a direita ou para a esquerda (direction)', () => {
     assert.deepEqual(getRoomSolids([belt]), ROOM_WALLS)
-    assert.equal(CONVEYOR_SPEED, 130)
-    assert.deepEqual(getFloorEffect([belt], { x: 450, y: 450 }).push, { x: 130, y: 0 })
+    assert.equal(CONVEYOR_SPEED, 220)
+    assert.ok(CONVEYOR_SPEED < 260, 'mais devagar que o andar: dá para andar contra ela')
+    assert.deepEqual(getFloorEffect([belt], { x: 450, y: 450 }).push, { x: 220, y: 0 })
+    assert.deepEqual(getFloorEffect([{ ...belt, direction: 1 }], { x: 450, y: 450 }).push, { x: 220, y: 0 })
+    assert.deepEqual(getFloorEffect([{ ...belt, direction: -1 }], { x: 450, y: 450 }).push, { x: -220, y: 0 })
     assert.deepEqual(getFloorEffect([belt], { x: 350, y: 450 }).push, { x: 0, y: 0 })
   })
 
-  test('o empurrão anda 130 u/s', () => {
+  test('nas salas, há esteiras para os dois lados; vizinhas na mesma linha empurram juntas', () => {
+    const directions = new Set()
+    for (const layout of ROOM_LAYOUTS) {
+      const belts = buildRoomObstacles(layout.id, 'pastificio').filter((item) => item.mechanic === 'esteira')
+      for (const item of belts) {
+        assert.ok(item.direction === 1 || item.direction === -1, `${layout.id} ${item.id}`)
+        assert.equal(item.direction, getConveyorDirection(item.col, item.row))
+        directions.add(item.direction)
+        const next = belts.find((other) => other.row === item.row && other.col === item.col + 1)
+        if (next) assert.equal(next.direction, item.direction, `${layout.id}: ${item.id} e ${next.id} empurram um contra o outro`)
+      }
+    }
+    assert.deepEqual([...directions].sort(), [-1, 1])
+    // os outros obstáculos não ganham direção
+    assert.ok(buildRoomObstacles('comum-01', 'cantina').every((item) => !('direction' in item)))
+  })
+
+  test('o empurrão anda 220 u/s', () => {
     const next = pushPlayer({ x: 450, y: 450 }, { x: CONVEYOR_SPEED, y: 0 }, 0.02)
-    assert.ok(Math.abs(next.x - (450 + 130 * 0.02)) < 1e-9)
+    assert.ok(Math.abs(next.x - (450 + 220 * 0.02)) < 1e-9)
     assert.equal(next.y, 450)
     assert.deepEqual(pushPlayer({ x: 450, y: 450 }, { x: 0, y: 0 }, 0.02), { x: 450, y: 450 })
   })

@@ -5,16 +5,18 @@ import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
 import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
-import { STICKY_SPEED } from '../src/utils/roomObstacles.js'
+import { CONVEYOR_SPEED, SLIP_SPEED, STICKY_SPEED } from '../src/utils/roomObstacles.js'
 import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
 import {
   BANNER_TOTAL_MS,
   createRun,
   createRunSnapshot,
   DEATH_HOLD_MS,
+  ENTER_FADE_MS,
   FLOOR_TRANSITION_MS,
   getCurrentRoom,
   getDrumBox,
+  getEnterFade,
   getObstacleTheme,
   getRestartFade,
   getRoomStates,
@@ -158,7 +160,13 @@ describe('createRun', () => {
     const run = createRun({ seed: 1, roomId: room.id, position, characterId: 'x' })
     assert.equal(run.roomId, room.id)
     assert.deepEqual({ x: run.player.x, y: run.player.y }, position)
-    assert.equal(run.banner, null, 'a faixa só aparece na sala inicial')
+    assert.deepEqual(run.banner, { text: 'CANTINA', elapsedMs: 0 }, 'ao continuar, a faixa do andar aparece em qualquer sala')
+  })
+
+  test('continuar em outro andar mostra a faixa desse andar', () => {
+    const run = createRun({ seed: 1, floorNumber: 3, characterId: 'x' })
+    assert.deepEqual(run.banner, { text: run.floor.name, elapsedMs: 0 })
+    assert.notEqual(run.floor.name, 'CANTINA')
   })
 
   test("'sala-inicial' e id que não existe caem na sala inicial", () => {
@@ -285,6 +293,25 @@ describe('faixa do andar', () => {
     run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run))[0].side)
     // 1 quadro para sair + a transição inteira
     assert.ok(Math.abs(run.banner.elapsedMs - (before + STEP_MS + ROOM_TRANSITION_MS)) < 1e-6)
+  })
+
+  test('trocar de sala não traz a faixa de volta (só ao entrar na run e ao chegar a um andar)', () => {
+    let run = steps(createRun({ seed: 1, characterId: 'x' }), BANNER_TOTAL_MS / STEP_MS)
+    assert.equal(run.banner, null)
+    run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run)).find((door) => door.state === 'open').side)
+    assert.equal(run.banner, null)
+  })
+})
+
+describe('entrada na run: a tela clareia do preto', () => {
+  test('começa preta, clareia aos poucos e fica limpa depois de ENTER_FADE_MS', () => {
+    assert.equal(ENTER_FADE_MS, 450)
+    assert.equal(getEnterFade(0), 1)
+    assert.ok(Math.abs(getEnterFade(ENTER_FADE_MS / 2) - 0.5) < 1e-9)
+    assert.equal(getEnterFade(ENTER_FADE_MS), 0)
+    assert.equal(getEnterFade(ENTER_FADE_MS + 5000), 0)
+    assert.equal(getEnterFade(Infinity), 0, 'antes de a run existir não há o que clarear')
+    assert.equal(getEnterFade(-20), 1)
   })
 })
 
@@ -516,10 +543,21 @@ describe('mecânicas do piso na run', () => {
     assert.equal(run.health, 2)
   })
 
-  test('esteira empurra para a direita', () => {
-    const run = updateRun(runWith([obstacle('esteira', { x: 700, y: 500, width: 105, height: 75 })], { x: 750, y: 540 }), IDLE, STEP)
-    assert.ok(Math.abs(run.player.x - (750 + 130 * STEP)) < 1e-6)
+  test('esteira empurra para a direita, ou para a esquerda quando é virada para lá', () => {
+    const belt = obstacle('esteira', { x: 700, y: 500, width: 105, height: 75 })
+    const run = updateRun(runWith([belt], { x: 750, y: 540 }), IDLE, STEP)
+    assert.ok(Math.abs(run.player.x - (750 + CONVEYOR_SPEED * STEP)) < 1e-6)
     assert.equal(run.player.y, 540)
+
+    const left = updateRun(runWith([{ ...belt, direction: -1 }], { x: 750, y: 540 }), IDLE, STEP)
+    assert.ok(Math.abs(left.player.x - (750 - CONVEYOR_SPEED * STEP)) < 1e-6)
+  })
+
+  test('esteira: dá para andar contra ela, mas bem devagar', () => {
+    const belt = obstacle('esteira', { x: 700, y: 500, width: 105, height: 75 })
+    const run = updateRun(runWith([belt], { x: 750, y: 540 }), { movement: { x: -1, y: 0 }, attackDirection: null }, STEP)
+    const walked = 750 - run.player.x
+    assert.ok(walked > 0 && walked < 260 * STEP * 0.25, `andou ${walked} u contra a esteira`)
   })
 
   test('grudento deixa lento', () => {
@@ -529,20 +567,21 @@ describe('mecânicas do piso na run', () => {
 
   const ice = () => obstacle('escorregadio', { x: 500, y: 400, width: 600, height: 300 })
 
-  test('escorregadio: entra andando sem tranco, solta a tecla e continua deslizando até parar', () => {
+  test('escorregadio: entra andando e escorrega (mais rápido), solta a tecla e continua deslizando até parar', () => {
     let run = runWith([ice()], { x: 600, y: 540 })
     run = updateRun(run, right, STEP)
-    assert.deepEqual(run.slip, { x: 1, y: 0 }, 'ao entrar, a velocidade é a das teclas')
-    assert.ok(Math.abs(run.player.x - (600 + 260 * STEP)) < 1e-6)
+    assert.deepEqual(run.slip, { x: SLIP_SPEED, y: 0 }, 'ao pisar, a velocidade pula para a do escorregão')
+    assert.ok(Math.abs(run.player.x - (600 + 260 * SLIP_SPEED * STEP)) < 1e-6)
 
     const before = run.player.x
     run = updateRun(run, IDLE, STEP)
     assert.ok(run.player.x > before, 'sem tecla, continua deslizando')
-    assert.ok(run.slip.x < 1 && run.slip.x > 0, 'e freia aos poucos')
+    assert.ok(run.slip.x < SLIP_SPEED && run.slip.x > 0, 'e freia aos poucos')
 
-    run = steps(run, 26)
+    run = steps(run, 36)
     assert.deepEqual(run.slip, { x: 0, y: 0 }, 'por fim para')
-    assert.ok(run.player.x - 600 < 200, 'sem passar de ~160 u depois de soltar')
+    const slid = run.player.x - 600
+    assert.ok(slid > 250 && slid < 360, `deslizou ${slid.toFixed(0)} u num líquido grande (numa poça de uma casa é bem menos)`)
   })
 
   test('escorregadio: trocar de tecla muda a direção aos poucos, não de uma vez', () => {
@@ -557,10 +596,12 @@ describe('mecânicas do piso na run', () => {
 
   test('escorregadio: ao sair do líquido a sobra de velocidade some sem tranco e as teclas voltam', () => {
     let run = runWith([obstacle('escorregadio', { x: 500, y: 400, width: 200, height: 300 })], { x: 650, y: 540 })
-    run = steps(run, 6, right) // sai do líquido (x = 700) com velocidade
+    run = steps(run, 4, right) // sai do líquido (x = 700) com velocidade
     assert.ok(run.player.x > 700)
-    run = steps(run, 6) // soltou as teclas: a sobra some
+    const exit = run.player.x
+    run = steps(run, 20) // soltou as teclas: o embalo leva ele adiante e some
     assert.equal(run.slip, null)
+    assert.ok(run.player.x - exit > 80, 'saiu embalado: andou bastante sem tecla')
     const x = run.player.x
     run = updateRun(run, right, STEP)
     assert.ok(Math.abs(run.player.x - (x + 260 * STEP)) < 1e-6, 'fora do líquido vale o andar normal')
@@ -780,7 +821,8 @@ describe('salas visitadas no progresso', () => {
 
   test('visitar salas, sair da run e voltar: as mesmas salas continuam visitadas', () => {
     let run = createRun({ seed: 7, characterId: 'x' })
-    for (let i = 0; i < 3; i++) run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run))[0].side)
+    // só pelas portas abertas (a parede secreta da adega, que agora existe no andar 1, não conta)
+    for (let i = 0; i < 3; i++) run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run)).find((door) => door.state === 'open').side)
     const visited = getVisitedRoomIds(run.floor)
     assert.ok(visited.length >= 2, 'visitou pelo menos duas salas')
 

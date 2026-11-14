@@ -21,7 +21,7 @@ const SHADOW = ['e', 10, 18.3, 8.5, 1.8, '#000', 0.3]
 const NET = [[2, 5, 16, 12, '#8a7a50', 0.18]]
 for (let k = 0; k < 5; k++) NET.push([2, 5 + k * 3, 16, 1, '#8a7a50'], [2 + k * 4, 5, 1, 13, '#8a7a50'])
 
-// Setas amarelas da esteira, apontando para a direita (o lado para onde ela empurra). Não ficam na lista de
+// Setas amarelas da esteira, apontando para o lado para onde ela empurra (direita ou esquerda). Não ficam na lista de
 // peças do desenho porque andam: drawConveyorArrows as desenha por cima, recortadas dentro da lona.
 // CONVEYOR_ARROW_FIRST_X é o x (na grade) da ponta de trás da 1ª seta; no desenho parado as três ficam em 4,5, 9,5 e 14,5.
 const CONVEYOR_ARROW_COLOR = '#e0b040'
@@ -30,8 +30,8 @@ const CONVEYOR_ARROW_FIRST_X = 4.5
 const CONVEYOR_BELT_CLIP = { x: 3.5, y: 9.5, width: 13.5, height: 4 } // a lona entre os rolos (não passa por cima deles)
 
 // Quanto as setas já andaram (em casas da grade, de 0 até o espaçamento) depois de timeMs.
-// Andam na velocidade da esteira (CONVEYOR_SPEED), então mostram o empurrão de verdade: 130 u/s são 25 casas por
-// segundo, ou seja, o desenho se repete 5 vezes por segundo. Com reduzir movimento ficam paradas (e visíveis).
+// Andam na velocidade da esteira (CONVEYOR_SPEED), então mostram o empurrão de verdade: 220 u/s são ~42 casas por
+// segundo, ou seja, o desenho se repete ~8,5 vezes por segundo. Com reduzir movimento ficam paradas (e visíveis).
 export function getConveyorShift(timeMs, reduceMotion = false) {
   if (reduceMotion) return 0
   const gridPerSecond = CONVEYOR_SPEED / (FLOOR_OBSTACLE_SIZE / GRID)
@@ -166,8 +166,9 @@ function drawShapeAtBox(ctx, obstacle, size) {
   drawShape(ctx, shape, centerX - size / 2, centerY - size * 0.55, size)
 }
 
-// Setas da esteira: três setas andando para a direita, na mesma posição e escala do desenho da esteira.
-// Uma seta que sai pela direita é a mesma que entra pela esquerda (o desenho se repete a cada espaçamento).
+// Setas da esteira: três setas andando para o lado em que ela empurra (obstacle.direction: 1 direita, -1 esquerda),
+// na mesma posição e escala do desenho da esteira.
+// Uma seta que sai por um lado é a mesma que entra pelo outro (o desenho se repete a cada espaçamento).
 function drawConveyorArrows(ctx, obstacle, size, shift) {
   const { box } = obstacle
   ctx.save()
@@ -177,6 +178,11 @@ function drawConveyorArrows(ctx, obstacle, size, shift) {
   ctx.beginPath()
   ctx.rect(x, y, width, height)
   ctx.clip()
+  // Para a esquerda: as mesmas setas, espelhadas em volta do meio da lona
+  if (obstacle.direction === -1) {
+    ctx.translate(2 * x + width, 0)
+    ctx.scale(-1, 1)
+  }
   for (let k = -1; k <= 2; k++) {
     const left = CONVEYOR_ARROW_FIRST_X + k * CONVEYOR_ARROW_SPACING + shift
     paintRect(ctx, CONVEYOR_ARROW_COLOR, left, 10, 0.9, 3, 1)

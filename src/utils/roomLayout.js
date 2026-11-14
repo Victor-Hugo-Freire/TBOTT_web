@@ -86,6 +86,13 @@ function getSolidBox(col, row) {
   }
 }
 
+// Para que lado a esteira empurra: 1 = direita, -1 = esquerda. Depende só da casa, então é sempre o mesmo
+// na mesma sala. As linhas alternam, e a metade direita da sala (coluna 7 em diante) é o contrário da esquerda:
+// esteiras vizinhas na mesma linha empurram juntas, e a mesma sala costuma ter esteiras para os dois lados.
+export function getConveyorDirection(col, row) {
+  return (row + (col > 6 ? 1 : 0)) % 2 === 0 ? 1 : -1
+}
+
 // Passa por todas as casas do layout: callback(letra, coluna, linha)
 function forEachTile(layout, callback) {
   layout.tiles.forEach((line, row) => {
@@ -110,7 +117,9 @@ export function buildRoomObstacles(layoutId, theme) {
     const mechanic = OBSTACLE_MECHANICS[kind]
     const blocking = BLOCKING_MECHANICS.includes(mechanic)
     const box = blocking && kind !== 'cenario' ? getSolidBox(col, row) : getCellRect(col, row)
-    obstacles.push({ id: `${col}-${row}`, col, row, kind, mechanic, blocking, box })
+    const obstacle = { id: `${col}-${row}`, col, row, kind, mechanic, blocking, box }
+    if (mechanic === 'esteira') obstacle.direction = getConveyorDirection(col, row)
+    obstacles.push(obstacle)
   })
   return obstacles
 }
