@@ -55,7 +55,7 @@ function mixColors(first, second) {
 // Os outros temas partem da Cantina e trocam só o que muda (como o mix() do protótipo).
 // As paredes laterais saem dos tons do próprio tema: as pedras usam side2 e side, e a coluna
 // vai da média das pedras até um tom puxado um quarto para a cor do piso, para emendar com o chão
-// daquela sala sem virar uma faixa clara nos pisos claros (como o da Mamãe).
+// daquela sala sem virar uma faixa clara nos pisos claros (como o da sala do God).
 function withSideWalls(changes) {
   const theme = { ...cantina, ...changes }
   return {
@@ -82,7 +82,8 @@ export const ROOM_THEMES = {
   tesouro: withSideWalls({ top: '#2a1c10', panelA: '#5a4020', panelB: '#4a3418', beam: '#4a3418', beamLight: '#7a5a30', beamBase: '#5a4220', base: '#5a4020', wall: 'tile', wallCols: ['#c8a870', '#b89860', '#a88850'], mortar: '#6a4a20', floor: 'planks', floorCols: ['#9a7040', '#a87c48', '#8a6238'], joint: '#4a2a10', side: '#7a5a34', side2: '#8a6a40', glow: '240,200,120' }),
   loja: withSideWalls({ top: '#1a1208', panelA: '#3a2810', panelB: '#2e200c', beam: '#3a2814', beamLight: '#6a4a28', wall: 'planks', wallCols: ['#6a4a2a', '#5a3e22', '#7a5632'], mortar: '#2a1a0c', floor: 'checker', floorCols: ['#7a6a58', '#5a4c3e'], side: '#3a2a1c', side2: '#46342a', glow: '230,180,110' }),
   pacto: withSideWalls({ top: '#060a10', panelA: '#102030', panelB: '#0c1824', beam: '#0e1c2a', beamLight: '#2a4a6a', beamBase: '#10202e', beamShadow: '#060c12', base: '#10202e', baseLine: '#08121a', wall: 'tile', wallCols: ['#1c3a4a', '#16303e', '#224654'], mortar: '#0a1820', floor: 'checker', floorCols: ['#14242e', '#0e1a22'], side: '#12222e', side2: '#182c3a', glow: '70,150,190' }),
-  mamae: withSideWalls({ top: '#2a2010', panelA: '#6a5430', panelB: '#5a4628', beam: '#7a6238', beamLight: '#c8a860', beamBase: '#8a7040', base: '#8a7040', wall: 'tile', wallCols: ['#e0d0a0', '#d4c490', '#c8b880'], mortar: '#8a7440', floor: 'checker', floorCols: ['#e8dcc0', '#c8683a'], side: '#8a7448', side2: '#9a8456', glow: '255,230,160' }),
+  // Sala do Tung Tung God (o tipo continua 'god'): céu claro, mármore branco e dourado
+  god: withSideWalls({ top: '#8ab8e4', panelA: '#a8cdf0', panelB: '#98c2ea', beam: '#e8e0c8', beamLight: '#fff8e0', beamBase: '#d8ccb0', beamShadow: '#a89870', base: '#e0d8c4', baseLine: '#b8aa88', wall: 'tile', wallCols: ['#e8f0f8', '#dce8f4', '#d0e0f0'], mortar: '#a8c0dc', floor: 'slabs', floorCols: ['#f0ece4', '#e4dfd4', '#d8d2c4'], joint: '#b0a888', side: '#c8c4b8', side2: '#d8d4c8', glow: '255,244,200' }),
   fliperama: withSideWalls({ top: '#1a0e1e', panelA: '#4a1a3a', panelB: '#3a1430', beam: '#3a1a2e', beamLight: '#7a3a5a', beamBase: '#3a1a30', base: '#3a1a30', wall: 'brick', wallCols: ['#6a2a4a', '#5a2240', '#7a3454'], mortar: '#2a1020', floor: 'checker', floorCols: ['#3a2a4a', '#2a1e38'], side: '#32203a', side2: '#3c2846', glow: '220,140,200' }),
   palco: withSideWalls({ top: '#14060a', panelA: '#4a1424', panelB: '#3a101c', beam: '#2a0c14', beamLight: '#7a2a3a', beamBase: '#2e1018', base: '#3a1420', wall: 'tile', wallCols: ['#6a1a2a', '#5a1624', '#7a2232'], mortar: '#2a0c14', floor: 'planks', floorCols: ['#3a2418', '#4a2c1c', '#2e1c12'], side: '#3a1620', side2: '#461c28', glow: '230,150,120' }),
   adega: withSideWalls({ top: '#0c0a0a', panelA: '#2a2420', panelB: '#221c18', beam: '#1c1816', beamLight: '#3a3430', beamBase: '#201c1a', base: '#2a2420', wall: 'brick', wallCols: ['#3a3430', '#444038', '#302c28'], mortar: '#141210', floor: 'slabs', floorCols: ['#3a3632', '#44403a', '#302c28'], joint: '#141210', side: '#2a2622', side2: '#34302a', glow: '220,170,100' }),

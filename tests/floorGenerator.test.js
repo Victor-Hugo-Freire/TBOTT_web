@@ -15,7 +15,7 @@ import { createRandom, mixSeed } from '../src/utils/random.js'
 import { findLayoutProblems, getLayout } from '../src/utils/roomLayout.js'
 
 // Salas extras: ficam fora do mapa base do artigo
-const EXTRA_TYPES = ['adega', 'pacto', 'mamae']
+const EXTRA_TYPES = ['adega', 'pacto', 'god']
 
 // 300 seeds x 5 andares, gerados uma vez só para todos os testes
 const SEEDS = Array.from({ length: 300 }, (_, index) => mixSeed(2026, index))
@@ -172,11 +172,11 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
     })
   })
 
-  test('cada especial tem uma porta só (o chefe ganha a do pacto ou da mamãe)', () => {
+  test('cada especial tem uma porta só (o chefe ganha a do pacto ou do God)', () => {
     forEachFloor((floor) => {
       for (const item of floor.rooms.filter((other) => SPECIAL_ROOM_TYPES.includes(other.type))) {
-        // A porta do chefe para o pacto/mamãe é extra: não conta aqui
-        const links = getLinks(item).filter(({ id }) => item.type !== 'chefe' || !['pacto', 'mamae'].includes(findRoom(floor, id).type))
+        // A porta do chefe para o pacto/God é extra: não conta aqui
+        const links = getLinks(item).filter(({ id }) => item.type !== 'chefe' || !['pacto', 'god'].includes(findRoom(floor, id).type))
         assert.equal(links.length, 1, item.id)
       }
     })
@@ -213,9 +213,9 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
     assert.ok(far / total > 0.5, `só ${far} de ${total} adegas ficam longe do início`)
   })
 
-  test('pacto ou mamãe só nos andares 2 a 4 (nunca no 1º), ligado só à sala do chefe', () => {
+  test('pacto ou God só nos andares 2 a 4 (nunca no 1º), ligado só à sala do chefe', () => {
     forEachFloor((floor) => {
-      const pacts = floor.rooms.filter((item) => ['pacto', 'mamae'].includes(item.type))
+      const pacts = floor.rooms.filter((item) => ['pacto', 'god'].includes(item.type))
       assert.ok(pacts.length <= 1)
       if (pacts.length === 0) return
 
@@ -226,7 +226,7 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
     })
   })
 
-  test('adega e pacto/mamãe só encostam (na grade) na sala a que estão ligados', () => {
+  test('adega e pacto/God só encostam (na grade) na sala a que estão ligados', () => {
     forEachFloor((floor) => {
       for (const extra of floor.rooms.filter((item) => EXTRA_TYPES.includes(item.type))) {
         const touching = SIDES.map((side) => `${extra.col + SIDE_VECTORS[side].x}-${extra.row + SIDE_VECTORS[side].y}`)
@@ -247,12 +247,12 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
     })
   })
 
-  test('frequências: pacto/mamãe, fliperama e descanso aparecem em proporções razoáveis', () => {
+  test('frequências: pacto/God, fliperama e descanso aparecem em proporções razoáveis', () => {
     const floors2to4 = ALL_FLOORS.filter((floor) => floor.number >= 2 && floor.number <= 4)
-    const pactRate = floors2to4.filter((floor) => countByType(floor, 'pacto') + countByType(floor, 'mamae') > 0).length / floors2to4.length
+    const pactRate = floors2to4.filter((floor) => countByType(floor, 'pacto') + countByType(floor, 'god') > 0).length / floors2to4.length
 
-    assert.ok(pactRate >= 0.3 && pactRate <= 0.7, `pacto/mamãe em ${pactRate}`)
-    for (const type of ['pacto', 'mamae', 'fliperama', 'descanso', 'palco']) {
+    assert.ok(pactRate >= 0.3 && pactRate <= 0.7, `pacto/God em ${pactRate}`)
+    for (const type of ['pacto', 'god', 'fliperama', 'descanso', 'palco']) {
       assert.ok(ALL_FLOORS.some((floor) => countByType(floor, type) > 0), `${type} nunca aparece`)
     }
   })

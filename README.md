@@ -185,7 +185,7 @@ Cada andar tem a sua parede, o seu piso e os seus enfeites (`scene/themes.js`); 
 | Fliperama | todos | 1 chance em 3, se sobrar beco. |
 | Descanso | todos | 1 chance em 4, se sobrar beco. |
 | Adega secreta | 1 a 4 (nunca no 5º) | Sempre, uma por andar, ao lado de uma sala comum (de preferência a 3 ou mais salas da inicial). Escondida. |
-| Pacto ou Mamãe | 2 a 4 (nunca no 1º) | 1 chance em 2, ao lado da sala do chefe; a porta aparece com a sala do chefe limpa. |
+| Pacto ou Tung Tung God | 2 a 4 (nunca no 1º) | 1 chance em 2, ao lado da sala do chefe; a porta aparece com a sala do chefe limpa. |
 
 As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/drawSpecialRooms.js`). A função de cada uma (comprar, pacto, dormir...) ainda não existe.
 
@@ -212,7 +212,7 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 
 **Portas e transição** (`src/utils/doors.js` e `scene/drawDoors.js`)
 
-- Uma porta em cada lado que tem sala vizinha. O desenho segue o tipo da sala especial do outro lado (ou da própria sala especial). Entre o chefe e o pacto (ou a mamãe), a porta é a do pacto (ou da mamãe) dos dois lados. A porta abre quando a sala está limpa; como ainda não há inimigos, toda sala fica limpa ao entrar.
+- Uma porta em cada lado que tem sala vizinha. O desenho segue o tipo da sala especial do outro lado (ou da própria sala especial). Entre o chefe e o pacto (ou a sala do Tung Tung God), a porta é a do pacto (ou a do Tung Tung God) dos dois lados. A porta abre quando a sala está limpa; como ainda não há inimigos, toda sala fica limpa ao entrar.
 - Para atravessar, os pés encostam na parede dentro do vão e o jogador continua apertando para aquele lado.
 - **Portas trancadas com garfo** (`needsFork`): a Sala do Tesouro (do andar 2 em diante) e a Sala de Descanso. A porta mostra a chapa com o nó de espaguete, sem garfo. Empurrar a porta com pelo menos 1 garfo gasta o garfo e toca a animação (o garfo aparece no nó, enrola e tira o nó em 990 ms, depois as folhas se abrem em 260 ms); só então dá para passar. Sem garfo, ela fica trancada. Aberta, fica aberta até o fim do andar, também ao continuar a run (`unlocked` no estado da sala). A Loja fica sempre aberta; vida cheia no Palco e grão no Fliperama ainda não trancam.
 - A câmera desliza 350 ms na direção da porta, com a sala antiga saindo e a nova entrando. Com "reduzir movimento" no sistema, a tela escurece e clareia já na sala nova. O jogador surge do outro lado, um pouco para dentro da porta.
@@ -249,7 +249,7 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 **F3: camada de teste** (`scene/drawDebug.js`, só em `npm run dev`)
 
 - Na sala: sólidos em vermelho (paredes e obstáculos que bloqueiam), vão das portas (verde aberta, laranja fechada ou escondida), onde o golpe acerta a parede da adega (magenta), os pontos `i` e `t` do layout, a caixa dos pés e a área do golpe.
-- No canto direito: seed, andar, sala atual (id, tipo e layout), tentativas da geração e o mapa 9 x 8 com uma letra por sala (I inicial, . comum, C chefe, T tesouro, L loja, P palco, F fliperama, D descanso, A adega, X pacto e M mamãe), com a atual em amarelo e as visitadas em branco. O mapa mostra também a adega.
+- No canto direito: seed, andar, sala atual (id, tipo e layout), tentativas da geração e o mapa 9 x 8 com uma letra por sala (I inicial, . comum, C chefe, T tesouro, L loja, P palco, F fliperama, D descanso, A adega, X pacto e G god, a sala do Tung Tung God), com a atual em amarelo e as visitadas em branco. O mapa mostra também a adega.
 
 **O que é salvo no progresso** (`src/utils/progress.js`)
 
@@ -311,5 +311,5 @@ A seleção de personagem usa `/api/characters`, o jogo lê e salva `/api/progre
 - Cadastro, login e sessão dependem das issues de autenticação (veja o README da TBOTT_api).
 - Antes da primeira chamada à API, a TBOTT_api precisa liberar o CORS para o endereço do front-end. O pacote `cors` está instalado lá, mas ainda não é usado em `src/app.js`.
 - Em celular e tablet sem teclado não há como avançar, porque a Issue #6 pede uma tecla. Definir se o toque também deve avançar.
-- Andares e salas: minimapa; inimigos, itens e chefe (a vida já existe, mas só a chapa quente a tira); tranca do Fliperama (grão) e do Palco (vida cheia), e onde ganhar garfos (hoje só o do começo da run); a função de cada sala especial (comprar, pacto, prato da mamãe, sorteio do fliperama, ondas do palco e dormir na rede); a animação do aviso de morte e o que fazer depois dela (hoje o aviso leva ao menu).
+- Andares e salas: minimapa; inimigos, itens e chefe (a vida já existe, mas só a chapa quente a tira); tranca do Fliperama (grão) e do Palco (vida cheia), e onde ganhar garfos (hoje só o do começo da run); a função de cada sala especial (comprar, pacto, sorteio do fliperama, ondas do palco e dormir na rede); a animação do aviso de morte e o que fazer depois dela (hoje o aviso leva ao menu).
 - Os sprites dos outros dois personagens e os atributos entram quando forem definidos. Falta preencher o `sprite_path` do Tung Tung Sahur na TBOTT_api (a imagem reservada é `/sprites/characters/tung-tung-sahur.png`).

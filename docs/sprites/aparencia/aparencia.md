@@ -20,7 +20,7 @@ Só existe 1 quadro por direção de cada item (mockup). Nenhum quadro completo 
   - bastão: anel e ângulo;
   - aura: nada, porque os pés não se mexem.
 - **Regra de prioridade quando 2 itens querem o mesmo slot** (hoje só acontece nas costas, entre a Concha Longa e o Elixir Elétrico):
-  1. fica visível o de **maior raridade** (comum < incomum < especial, do Pacto e da Mamãe, < raro);
+  1. fica visível o de **maior raridade** (comum < incomum < especial, do Pacto e do Tung Tung God, < raro);
   2. se empatar, fica o **mais recente**.
 
   O efeito do item escondido continua valendo: a regra é só de aparência. Na prática, o Elixir (raro) ganha da Concha.

@@ -13,7 +13,7 @@ import { drawDrum, drawDrumText } from './drawDrum.js'
 import { drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
-import { drawRoomScenery } from './drawSpecialRooms.js'
+import { drawGodStatue, drawRoomScenery, GOD_STATUE_FEET_Y } from './drawSpecialRooms.js'
 import { ROOM_VIEW_BOTTOM_EXTRA } from './view.js'
 import { ROOM_THEMES } from './themes.js'
 
@@ -93,6 +93,8 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, { sh
     }
   }
   if (drum) sprites.push({ feetY: getFeetY(drum.box), draw: () => drawDrum(ctx, drum.box) })
+  // A estátua do Tung Tung God também entra na ordem dos pés: o jogador passa por trás dela
+  if (room.type === 'god') sprites.push({ feetY: GOD_STATUE_FEET_Y, draw: () => drawGodStatue(ctx) })
   if (player) sprites.push({ feetY: player.y, draw: () => drawPlayer(ctx, sheets, player, reduceMotion) })
   sprites.sort((a, b) => a.feetY - b.feetY).forEach((sprite) => sprite.draw())
 

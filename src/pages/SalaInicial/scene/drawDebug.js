@@ -32,10 +32,10 @@ const ROOM_LETTERS = {
   descanso: 'D',
   adega: 'A',
   pacto: 'X',
-  mamae: 'M',
+  god: 'G',
 }
 
-const LEGEND = ['I inicial  . comum  C chefe', 'T tesouro  L loja  P palco', 'F fliperama  D descanso', 'A adega  X pacto  M mamae', 'amarelo = atual  branco = visitada']
+const LEGEND = ['I inicial  . comum  C chefe', 'T tesouro  L loja  P palco', 'F fliperama  D descanso', 'A adega  X pacto  G god', 'amarelo = atual  branco = visitada']
 
 // Em unidades da sala (o ctx já vem com a escala)
 export function drawDebug(ctx, run) {

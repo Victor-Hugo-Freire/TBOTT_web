@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { ROOM_THEMES } from '../src/pages/SalaInicial/scene/themes.js'
 import { COLORS } from '../src/pages/SalaInicial/scene/colors.js'
 
-const THEME_KEYS = ['cantina', 'cucina', 'piazza', 'pastificio', 'porto', 'chefe', 'tesouro', 'loja', 'pacto', 'mamae', 'fliperama', 'palco', 'adega', 'descanso']
+const THEME_KEYS = ['cantina', 'cucina', 'piazza', 'pastificio', 'porto', 'chefe', 'tesouro', 'loja', 'pacto', 'god', 'fliperama', 'palco', 'adega', 'descanso']
 const COLOR_FIELDS = ['top', 'panelA', 'panelB', 'beam', 'beamLight', 'beamBase', 'beamShadow', 'base', 'baseLine', 'mortar', 'joint', 'side', 'side2', 'doorFrame', 'doorTrim', 'doorLeaf', 'stoneA', 'stoneB', 'post', 'postLight']
 const HEX = /^#[0-9a-f]{6}$/
 

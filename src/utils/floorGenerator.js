@@ -16,7 +16,7 @@ export const FLOORS = [
 
 export const LAST_FLOOR = 5
 
-export const ROOM_TYPES = ['inicial', 'comum', 'chefe', 'tesouro', 'loja', 'palco', 'fliperama', 'descanso', 'adega', 'pacto', 'mamae']
+export const ROOM_TYPES = ['inicial', 'comum', 'chefe', 'tesouro', 'loja', 'palco', 'fliperama', 'descanso', 'adega', 'pacto', 'god']
 export const SPECIAL_ROOM_TYPES = ROOM_TYPES.filter((type) => type !== 'inicial' && type !== 'comum')
 
 // Grade do andar: 9 colunas x 8 linhas. A sala inicial fica na mesma casa do Isaac.
@@ -200,7 +200,7 @@ function addCellar(rooms, occupied, number, random) {
   return true
 }
 
-// Pacto ou Mamãe (andares 2 a 4, 1 chance em 2): ao lado da sala do chefe. Nunca no andar 1 (pedido do Victor).
+// Pacto ou sala do Tung Tung God, tipo 'god' (andares 2 a 4, 1 chance em 2): ao lado da sala do chefe. Nunca no andar 1 (pedido do Victor).
 // Enquanto não há luta, a seed escolhe uma das duas, meio a meio.
 // A porta é normal nos dois sentidos; quem esconde a porta até o chefe ficar limpo é doors.js.
 function addPactRoom(rooms, occupied, number, random) {
@@ -214,7 +214,7 @@ function addPactRoom(rooms, occupied, number, random) {
 
   const side = pick(random, sides)
   const { col, row } = getNextCell(boss, side)
-  const pact = createRoom(col, row, pick(random, ['pacto', 'mamae']))
+  const pact = createRoom(col, row, pick(random, ['pacto', 'god']))
   pact.distance = boss.distance + 1
   linkRooms(boss, side, pact)
   rooms.push(pact)

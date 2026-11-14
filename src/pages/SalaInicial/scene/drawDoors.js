@@ -34,7 +34,7 @@ const DOOR_STYLES = {
   tesouro: { frame: '#b88a50', trim: '#e8c860', leaf: '#8a6238', icon: 'cloche' },
   loja: { frame: '#4a3020', trim: '#2a1a10', leaf: '#7a5a38', awning: true },
   pacto: { frame: '#14202a', trim: '#2a6a8a', leaf: '#1a2a3a', icon: 'tubarao', noBands: true },
-  mamae: { frame: '#d8c890', trim: '#f0e0a0', leaf: '#c8b078', icon: 'bem', noBands: true },
+  god: { frame: '#e4dfd2', trim: '#e8c860', leaf: '#f4f0e4', icon: 'aureola', noBands: true }, // porta do Tung Tung God: mármore e ouro
   fliperama: { frame: '#6a4a28', trim: '#d8a030', leaf: '#8a6a40', icon: 'bola' },
   palco: { frame: '#4a1a2a', trim: '#e0b040', leaf: '#3a1420', icon: 'mascara', noBands: true },
   descanso: { frame: '#6a5a48', trim: '#3a2e24', leaf: '#8a7458', icon: 'zz' },
@@ -45,7 +45,7 @@ const ICONS = {
   boss: { pal: { 1: '#e84a3a', 2: '#f4c040' }, rows: ['1..11..1', '1.1111.1', '11111111', '11111111', '22222222', '22222222', '........', '........'] },
   cloche: { pal: { 1: '#f0c040', 2: '#ffe890', 3: '#c8c8c8' }, rows: ['...22...', '..1111..', '.111111.', '11111111', '11111111', '33333333', '........', '........'] },
   tubarao: { pal: { 1: '#8ab8d8', 2: '#4a88b8' }, rows: ['...1....', '...11...', '..111...', '..1111..', '.11111..', '.111111.', '22222222', '........'] },
-  bem: { pal: { 1: '#ff7090', 3: '#ffe070' }, rows: ['..3333..', '........', '.11..11.', '11111111', '11111111', '.111111.', '..1111..', '...11...'] },
+  aureola: { pal: { 1: '#f0c840', 3: '#f4f0e6' }, rows: ['..1111..', '.1....1.', '.1....1.', '..1111..', '...33...', '..3333..', '..3333..', '..3333..'] },
   bola: { pal: { 1: '#e04848', 2: '#f4f0e8' }, rows: ['..1111..', '.111111.', '11122111', '11222211', '11222211', '11122111', '.111111.', '..1111..'] },
   mascara: { pal: { 1: '#e8c860', 2: '#2a1810' }, rows: ['.111111.', '11111111', '12211221', '12211221', '11111111', '12222221', '.122221.', '..1111..'] },
   zz: { pal: { 1: '#aac0f0', 2: '#7e98d0' }, rows: ['..11111.', '....11..', '...11...', '..11111.', '........', '.222....', '..2.....', '.222....'] },
@@ -157,9 +157,9 @@ function drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs) {
   paintRect(ctx, '#fff', 0, 0, 4, depth, 0.1)
   paintRect(ctx, '#000', DOOR_WIDTH - 4, 0, 4, depth, 0.25)
 
-  // Fundo do vão: escuro, com a luz quente da mamãe e a água do pacto quando aberta
+  // Fundo do vão: escuro, com o céu do Tung Tung God e a água do pacto quando aberta
   let inside = DARK
-  if (state === 'open' && kind === 'mamae') inside = '#3a2a14'
+  if (state === 'open' && kind === 'god') inside = '#9ccaf0'
   if (state === 'open' && kind === 'pacto') inside = '#04101a'
   paintRect(ctx, inside, FRAME, LINTEL, OPENING_WIDTH, opening)
 
@@ -196,7 +196,7 @@ function drawOpenLeaves(ctx, kind, leaf, opening) {
   paintRect(ctx, '#000', FRAME + 9, LINTEL, 2, opening - 6, 0.4)
   paintRect(ctx, '#000', DOOR_WIDTH - FRAME - 11, LINTEL, 2, opening - 6, 0.4)
   paintRect(ctx, '#000', FRAME + 14, LINTEL, OPENING_WIDTH - 28, 3, 0.5)
-  if (kind === 'mamae') drawMomCurtains(ctx, opening)
+  if (kind === 'god') drawDoorClouds(ctx, opening)
   if (kind === 'pacto') {
     // Bolhas na água escura
     paintRect(ctx, '#5a9ac0', FRAME + 24, LINTEL + 14, 5, 5, 0.7)
@@ -216,22 +216,12 @@ function drawOpeningLeaves(ctx, leaf, opening, progress) {
   paintRect(ctx, '#000', DOOR_WIDTH - FRAME - width - 2, LINTEL, 2, opening, 0.4)
 }
 
-// Mamãe aberta: luz quente lá dentro e uma cortina de renda presa dos dois lados
-function drawMomCurtains(ctx, opening) {
-  paintEllipse(ctx, '#f0c870', DOOR_WIDTH / 2, LINTEL + opening * 0.6, 34, 26, 0.25)
-  paintEllipse(ctx, '#fff0c0', DOOR_WIDTH / 2, LINTEL + opening * 0.6, 18, 14, 0.25)
-  for (const [start, direction] of [[FRAME, 1], [DOOR_WIDTH - FRAME, -1]]) {
-    polygon(ctx, '#f0e8d0', [
-      [start, LINTEL],
-      [start + direction * 30, LINTEL],
-      [start + direction * 12, LINTEL + opening * 0.55],
-      [start + direction * 16, LINTEL + opening],
-      [start, LINTEL + opening],
-    ])
-    for (let j = 0; j < opening - 8; j += 9) {
-      paintRect(ctx, '#fff', start + direction * 4 - (direction < 0 ? 3 : 0), LINTEL + 6 + j, 3, 3, 0.7)
-    }
-    paintEllipse(ctx, '#c8a040', start + direction * 12, LINTEL + opening * 0.55, 4, 3) // laço que prende a cortina
+// Porta do Tung Tung God aberta: um pedaço de céu com luz no alto e nuvens embaixo
+function drawDoorClouds(ctx, opening) {
+  const middle = DOOR_WIDTH / 2
+  paintEllipse(ctx, '#fff4c0', middle, LINTEL + opening * 0.3, 30, 18, 0.4)
+  for (const [dx, dy, radiusX, radiusY] of [[-26, 0.75, 26, 13], [4, 0.68, 30, 17], [32, 0.76, 22, 12]]) {
+    paintEllipse(ctx, '#ffffff', middle + dx, LINTEL + opening * dy, radiusX, radiusY, 0.9)
   }
 }
 
@@ -372,16 +362,24 @@ function drawOrnament(ctx, kind) {
       polygon(ctx, OUTLINE, [[u - 1, LINTEL], [u + 11, LINTEL], [u + 5, LINTEL + 13]])
       polygon(ctx, '#f0f0f0', [[u, LINTEL], [u + 10, LINTEL], [u + 5, LINTEL + 11]])
     }
-  } else if (kind === 'mamae') {
-    // Coração e renda
-    paintEllipse(ctx, OUTLINE, middle - 9, -26, 11.5, 11.5)
-    paintEllipse(ctx, OUTLINE, middle + 9, -26, 11.5, 11.5)
-    polygon(ctx, OUTLINE, [[middle - 21, -22], [middle + 21, -22], [middle, 1]])
-    paintEllipse(ctx, '#ff7090', middle - 9, -26, 9, 9)
-    paintEllipse(ctx, '#ff7090', middle + 9, -26, 9, 9)
-    polygon(ctx, '#ff7090', [[middle - 18, -23], [middle + 18, -23], [middle, -3]])
-    paintEllipse(ctx, '#fff', middle - 11, -29, 3, 2, 0.6)
-    for (let u = 6; u < DOOR_WIDTH; u += 12) paintEllipse(ctx, '#f4ecd8', u, 1, 6, 4)
+  } else if (kind === 'god') {
+    // Auréola dourada no meio e uma asa de três penas de cada lado
+    for (const side of [-1, 1]) {
+      for (let feather = 0; feather < 3; feather++) {
+        const x = middle + side * (34 + feather * 14)
+        const y = -14 - feather * 7
+        paintEllipse(ctx, OUTLINE, x, y, 16, 7.5)
+        paintEllipse(ctx, feather === 2 ? '#e8c860' : '#f4f0e6', x, y, 13, 5)
+      }
+    }
+    for (const [color, lineWidth] of [[OUTLINE, 8], ['#f0c840', 3.5]]) {
+      ctx.strokeStyle = color
+      ctx.lineWidth = lineWidth
+      ctx.beginPath()
+      ctx.ellipse(middle, -26, 17, 7, 0, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    for (let u = 6; u < DOOR_WIDTH; u += 12) paintEllipse(ctx, '#ffffff', u, 1, 6, 4, 0.9) // nuvens na base
   } else if (kind === 'fliperama') {
     // Letreiro de arcade com lâmpadas
     clipAboveDoor(ctx, () => {

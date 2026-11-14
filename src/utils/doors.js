@@ -96,7 +96,7 @@ export function isNearDoor(feet, side) {
 
 const NORMAL_ROOM_TYPES = ['inicial', 'comum']
 // Salas que saem da sala do chefe (as únicas ligadas a outra sala especial)
-const BOSS_BRANCH_TYPES = ['pacto', 'mamae']
+const BOSS_BRANCH_TYPES = ['pacto', 'god']
 
 function isSpecial(room) {
   return !NORMAL_ROOM_TYPES.includes(room.type)
@@ -115,7 +115,7 @@ function getTargetId(room, side) {
 
 // Tipo do desenho da porta. A porta de uma sala especial é temática dos dois lados (como no protótipo):
 // primeiro vale a sala do outro lado; se ela não for especial, vale a própria sala.
-// Entre o chefe e o pacto (ou a mamãe) as duas são especiais: vale a do pacto (ou da mamãe) dos dois lados,
+// Entre o chefe e o pacto (ou a sala do God) as duas são especiais: vale a do pacto (ou do God) dos dois lados,
 // então dentro do pacto a porta de volta continua sendo a do tubarão, e não a do chefe.
 export function getDoorKind(floor, room, side) {
   if (BOSS_BRANCH_TYPES.includes(room.type)) return room.type
@@ -172,7 +172,7 @@ export function getRoomDoors(floor, room) {
     if (room.secret && room.secret.side === side) {
       state = getSecretState(room.hits)
     } else if (room.type === 'chefe' && target && BOSS_BRANCH_TYPES.includes(target.type)) {
-      // A porta do pacto ou da mamãe só aparece depois que a sala do chefe fica limpa
+      // A porta do pacto ou do God só aparece depois que a sala do chefe fica limpa
       if (!room.cleared) continue
     } else if (target && needsFork(floor, target) && !target.unlocked) {
       state = 'locked'

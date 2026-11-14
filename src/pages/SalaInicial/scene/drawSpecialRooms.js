@@ -26,7 +26,7 @@ const SCENERY = {
   tesouro: drawTreasureRoom,
   loja: drawShop,
   pacto: drawPactRoom,
-  mamae: drawMomRoom,
+  god: drawGodRoom,
   fliperama: drawArcade,
   palco: drawStage,
   adega: drawCellar,
@@ -306,89 +306,305 @@ function drawSneaker(ctx, x, y) {
   rect(ctx, '#ffffff', x + 6, y + 6, 18, 2)
 }
 
-// ---------- Sala da Mamãe: mesa com toalha xadrez e prato, velas, quadro e réstias de alho ----------
+// ---------- Sala do Tung Tung God (tipo 'god'): céu, colunas de mármore, nuvens e a estátua dele ----------
+// Substituiu a Sala da Mamãe em 2026-11-14. A estátua é só visual: não tem função.
+// Ela é desenhada junto com o jogador (drawScene.js), na ordem dos pés, para o Tung passar por trás dela.
+// As casas X do layout 'god' (colunas 5 a 7, fileiras 3 e 4) ficam embaixo do pedestal.
 
-const CHECK_WIDTH = 24
-const CHECK_HEIGHT = 21
+const COLUMN_GOLD = '#e8c860'
+const COLUMN_GOLD_DARK = '#b89030'
 
-function drawMomRoom(ctx) {
-  drawGarlicString(ctx, 247)
-  drawGarlicString(ctx, 1235)
-  drawPicture(ctx, 400, 148)
-  drawDinnerTable(ctx, getCellsArea(4, 1, 8, 2))
-  glow(ctx, 800, 400, 420, '255, 220, 150', 0.18)
+// A estátua é toda de mármore (é isso que mostra que é uma estátua); o dourado gasto fica na auréola e no cetro
+const MARBLE = '#f4f0e6'
+const MARBLE_LIGHT = '#fffdf6'
+const MARBLE_SHADE = '#d6cfbc'
+const MARBLE_DARK = '#b4ab96'
+const CARVE = '#a39a84' // linhas esculpidas: penas, olhos, boca
+const STATUE_GOLD = '#d8b860'
+
+const STATUE_AREA = getCellsArea(5, 3, 7, 4)
+export const GOD_STATUE_FEET_Y = STATUE_AREA.y + STATUE_AREA.height // o desenho da estátua entra na lista pelos pés
+
+const COLUMN_XS = [300, 500, 1100, 1300] // longe da porta de cima (x 690 a 910)
+// Nuvens: [x, y, tamanho, transparência]. As de cima ficam nos painéis (longe do contador); as de baixo, nos cantos do piso.
+const CLOUDS = [
+  [220, 50, 70, 0.9],
+  [470, 38, 55, 0.9],
+  [1130, 44, 60, 0.9],
+  [1380, 56, 72, 0.9],
+  [230, 730, 120, 0.5],
+  [1370, 735, 130, 0.5],
+  [150, 520, 80, 0.4],
+  [1450, 480, 85, 0.4],
+]
+
+function drawGodRoom(ctx) {
+  // Névoa clara por cima do piso: a sombra do piso o deixaria cinza, e o céu tem de ficar claro
+  const floor = getCellsArea(0, 0, 12, 6)
+  const mist = ctx.createLinearGradient(0, floor.y, 0, floor.y + floor.height)
+  mist.addColorStop(0, 'rgba(235, 245, 255, 0.05)')
+  mist.addColorStop(1, 'rgba(235, 245, 255, 0.55)')
+  rect(ctx, mist, floor.x, floor.y, floor.width, floor.height)
+
+  drawLightRays(ctx)
+  for (const x of COLUMN_XS) drawColumn(ctx, x)
+  for (const [x, y, size, alpha] of CLOUDS) drawCloud(ctx, x, y, size, alpha)
+  glow(ctx, 800, 470, 430, '255, 244, 200', 0.25)
 }
 
-// Réstia pendurada na parede: alho e pimenta alternados
-function drawGarlicString(ctx, x) {
-  rect(ctx, '#6a4a2a', x, 138, 3, 76)
-  for (let k = 0; k < 4; k++) {
-    ellipse(ctx, k % 2 ? '#f0e8d0' : '#c03020', x + 1.5 + (k % 2 ? 7 : -7), 158 + k * 17, 8, 10)
+// Raios de luz que descem do alto e vão sumindo no piso
+function drawLightRays(ctx) {
+  const rays = ctx.createLinearGradient(0, 90, 0, 660)
+  rays.addColorStop(0, 'rgba(255, 248, 210, 0.28)')
+  rays.addColorStop(1, 'rgba(255, 248, 210, 0)')
+  polygon(ctx, rays, [[740, 90], [860, 90], [1080, 660], [520, 660]])
+}
+
+// Coluna de mármore na faixa de parede, com capitel e base dourados
+function drawColumn(ctx, x) {
+  rect(ctx, MARBLE, x - 22, 114, 44, 92)
+  rect(ctx, MARBLE_SHADE, x + 8, 114, 14, 92)
+  for (const flute of [-10, 0, 10]) rect(ctx, 'rgba(120, 110, 90, 0.35)', x + flute, 114, 2, 92)
+  outline(ctx, x - 22, 114, 44, 92)
+
+  rect(ctx, COLUMN_GOLD, x - 32, 94, 64, 20)
+  rect(ctx, COLUMN_GOLD_DARK, x - 32, 108, 64, 6)
+  outline(ctx, x - 32, 94, 64, 20)
+  rect(ctx, COLUMN_GOLD, x - 30, 206, 60, 20)
+  rect(ctx, COLUMN_GOLD_DARK, x - 30, 220, 60, 6)
+  outline(ctx, x - 30, 206, 60, 20)
+}
+
+// Nuvem de três bolas brancas com uma sombra azulada embaixo
+function drawCloud(ctx, x, y, size, alpha) {
+  ctx.globalAlpha = alpha
+  ellipse(ctx, '#ffffff', x, y, size, size * 0.35)
+  ellipse(ctx, '#ffffff', x - size * 0.5, y + size * 0.08, size * 0.6, size * 0.28)
+  ellipse(ctx, '#ffffff', x + size * 0.55, y + size * 0.1, size * 0.55, size * 0.26)
+  ellipse(ctx, 'rgba(170, 195, 225, 0.5)', x, y + size * 0.24, size * 0.9, size * 0.1)
+  ctx.globalAlpha = 1
+}
+
+// Elipse com contorno escuro (o contorno é uma elipse maior por baixo)
+function outlinedEllipse(ctx, color, x, y, radiusX, radiusY) {
+  ellipse(ctx, OUTLINE, x, y, radiusX + 3, radiusY + 3)
+  ellipse(ctx, color, x, y, radiusX, radiusY)
+}
+
+// Perna, braço ou cabo: um traço grosso com pontas redondas, com o contorno por baixo
+function drawLimb(ctx, x0, y0, x1, y1, width, color = MARBLE) {
+  ctx.lineCap = 'round'
+  for (const [stroke, lineWidth] of [[OUTLINE, width + 6], [color, width]]) {
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lineWidth
+    ctx.beginPath()
+    ctx.moveTo(x0, y0)
+    ctx.lineTo(x1, y1)
+    ctx.stroke()
+  }
+  ctx.lineCap = 'butt'
+}
+
+// Linha esculpida (um traço cinza na pedra)
+function carveLine(ctx, x0, y0, x1, y1) {
+  ctx.strokeStyle = CARVE
+  ctx.lineWidth = 2.5
+  ctx.beginPath()
+  ctx.moveTo(x0, y0)
+  ctx.lineTo(x1, y1)
+  ctx.stroke()
+}
+
+// Arco esculpido (sobrancelha, pálpebra, sorriso)
+function carveArc(ctx, x, y, radius, start, end, lineWidth = 2.5) {
+  ctx.strokeStyle = CARVE
+  ctx.lineWidth = lineWidth
+  ctx.beginPath()
+  ctx.arc(x, y, radius, start, end)
+  ctx.stroke()
+}
+
+// Estátua do Tung Tung God, de frente, igual à foto: um tronco reto de topo chato com o rosto grande em cima,
+// braços e pernas finos e longos, asas abertas, auréola e o cetro dourado com o aro na ponta de baixo.
+// Fica num pedestal de pedra, como a estátua do anjo do Isaac. Medidas a partir do chão (feet) e de onde os pés pisam (base).
+export function drawGodStatue(ctx) {
+  const x = 800
+  const feet = GOD_STATUE_FEET_Y - 6
+  const base = feet - 30 // os pés da estátua pisam no meio do tampo do pedestal
+  const top = base - 250 // topo do tronco
+  const hem = top + 150 // ponta de baixo do tronco, onde começam as pernas
+  const shoulders = top + 98
+
+  glow(ctx, x, base - 120, 230, '255, 250, 225', 0.35)
+  drawPedestal(ctx, x, feet)
+  for (const side of [-1, 1]) drawWing(ctx, x + side * 28, shoulders, side)
+
+  // Pernas longas e finas, com os pés virados um pouco para fora
+  for (const side of [-1, 1]) {
+    drawLimb(ctx, x + side * 13, hem - 4, x + side * 15, base - 8, 9)
+    outlinedEllipse(ctx, MARBLE, x + side * 21, base - 4, 15, 6)
+  }
+
+  drawStatueBody(ctx, x, top, hem)
+  drawStatueFace(ctx, x, top)
+
+  // Braços finos caindo dos lados do tronco. A mão da esquerda segura o cetro; a da direita fica aberta.
+  drawScepter(ctx, x - 50, top + 168)
+  drawLimb(ctx, x - 31, shoulders, x - 46, top + 160, 8)
+  outlinedEllipse(ctx, MARBLE, x - 49, top + 167, 7, 8)
+  drawLimb(ctx, x + 31, shoulders, x + 43, top + 163, 8)
+  outlinedEllipse(ctx, MARBLE, x + 45, top + 170, 6, 9)
+
+  drawHalo(ctx, x, top - 16)
+}
+
+// Pedestal de pedra baixo, com um painel entalhado na frente
+function drawPedestal(ctx, x, feet) {
+  floorShadow(ctx, x + 10, feet + 2, 125, 12)
+  rect(ctx, MARBLE_LIGHT, x - 104, feet - 36, 208, 12)
+  rect(ctx, MARBLE_SHADE, x - 104, feet - 24, 208, 24)
+  rect(ctx, CARVE, x - 104, feet - 25, 208, 2)
+  ctx.strokeStyle = CARVE
+  ctx.lineWidth = 2
+  ctx.strokeRect(x - 84, feet - 19, 168, 14)
+  outline(ctx, x - 104, feet - 36, 208, 36)
+}
+
+// Tronco: um tubo reto de mármore com o topo chato (cantos só um pouco arredondados), claro na esquerda e na sombra na direita
+function drawStatueBody(ctx, x, top, hem) {
+  const width = 68
+  const left = x - width / 2
+  const shade = ctx.createLinearGradient(left, 0, left + width, 0)
+  shade.addColorStop(0.1, MARBLE_LIGHT)
+  shade.addColorStop(0.45, MARBLE)
+  shade.addColorStop(0.8, MARBLE_SHADE)
+  shade.addColorStop(1, MARBLE_DARK)
+  ctx.beginPath()
+  ctx.roundRect(left, top, width, hem - top, [9, 9, 3, 3])
+  ctx.fillStyle = shade
+  ctx.fill()
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = OUTLINE_WIDTH
+  ctx.stroke()
+  // Borda do topo chato, vista um pouco de cima
+  carveLine(ctx, left + 6, top + 7, left + width - 6, top + 7)
+}
+
+// Rosto esculpido como o da foto: olhos grandes e redondos quase encostados, com pálpebra pesada e olheira,
+// nariz comprido e um sorriso largo. Sem cor: tudo em tons de pedra.
+function drawStatueFace(ctx, x, top) {
+  const eyeY = top + 46
+  for (const side of [-1, 1]) {
+    const eyeX = x + side * 16
+    ellipse(ctx, MARBLE_SHADE, eyeX, eyeY, 15, 14)
+    ellipse(ctx, MARBLE_LIGHT, eyeX, eyeY + 1, 12.5, 12)
+    ellipse(ctx, MARBLE_SHADE, eyeX, eyeY + 2, 6.5, 6.5)
+    ellipse(ctx, CARVE, eyeX, eyeY + 2, 2.6, 2.6)
+    carveArc(ctx, eyeX, eyeY + 3, 13, Math.PI * 1.1, Math.PI * 1.9, 3) // pálpebra pesada
+    carveArc(ctx, eyeX, eyeY - 2, 14, Math.PI * 0.3, Math.PI * 0.7, 2) // olheira
+    carveArc(ctx, eyeX, eyeY + 4, 18, Math.PI * 1.25, Math.PI * 1.75, 2) // sobrancelha
+  }
+  // Nariz comprido descendo entre os olhos
+  ellipse(ctx, MARBLE_SHADE, x + 2, eyeY + 20, 4.5, 12)
+  carveArc(ctx, x, eyeY + 30, 5, Math.PI * 0.1, Math.PI * 0.9, 2)
+  // Sorriso largo, com as covinhas nas pontas
+  carveArc(ctx, x, eyeY + 18, 24, Math.PI * 0.22, Math.PI * 0.78, 3)
+  carveArc(ctx, x - 22, eyeY + 30, 4, Math.PI * 0.6, Math.PI * 1.3, 2)
+  carveArc(ctx, x + 22, eyeY + 30, 4, Math.PI * 1.7, Math.PI * 2.4, 2)
+}
+
+// Auréola de dourado gasto flutuando sobre o topo, com um brilho fraco atrás
+function drawHalo(ctx, x, y) {
+  glow(ctx, x, y, 60, '255, 240, 170', 0.35)
+  for (const [color, lineWidth] of [[OUTLINE, 9], [STATUE_GOLD, 4]]) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = lineWidth
+    ctx.beginPath()
+    ctx.ellipse(x, y, 34, 7, 0, 0, Math.PI * 2)
+    ctx.stroke()
   }
 }
 
-// Quadro de moldura dourada com a lua e a mamãe
-function drawPicture(ctx, x, y) {
-  rect(ctx, '#c8a040', x, y, 82, 58)
-  rect(ctx, '#3a2a4a', x + 7, y + 7, 68, 44)
-  ellipse(ctx, '#f0d060', x + 41, y + 20, 10, 10)
-  rect(ctx, '#c8a8d0', x + 32, y + 28, 18, 23)
-  outline(ctx, x, y, 82, 58)
+// Asa aberta de pedra, subindo do ombro para fora (como na foto), com a borda de baixo recortada em penas longas.
+// Desenhada como a asa da direita a partir do ombro (x cresce para fora, y negativo para cima), em WING_SCALE;
+// side = -1 espelha para a esquerda.
+const WING_SCALE = 0.8
+const WING_FEATHERS = [
+  // [ponta da pena (controle da curva), vale entre esta pena e a próxima]
+  [[128, 20], [106, -6]],
+  [[108, 34], [86, 6]],
+  [[86, 42], [64, 12]],
+  [[64, 44], [42, 14]],
+  [[42, 40], [22, 12]],
+  [[22, 32], [2, 8]],
+]
+
+function traceWing(ctx) {
+  ctx.beginPath()
+  ctx.moveTo(0, -12)
+  ctx.bezierCurveTo(20, -60, 60, -110, 112, -128) // borda de cima, até a ponta
+  ctx.quadraticCurveTo(134, -134, 130, -110) // ponta arredondada
+  ctx.quadraticCurveTo(138, -60, 124, -20) // borda de fora, descendo
+  for (const [[tipX, tipY], [valleyX, valleyY]] of WING_FEATHERS) ctx.quadraticCurveTo(tipX, tipY, valleyX, valleyY)
+  ctx.closePath()
 }
 
-// Mesa comprida coberta pela toalha, com uma cadeira em cada ponta, prato de macarrão e duas velas
-function drawDinnerTable(ctx, area) {
-  const right = area.x + area.width
-  const bottom = area.y + area.height
-  const clothTop = area.y + 14
-  const clothBottom = area.y + 98
+function drawWing(ctx, shoulderX, shoulderY, side) {
+  ctx.save()
+  ctx.translate(shoulderX, shoulderY)
+  ctx.scale(side * WING_SCALE, WING_SCALE)
 
-  floorShadow(ctx, area.x + area.width / 2 + 8, bottom - 4, area.width / 2 - 10, 10)
+  const shade = ctx.createLinearGradient(0, -130, 110, 30)
+  shade.addColorStop(0, MARBLE_LIGHT)
+  shade.addColorStop(1, MARBLE_SHADE)
+  traceWing(ctx)
+  ctx.fillStyle = shade
+  ctx.fill()
 
-  // Cadeiras: o encosto aparece nas pontas da mesa
-  for (const x of [area.x + 2, right - 28]) {
-    rect(ctx, '#7a4a24', x, area.y + 24, 26, bottom - area.y - 26)
-    rect(ctx, '#5a3418', x, area.y + 24, 26, 6)
-    outline(ctx, x, area.y + 24, 26, bottom - area.y - 26)
-  }
+  // Penas esculpidas, só dentro da asa: as longas (do vale até perto da borda de cima) e duas fileiras de penas curtas
+  ctx.save()
+  traceWing(ctx)
+  ctx.clip()
+  const longFeathers = [[106, -6, 92, -72], [86, 6, 70, -60], [64, 12, 50, -48], [42, 14, 30, -38], [22, 12, 14, -26]]
+  for (const [x0, y0, x1, y1] of longFeathers) carveLine(ctx, x0, y0, x1, y1)
+  for (let k = 0; k <= 5; k++) carveArc(ctx, 12 + k * 18, -36 - k * 13, 12, Math.PI * 0.1, Math.PI * 0.9)
+  for (let k = 0; k <= 4; k++) carveArc(ctx, 22 + k * 20, -64 - k * 12, 9, Math.PI * 0.1, Math.PI * 0.9)
+  ctx.restore()
 
-  // Pés e borda da mesa
-  const tableLeft = area.x + 24
-  const tableWidth = area.width - 48
-  rect(ctx, '#6a4220', tableLeft + 16, clothBottom, 14, bottom - clothBottom - 2)
-  rect(ctx, '#6a4220', tableLeft + tableWidth - 30, clothBottom, 14, bottom - clothBottom - 2)
-  rect(ctx, '#6a4220', tableLeft, clothBottom - 4, tableWidth, 10)
-
-  // Toalha xadrez branca e vermelha
-  rect(ctx, '#e8e0d0', tableLeft, clothTop, tableWidth, clothBottom - clothTop)
-  for (let row = 0; row * CHECK_HEIGHT < clothBottom - clothTop; row++) {
-    for (let col = 0; col * CHECK_WIDTH < tableWidth; col++) {
-      if ((row + col) % 2 === 0) continue
-      const width = Math.min(CHECK_WIDTH, tableWidth - col * CHECK_WIDTH)
-      const height = Math.min(CHECK_HEIGHT, clothBottom - clothTop - row * CHECK_HEIGHT)
-      rect(ctx, '#c03a2a', tableLeft + col * CHECK_WIDTH, clothTop + row * CHECK_HEIGHT, width, height)
-    }
-  }
-  outline(ctx, tableLeft, clothTop, tableWidth, clothBottom - clothTop + 6)
-
-  // Prato de macarrão com queijo e manjericão
-  const plateX = area.x + area.width / 2
-  const plateY = clothTop + 40
-  ellipse(ctx, '#f4f0e8', plateX, plateY, 64, 20)
-  ellipse(ctx, '#c03020', plateX, plateY - 2, 44, 13)
-  for (let k = 0; k < 9; k++) rect(ctx, '#e8c860', plateX - 28 + k * 6, plateY - 10 + (k % 2) * 6, 5, 3)
-  rect(ctx, '#3a8a3a', plateX - 4, plateY - 10, 8, 4)
-
-  for (const x of [plateX - 150, plateX + 150]) drawCandle(ctx, x, clothTop + 30)
+  traceWing(ctx)
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = OUTLINE_WIDTH / WING_SCALE
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+  ctx.lineJoin = 'miter'
+  ctx.restore()
 }
 
-// Vela em cima da mesa; bottom é a base
-function drawCandle(ctx, x, bottom) {
-  rect(ctx, '#f4ecd0', x - 6, bottom - 34, 12, 34)
-  rect(ctx, '#d8cca8', x - 6, bottom - 34, 12, 4)
-  glow(ctx, x, bottom - 42, 110, '255, 200, 100', 0.35)
-  ellipse(ctx, '#ffd060', x, bottom - 41, 5, 9)
-  ellipse(ctx, '#fff4c0', x, bottom - 39, 2.5, 4.5)
+// Cetro da foto, segurado pela mão (handX, handY): uma bolinha dourada logo acima da mão, a haste descendo na
+// diagonal para fora e, na ponta de baixo, o aro dourado com uma barra no meio e uma bolinha embaixo
+function drawScepter(ctx, handX, handY) {
+  const knobX = handX + 6
+  const knobY = handY - 12
+  const ringX = handX - 36
+  const ringY = handY + 56
+  drawLimb(ctx, knobX, knobY, ringX + 9, ringY - 14, 6)
+  for (const band of [0.3, 0.65]) {
+    const bandX = knobX + (ringX - knobX) * band
+    const bandY = knobY + (ringY - knobY) * band
+    ellipse(ctx, STATUE_GOLD, bandX, bandY, 4, 4)
+  }
+  outlinedEllipse(ctx, STATUE_GOLD, knobX, knobY, 5, 5)
+  // Aro com a barra no meio (como uma cruz dentro do círculo)
+  for (const [color, lineWidth] of [[OUTLINE, 9], [STATUE_GOLD, 4]]) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = lineWidth
+    ctx.beginPath()
+    ctx.ellipse(ringX, ringY, 17, 18, 0, 0, Math.PI * 2)
+    ctx.moveTo(ringX, ringY - 18)
+    ctx.lineTo(ringX, ringY + 18)
+    ctx.stroke()
+  }
+  outlinedEllipse(ctx, STATUE_GOLD, ringX, ringY + 22, 4, 4)
 }
 
 // ---------- Fliperama: tambor de bingo entre duas torres, funil e lâmpadas de festa ----------

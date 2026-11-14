@@ -21,7 +21,7 @@ import {
 import { PLAYER_FEET_BOX, ROOM_FLOOR, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
 
 const THEMES = ['cantina', 'cucina', 'piazza', 'pastificio', 'porto']
-const ROOM_TYPES = ['inicial', 'comum', 'chefe', 'tesouro', 'loja', 'pacto', 'mamae', 'fliperama', 'palco', 'adega', 'descanso']
+const ROOM_TYPES = ['inicial', 'comum', 'chefe', 'tesouro', 'loja', 'pacto', 'god', 'fliperama', 'palco', 'adega', 'descanso']
 const OBSTACLE_LETTERS = ['#', 'o', '~', '*']
 
 const countObstacles = (layout) => layout.tiles.join('').split('').filter((letter) => OBSTACLE_LETTERS.includes(letter)).length
@@ -31,7 +31,7 @@ const countLetter = (layout, letter) => layout.tiles.join('').split(letter).leng
 const ALL_SIDE_SETS = Array.from({ length: 15 }, (_, index) => SIDES.filter((_, bit) => (index + 1) & (1 << bit)))
 
 // Lados que cada tipo de sala pode ter: comum e inicial, qualquer combinação (a porta secreta é um lado a mais);
-// especiais são becos (1 lado); o chefe pode ganhar a porta do pacto ou da mamãe (2 lados).
+// especiais são becos (1 lado); o chefe pode ganhar a porta do pacto ou do God (2 lados).
 function getPossibleSideSets(type) {
   if (type === 'comum' || type === 'inicial') return ALL_SIDE_SETS
   const single = SIDES.map((side) => [side])
@@ -106,7 +106,7 @@ describe('roomLayouts.json (formato)', () => {
     const expected = {
       loja: [{ col: 4, row: 2 }, { col: 6, row: 2 }, { col: 8, row: 2 }],
       pacto: [{ col: 6, row: 2 }],
-      mamae: [{ col: 10, row: 2 }],
+      god: [{ col: 10, row: 2 }],
       fliperama: [{ col: 6, row: 3 }],
       palco: [{ col: 6, row: 2 }],
       adega: [{ col: 6, row: 2 }],
@@ -117,7 +117,7 @@ describe('roomLayouts.json (formato)', () => {
       assert.ok(countLetter(getLayout(id), 'X') > 0, id)
     }
     // Só a adega tem obstáculos (barris, garrafão e vinho da cantina)
-    for (const id of ['loja', 'pacto', 'mamae', 'fliperama', 'palco', 'descanso']) assert.equal(countObstacles(getLayout(id)), 0, id)
+    for (const id of ['loja', 'pacto', 'god', 'fliperama', 'palco', 'descanso']) assert.equal(countObstacles(getLayout(id)), 0, id)
   })
 })
 
