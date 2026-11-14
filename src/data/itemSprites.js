@@ -385,7 +385,8 @@ export const CONSUMABLE_SPRITES = {
         frameHeight: 64,
         feetX: 32,
         feetPadding: 32,
-        framesPerRow: 8,
+        framesPerRow: 9,
+        idleFrame: 8, // a porta trancada parada: só a chapa e o nó, sem o garfo (ele aparece ao ser colocado, no quadro 0)
         animations: {
           'porta-trancada': { row: 0, frames: 8, durations: [110, 110, 120, 120, 110, 120, 140, 160] },
         },

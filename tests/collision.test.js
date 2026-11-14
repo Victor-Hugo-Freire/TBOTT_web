@@ -46,9 +46,9 @@ describe('moveAndCollide', () => {
 })
 
 describe('colisão com as paredes da sala', () => {
-  test('os limites dos pés vêm das paredes e da caixa de 44x18', () => {
-    assert.deepEqual(PLAYER_FEET_BOX, { width: 44, height: 18 })
-    assert.deepEqual(ROOM_PLAYER_BOUNDS, { minX: 140, maxX: 1460, minY: 291, maxY: 786 })
+  test('os limites dos pés vêm das paredes e da caixa de 52x21 (44x18 vezes a escala 1,18)', () => {
+    assert.deepEqual(PLAYER_FEET_BOX, { width: 52, height: 21 })
+    assert.deepEqual(ROOM_PLAYER_BOUNDS, { minX: 144, maxX: 1456, minY: 294, maxY: 786 })
   })
 
   test('as paredes são bem mais grossas que o passo máximo de um quadro', () => {
@@ -92,5 +92,38 @@ describe('colisão com as paredes da sala', () => {
       assert.ok(position.x >= ROOM_PLAYER_BOUNDS.minX && position.x <= ROOM_PLAYER_BOUNDS.maxX)
       assert.ok(position.y >= ROOM_PLAYER_BOUNDS.minY && position.y <= ROOM_PLAYER_BOUNDS.maxY)
     }
+  })
+})
+
+describe('colisão com obstáculos da sala', () => {
+  // caixa sólida de obstáculo de piso (84x60) no meio da sala
+  const block = box(700, 450, 84, 60)
+  const solids = [...ROOM_WALLS, block]
+  const feetBox = (position) => box(position.x - PLAYER_FEET_BOX.width / 2, position.y - PLAYER_FEET_BOX.height, PLAYER_FEET_BOX.width, PLAYER_FEET_BOX.height)
+
+  test('dt de 0,05 s (o máximo) não atravessa o obstáculo, de nenhum lado', () => {
+    const cases = [
+      [{ x: 600, y: 490 }, { x: 1, y: 0 }],
+      [{ x: 880, y: 490 }, { x: -1, y: 0 }],
+      [{ x: 742, y: 400 }, { x: 0, y: 1 }],
+      [{ x: 742, y: 600 }, { x: 0, y: -1 }],
+    ]
+    for (const [start, movement] of cases) {
+      let position = start
+      for (let frame = 0; frame < 40; frame++) {
+        position = moveRoomPlayer(position, movement, 0.05, 1, solids)
+        assert.equal(overlaps(feetBox(position), block), false)
+      }
+      assert.notDeepEqual(position, start, 'andou até encostar')
+    }
+  })
+
+  test('na diagonal contra o obstáculo, desliza pela borda', () => {
+    const movement = getRoomMovement(new Set(['KeyD', 'KeyS']))
+    let position = { x: 670, y: 460 }
+    // 10 quadros: o bastante para encostar, sem passar da borda de baixo do bloco
+    for (let frame = 0; frame < 10; frame++) position = moveRoomPlayer(position, movement, 1 / 60, 1, solids)
+    assert.equal(position.x, 700 - PLAYER_FEET_BOX.width / 2)
+    assert.ok(position.y > 460)
   })
 })

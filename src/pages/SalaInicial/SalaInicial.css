@@ -1,6 +1,7 @@
 /* A sala ocupa exatamente a janela. O canvas desenha a sala com escala
    uniforme (veja getRoomView, que corta até 30 u das paredes de cima e de baixo); a sobra fica na cor de fundo do jogo. */
 .sala-inicial {
+  position: relative;
   width: 100vw;
   height: 100vh;
   height: 100dvh;
@@ -14,4 +15,87 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Aviso de fim da run, por cima do canvas (que fica escuro). Aqui o cursor volta, para clicar nos botões. */
+.sala-inicial__fim {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  cursor: default;
+  animation: sala-inicial-fim-surgir 300ms ease-out both;
+}
+
+.sala-inicial__fim-painel {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  width: min(100%, 26rem);
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background-panel);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-text);
+  text-align: center;
+}
+
+.sala-inicial__fim-titulo,
+.sala-inicial__fim-tempo,
+.sala-inicial__fim-mensagem {
+  margin: 0;
+}
+
+.sala-inicial__fim-titulo {
+  color: var(--color-text-light);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  font-weight: 700;
+}
+
+.sala-inicial__fim-tempo {
+  color: var(--color-text-light);
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.sala-inicial__fim-mensagem {
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.sala-inicial__fim-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.sala-inicial__fim-botao {
+  min-height: 2.75rem;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-light);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sala-inicial__fim-botao:hover {
+  background: var(--color-surface-alt);
+}
+
+.sala-inicial__fim-botao:focus-visible {
+  outline: 3px solid var(--color-text-light);
+  outline-offset: 3px;
+}
+
+@keyframes sala-inicial-fim-surgir {
+  from {
+    opacity: 0;
+  }
 }

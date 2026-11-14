@@ -21,14 +21,14 @@ O protótipo das telas está no [Figma](https://www.figma.com/design/tUj2NnhhX4o
 | --------------------------------------- | ------- | ----------------------------------- |
 | Inicial                                 | `/`     | Pronta (Issue #6)                   |
 | Menu principal                          | `/menu` | Protótipo implementado (Issue #7)    |
-| Sala inicial / nova partida             | `/jogo` | Protótipo implementado (Issue #10)   |
+| Jogo: andares e salas                   | `/jogo` | Run jogável sem inimigos (Issues #19, #20 e #21) |
 | Ranking                                 | `/ranking` | Implementada                     |
 | Opções                                  | `/opcoes` | Implementada (Issue #15)           |
 | Perfil do usuário                       | `/perfil` | Tela provisória                   |
 | Seleção de personagem                   | `/selecao-personagem` | Protótipo implementado (Issue #8) |
 | Entrar (login e cadastro)               | `/entrar` | Implementada (Issue #14)          |
-| Jogo (combate, salas, inimigos e itens) | -       | A fazer                             |
-| Vitória e derrota                       | -       | A fazer                             |
+| Jogo (inimigos, itens e vida)           | -       | A fazer                             |
+| Derrota                                 | -       | A fazer (a vitória é o aviso de fim da run) |
 
 Só a Inicial e a tela de entrar são públicas: as demais exigem login e levam para `/entrar` quem não está logado (`RotaProtegida`). Se a API responder 401 no meio do jogo, o jogador volta para `/entrar` com o aviso de sessão expirada.
 
@@ -46,10 +46,17 @@ src/
     MenuPrincipal/   menu principal e telas provisórias (MenuDestino)
     Opcoes/          volumes, tela cheia e controles do jogo
     sessaoPersonagem/ seleção de personagem: carrossel com os personagens vindos da API
-    SalaInicial/     sala inicial em canvas; scene/ desenha a sala, o personagem, o arco do golpe e o debug
+    SalaInicial/     o jogo em canvas (a pasta mantém o nome antigo); scene/ desenha tudo:
+                     drawScene.js (a sala atual e a transição), drawRoom.js + themes.js, drawWallPattern.js,
+                     drawFloorPattern.js e drawWallDecor.js (temas), drawSpecialRooms.js (cenário das salas especiais),
+                     drawObstacles.js, drawDoors.js, drawDrum.js, drawPlayer.js, drawFloorBanner.js (faixa),
+                     drawHud.js, drawTimer.js e drawDebug.js (F3)
   components/        componentes usados por várias telas (CharacterSprite, BotaoVoltar)
-  data/              characterSprites.js (arquivo, quadros e direções de cada sprite)
-  utils/             teclado (keyboard.js, menuKeyboard.js), sala (roomMovement.js, collision.js), personagem (player.js, spriteAnimation.js) e canvas.js e pixelFont.js (desenho)
+  data/              characterSprites.js (arquivo, quadros e direções de cada sprite), uiSprites.js (ícones do HUD)
+                     e roomLayouts.json (os 21 layouts de sala)
+  utils/             teclado (keyboard.js, menuKeyboard.js), sala (roomMovement.js, collision.js), personagem (player.js, spriteAnimation.js),
+                     run (random.js, floorGenerator.js, roomLayout.js, roomObstacles.js, doors.js, run.js), progress.js
+                     e canvas.js e pixelFont.js (desenho)
   services/api.js    endereço da API e função apiRequest
   styles/global.css  cores, fonte e classes usadas por todas as telas
 tests/               testes automatizados (node:test)
@@ -110,7 +117,7 @@ O menu em `/menu` apresenta as opções **Continue**, **New game**, **Ranks** e 
 - **A:** seleciona o botão para voltar à tela inicial.
 - **Enter:** ativa a opção ou o controle selecionado.
 
-Na sala, as setas atacam (veja a seção Sala inicial).
+Na sala, as setas atacam (veja a seção Andares e salas).
 
 Também é possível usar o mouse ou outro dispositivo apontador para selecionar e ativar os botões. A lógica de mapeamento das teclas fica em `src/utils/menuKeyboard.js`.
 
@@ -122,7 +129,7 @@ A tela `/opcoes`, acessível pelo item **Options** do menu principal, permite aj
 
 - **Volume da música** e **efeitos sonoros:** controles deslizantes de 0% a 100%. As preferências são salvas neste navegador em `localStorage` (`tbott.options`), com a leitura e a validação em `src/utils/options.js` e restauradas ao abrir a tela novamente. Se o navegador não permitir ler ou gravar o armazenamento, a tela informa o erro.
 - **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual. A tela cheia ativada pelo F11 do navegador não é detectada e aparece como "Off".
-- **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar e **Esc** para voltar ao menu.
+- **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar, **R** (segurando) para recomeçar a run e **Esc** para voltar ao menu.
 - **Teclado:** **W/S** ou **↑/↓** percorrem os itens; **Enter** ativa botões; **←/→** ajustam o volume quando o controle deslizante está selecionado. **A/←** seleciona o botão de voltar e **D/→** seleciona o cartão do usuário. Também é possível operar a tela com mouse ou outro dispositivo apontador.
 
 Os volumes ficam salvos localmente, mas ainda não alteram a reprodução de áudio: música e efeitos sonoros ainda não estão implementados no jogo.
@@ -133,48 +140,158 @@ A tela `/selecao-personagem` busca os personagens em `GET /api/characters` (pelo
 
 O código fica em `src/pages/sessaoPersonagem/`. Os cartões ainda não mostram o sprite do personagem.
 
-## Sala inicial
+## Andares e salas
 
-Depois da seleção de personagem, `/jogo` mostra a sala de madeira e o personagem. A sala já recebe o personagem escolhido em `location.state.character` (sem ele, usa o Tung Tung Sahur), mas só aproveita o nome, no `aria-label` do canvas. O desenho é sempre o do Tung Tung Sahur, único personagem com sprite disponível. **Aviso:** quando os outros personagens ganharem sprite, é em `SalaInicial.jsx` e em `scene/` (`sheets.js` e `drawPlayer.js`) que o desenho deve passar a seguir o personagem escolhido.
+Depois da seleção de personagem, `/jogo` abre a run: 5 andares gerados por uma seed, com todas as salas, portas e obstáculos. Ainda não há inimigos, itens nem vida: o jogador atravessa as salas, chega à sala do chefe e bate no tambor para seguir. No andar 5 a run termina e o tempo vai para o ranking.
+
+A tela recebe o personagem escolhido em `location.state.character` (sem ele, usa o Tung Tung Sahur), mas só aproveita o nome, no `aria-label` do canvas. O desenho é sempre o do Tung Tung Sahur, único personagem com sprite disponível. **Aviso:** quando os outros personagens ganharem sprite, é em `SalaInicial.jsx` e em `scene/` (`sheets.js` e `drawPlayer.js`) que o desenho deve passar a seguir o personagem escolhido.
 
 **Controles**
 
 - **W**, **A**, **S** e **D** movem o personagem; segurar uma tecla mantém o movimento e as diagonais são aceitas (a velocidade não aumenta). Com teclas opostas seguradas (A e D, ou W e S), vale a última apertada. As teclas valem pela posição física (`event.code`), em qualquer layout de teclado.
 - **Setas** atacam com o bastão na direção da seta. Segurar repete o golpe; com duas setas apertadas, vale a última pressionada.
+- **R (segurando 1 s):** recomeça a run, como no Isaac. A tela escurece enquanto a tecla é segurada; ao completar, começa outra run no andar 1, com outra seed, a vida cheia e o tempo zerado, e ela é salva por cima da anterior. Soltar antes desfaz. Continuar segurando recomeça de novo a cada 1 s, uma run atrás da outra (como no Isaac, para sortear seeds). Soltar ou perder o foco da janela para; o repeat do teclado não religa o R sem um aperto novo. Não vale durante a morte nem depois do fim da run (`updateRestartHold` e `updateRestartKey` em `src/utils/run.js`).
 - **Esc:** retorna provisoriamente ao menu principal.
-- **F3** (só em `npm run dev`): mostra as paredes, a caixa dos pés e a área do golpe. Não existe no build.
+- **F3** (só em `npm run dev`): mostra a camada de teste (veja abaixo). Não existe no build.
+
+**Os 5 andares** (`FLOORS` em `src/utils/floorGenerator.js`)
+
+| Andar | Nome na faixa | Salas no mapa | Obstáculos: bloco, sai com o bastão, piso e especial |
+| --- | --- | --- | --- |
+| 1 | CANTINA | 9 a 10 | barril, garrafão, vinho, barril deitado |
+| 2 | CUCINA | 9 a 11 | balcão, saco de farinha, azeite, chapa quente |
+| 3 | PIAZZA | 10 a 12 | Vespa, caixote de tomate, sorvete, mesa de café |
+| 4 | PASTIFICIO | 10 a 12 | máquina, roda de parmesão, massa crua, esteira |
+| 5 | PORTO | 11 a 13 | caixote de peixe, armadilha de lagosta, poça, rede |
+
+Cada andar tem a sua parede, o seu piso e os seus enfeites (`scene/themes.js`); a Cantina é a sala de sempre, sem enfeites.
+
+**Geração por seed** (`random.js` e `floorGenerator.js`)
+
+- A run guarda uma seed só. Cada andar usa uma seed derivada dela e do número do andar (`mixSeed`), então a mesma seed gera sempre os mesmos 5 andares.
+- O sorteio usa contas de inteiros (`mulberry32`), que dão o mesmo resultado em qualquer navegador. `Math.random` só aparece para criar a seed de uma run nova (`createRunSeed`).
+- O mapa segue o artigo do Boris the Brave sobre a geração de andares do _The Binding of Isaac_: grade de 9 x 8 casas, sala inicial na coluna 4, linha 3, e uma fila que cria salas vizinhas ao acaso. Uma casa só recebe sala se tiver no máximo um vizinho ocupado, então o mapa nunca fecha um laço.
+- Se o andar não tiver becos sem saída suficientes para o chefe, o tesouro e a loja, ele é gerado de novo (o número de tentativas aparece no F3).
+
+**Tipos de sala e onde aparecem**
+
+| Sala | Andares | Regra |
+| --- | --- | --- |
+| Inicial | todos | No meio da grade; é onde a faixa do andar aparece. |
+| Comum | todos | As outras salas do mapa. |
+| Chefe | todos | O beco mais distante da inicial. Tem o tambor. |
+| Tesouro e loja | todos | Outros becos, sorteados (obrigatórios). |
+| Palco | 2 a 5 | Se sobrar beco. |
+| Fliperama | todos | 1 chance em 3, se sobrar beco. |
+| Descanso | todos | 1 chance em 4, se sobrar beco. |
+| Adega secreta | 1 a 4 (nunca no 5º) | Sempre, uma por andar, ao lado de uma sala comum (de preferência a 3 ou mais salas da inicial). Escondida. |
+| Pacto ou Mamãe | 2 a 4 (nunca no 1º) | 1 chance em 2, ao lado da sala do chefe; a porta aparece com a sala do chefe limpa. |
+
+As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/drawSpecialRooms.js`). A função de cada uma (comprar, pacto, dormir...) ainda não existe.
+
+**Layouts** (`src/data/roomLayouts.json` e `src/utils/roomLayout.js`)
+
+- Cada layout é uma grade de 13 x 7 letras sobre o piso: `.` chão, `#` bloco, `o` sai com o bastão (quebra ou, no Pastificio, rola), `~` piso, `*` especial do andar, `X` cenário de sala especial, `D` tambor, `i` ponto de inimigo e `t` ponto de item (nesses dois pontos ainda não aparece nada).
+- A letra diz o papel e o andar escolhe o obstáculo: o mesmo layout serve nos 5 andares. A adega usa sempre os obstáculos da Cantina.
+- São 21 layouts: 1 inicial, 10 comuns (vazios, leves, médios e cheios, até 12 obstáculos), 2 de tesouro, 1 de chefe e 1 de cada sala especial.
+- As casas da frente das portas ficam sempre vazias. Ao sortear o layout, uma busca com a caixa real dos pés confere que dá para ir de cada porta a todas as outras e a todos os pontos; layout que não passa não é usado naquela sala.
+
+**As 7 mecânicas dos obstáculos** (`src/utils/roomObstacles.js`)
+
+| Mecânica | Obstáculos | O que faz |
+| --- | --- | --- |
+| Sólido | barril, balcão, Vespa, mesa, máquina, caixote de peixe | Bloqueia. |
+| Quebrável | garrafão, saco, caixote de tomate, lagosta | Bloqueia e some com 1 golpe. |
+| Rolante | barril deitado, roda de parmesão | Com 1 golpe, rola na direção do golpe e quebra ao bater. |
+| Escorregadio | vinho, azeite, sorvete, poça | Pisar andando dá um escorregão: a velocidade pula para 1,4 vez a do andar (`SLIP_SPEED`) e, em cima, ele tem inércia (vira e freia devagar; parado, leva 1,25 s para ganhar a velocidade do andar). Ele sai da poça embalado: soltando a tecla, só para cerca de 160 u depois dela, e o embalo leva até 0,9 s para sumir. Bater numa parede ou obstáculo tira a velocidade daquele eixo. |
+| Quente | chapa | Encostar queima: toca a animação de dano e tira meio coração (no máximo uma vez por segundo). |
+| Grudento | massa crua, rede | Em cima, anda a 35%. |
+| Esteira | esteira | Empurra para a direita ou para a esquerda (`getConveyorDirection`: depende da casa; vizinhas na mesma linha empurram juntas), a 220 u/s: dá para andar contra ela, bem devagar. As setas apontam para o lado do empurrão e andam na mesma velocidade dele (paradas, mas visíveis, com "reduzir movimento"). |
+
+Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
+
+**Portas e transição** (`src/utils/doors.js` e `scene/drawDoors.js`)
+
+- Uma porta em cada lado que tem sala vizinha. O desenho segue o tipo da sala especial do outro lado (ou da própria sala especial). Entre o chefe e o pacto (ou a mamãe), a porta é a do pacto (ou da mamãe) dos dois lados. A porta abre quando a sala está limpa; como ainda não há inimigos, toda sala fica limpa ao entrar.
+- Para atravessar, os pés encostam na parede dentro do vão e o jogador continua apertando para aquele lado.
+- **Portas trancadas com garfo** (`needsFork`): a Sala do Tesouro (do andar 2 em diante) e a Sala de Descanso. A porta mostra a chapa com o nó de espaguete, sem garfo. Empurrar a porta com pelo menos 1 garfo gasta o garfo e toca a animação (o garfo aparece no nó, enrola e tira o nó em 990 ms, depois as folhas se abrem em 260 ms); só então dá para passar. Sem garfo, ela fica trancada. Aberta, fica aberta até o fim do andar, também ao continuar a run (`unlocked` no estado da sala). A Loja fica sempre aberta; vida cheia no Palco e grão no Fliperama ainda não trancam.
+- A câmera desliza 350 ms na direção da porta, com a sala antiga saindo e a nova entrando. Com "reduzir movimento" no sistema, a tela escurece e clareia já na sala nova. O jogador surge do outro lado, um pouco para dentro da porta.
+
+**Adega secreta: como achar**
+
+1. De longe, a parede é igual às outras.
+2. De perto (até 1 casa da porta escondida), aparece a marca: três riscos de giz, um tijolo solto e poeira.
+3. Três golpes do bastão na marca abrem a parede: no 1º ela fica trincada (e passa a aparecer de longe), no 3º vira uma porta. Os golpes ficam guardados na sala.
+
+**Tambor e fim da run**
+
+- O tambor fica no centro da sala do chefe. Cada golpe conta uma batida e escreve "TUNG" acima dele (TUNG, TUNG TUNG, TUNG TUNG TUNG).
+- Na 3ª batida a tela escurece, o próximo andar é gerado e o jogador surge no centro da sala inicial, com a faixa do andar.
+- No andar 5, a run termina em vitória: o contador para, o progresso é salvo uma última vez e o jogo envia `POST /api/runs` com o personagem, o tempo (`durationMs`) e `status: 'victory'`. A API grava a run e apaga o progresso. Depois disso a sala não salva mais nada.
+- Um aviso aparece sobre a tela escura: "Fim da run", o tempo, se o envio deu certo e o botão **Voltar ao menu**. Se o envio falhar, aparece **Tentar de novo**; o progresso continua salvo, marcado como run encerrada, e o Continue reabre esse aviso (a run não pode ser jogada de novo nem enviada duas vezes sozinha). Só os botões do aviso aceitam o mouse. Enquanto o tempo está sendo enviado, o botão e o Esc não saem da sala (o menu leria o progresso antes de a API apagá-lo).
+- Abrir `/jogo` sem partida salva (por exemplo, depois do fim da run) volta para o menu, em vez de começar uma partida que ninguém pediu.
+
+**Vida e morte** (`src/utils/health.js`, `run.js` e `player.js`)
+
+- O personagem tem **3 corações**, contados em meios corações (`MAX_HEALTH = 6`). Batida de inimigo e obstáculo que machuca tiram **meio coração** (`DAMAGE_LIGHT`); explosões e ataques mais pesados tiram **1 coração** (`DAMAGE_HEAVY`). Hoje só a chapa quente machuca.
+- Depois de cada dano ele fica invencível por 1 s. A vida continua de uma sala para outra, de um andar para outro e no progresso salvo.
+- Sem vida, toca a **animação de morte** (`morte.png`, 1780 ms): o bastão escapa da mão, ele olha o bastão subir, para e olha para quem joga com a boca triste, tomba pedalando no ar (uma rachadura desce pela cabeça), bate no chão com lascas de madeira, fica tonto chutando e os olhos fecham, um de cada vez. É diferente da morte dos inimigos de propósito (o corpo não achata, sem olhos em X, estrelas ou poeira). Com "reduzir movimento", ele já aparece deitado. Durante a morte os controles são ignorados e o contador para.
+- Meio segundo depois, aparece o aviso **"Você morreu"**, com o que o matou ("O Tung Tung Sahur morreu para a chapa quente.") e o tempo, sobre a sala escurecida (ele continua caído ao fundo). O jogo envia `POST /api/runs` com `status: 'defeat'`: a API grava a derrota e apaga o progresso. O botão leva ao menu. Se o envio falhar, vale o mesmo **Tentar de novo** da vitória.
+- A causa da morte é o id do obstáculo (e, depois, do inimigo ou do chefe); o texto fica em `getDeathCauseLabel`.
+
+**Faixa e HUD**
+
+- Sempre que a run começa (New game, Continue em qualquer sala e depois do R) e ao chegar a cada andar, uma faixa de tinta preta atravessa a sala com o nome do andar (`scene/drawFloorBanner.js`). Ela entra, fica cerca de 2 s e sai, sem travar o movimento; com "reduzir movimento", só aparece e some. Trocar de sala não traz a faixa de volta.
+- **Entrada na run:** a tela fica preta enquanto o progresso carrega e a sala clareia em 450 ms (`getEnterFade` em `run.js`), com o nome do andar já aparecendo por cima do preto. Vale também para a run nova do R.
+- No canto de cima à esquerda, na altura do contador de tempo, ficam os **corações** de vida (`scene/drawHearts.js`): de madeira, como o corpo do Tung Tung, desenhados por código a partir de `src/data/heartPixels.js` (cheio, meio e vazio). Logo abaixo deles ficam os contadores de grão de café e de garfo (`scene/drawHud.js`): ícone em múltiplo inteiro da arte de 20 x 20 e o número ao lado, na `NUMBER_FONT` (`src/utils/pixelFont.js`, dígitos de 4 x 6 feitos no projeto, a mesma do contador de tempo). A run começa com 00 grão e 01 garfo; o garfo diminui ao abrir uma porta trancada, e ainda não há onde ganhar mais.
+- O leitor de tela anuncia o nome do andar ao chegar a cada andar.
+
+**F3: camada de teste** (`scene/drawDebug.js`, só em `npm run dev`)
+
+- Na sala: sólidos em vermelho (paredes e obstáculos que bloqueiam), vão das portas (verde aberta, laranja fechada ou escondida), onde o golpe acerta a parede da adega (magenta), os pontos `i` e `t` do layout, a caixa dos pés e a área do golpe.
+- No canto direito: seed, andar, sala atual (id, tipo e layout), tentativas da geração e o mapa 9 x 8 com uma letra por sala (I inicial, . comum, C chefe, T tesouro, L loja, P palco, F fliperama, D descanso, A adega, X pacto e M mamãe), com a atual em amarelo e as visitadas em branco. O mapa mostra também a adega.
+
+**O que é salvo no progresso** (`src/utils/progress.js`)
+
+- A seed, o andar, a sala atual (id na grade), a posição dos pés, o tempo e o personagem, a cada 5 s e ao sair da sala.
+- As salas já visitadas do andar (`visitedRoomIds`, ids `col-row`). A fonte única é `room.visited`, o campo que o mapa do F3 lê (e o minimapa do jogo vai ler). Save antigo sem a lista marca só a sala atual.
+- A partida nova da seleção é salva sem seed; a sala cria a seed ao abrir e salva na hora. O jogo só começa depois de ler o progresso.
+- O estado das salas (`roomStates`): os obstáculos quebrados, as batidas na parede da adega e no tambor e as salas trancadas já abertas com garfo (`unlocked`). O que quebrou não volta ao continuar a run, e a adega e as portas trancadas abertas continuam abertas.
+- Os garfos que sobraram (`forks`, de 0 a 99). Save antigo, sem o campo, começa com 1. O que está rolando conta como quebrado na hora do golpe (ele sempre quebra no fim).
+- A vida (`health`, em meios corações) e, se a run acabou em derrota, o que matou o personagem (`deathCause`).
 
 **Como funciona**
 
-- **Canvas em tela cheia** (`SalaInicial.jsx` e `scene/`). A sala (1600x853 unidades) é desenhada por código no estilo do protótipo (painéis, viga, tijolos, piso de tábuas, rodapé e paredes laterais de pedra), com escala uniforme, e a área de andar é sempre a mesma em qualquer tela. A tela pode cortar até 30 u da borda de cima e de baixo (`ROOM_VIEW_CROP`, em `scene/view.js`). Em tela mais larga que a sala, as paredes laterais continuam até a borda da tela, escurecendo aos poucos (nunca chegam ao preto); a coluna junto do piso é um degradê, e o piso recebe a sombra das paredes e uma vinheta nos cantos, para dar profundidade. Parado por 120 ms, o personagem fica de frente (a espera evita que ele pisque de frente ao trocar de tecla). No alto, um contador (`HH:MM:SS.cc`, `scene/drawTimer.js`) conta o tempo real desde que a sala abre. O canvas usa `devicePixelRatio`, e o personagem é desenhado com suavização alta, porque aparece reduzido. O jogo roda em `requestAnimationFrame`, sem renderizar o React a cada quadro.
+- **Canvas em tela cheia** (`SalaInicial.jsx` e `scene/`). A sala (1600x853 unidades) é desenhada por código no estilo do protótipo (painéis, viga, tijolos, piso de tábuas, rodapé e paredes laterais de pedra), com escala uniforme, e a área de andar é sempre a mesma em qualquer tela. Abaixo da sala a tela mostra mais uma faixa de rodapé (`ROOM_VIEW_BOTTOM_EXTRA`, 44 u), onde ficam os enfeites da porta de baixo: assim ela aparece inteira e dá para ver que sala fica ali. Quando a tela é larga demais para mostrar tudo, o corte é só em cima, no máximo 46 u (`ROOM_VIEW_TOP_CROP`, em `scene/view.js`); o contador e o HUD descem junto com a borda da tela. Em tela mais larga que a sala, as paredes laterais continuam até a borda da tela, escurecendo aos poucos (nunca chegam ao preto); a coluna junto do piso é um degradê, e o piso recebe a sombra das paredes e uma vinheta nos cantos, para dar profundidade. Parado por 120 ms, o personagem fica de frente (a espera evita que ele pisque de frente ao trocar de tecla). No alto, um contador (`HH:MM:SS.cc`, `scene/drawTimer.js`) conta o tempo de jogo da run; ele para com a janela sem foco, quando o personagem morre e no fim da run. O canvas usa `devicePixelRatio`, e o personagem é desenhado com suavização alta, porque aparece reduzido. O jogo roda em `requestAnimationFrame`, sem renderizar o React a cada quadro.
 - **Imagem de referência:** `docs/referencias/sala-inicial-vazia.png` serve só de referência de arte (as cores e as faixas foram medidas nela). Não é carregada pelo jogo nem entra no pacote.
-- **Colisão** (`src/utils/collision.js`): retângulos. O personagem tem uma caixa de 44x18 u nos pés; as paredes (`ROOM_WALLS`) são retângulos. O movimento é resolvido no eixo X e depois no Y, com encaixe exato: o personagem desliza na parede e não treme. Na sala de 1600 u, os pés ficam em x de 140 a 1460 e y de 291 a 786, então o corpo e o bastão nunca saem da sala, nem em tela estreita. A mesma função serve depois para inimigos, portas e golpes.
+- **Colisão** (`src/utils/collision.js`): retângulos. O personagem tem uma caixa de 52x21 u nos pés (44x18 vezes `PLAYER_SCALE`, 1,18, em `roomMovement.js`; a mesma escala vale para o desenho, a sombra e a área do golpe); as paredes (`ROOM_WALLS`) são retângulos. O movimento é resolvido no eixo X e depois no Y, com encaixe exato: o personagem desliza na parede e não treme. Na sala de 1600 u, os pés ficam em x de 144 a 1456 e y de 294 a 786, então o corpo e o bastão nunca saem da sala, nem em tela estreita. A mesma função serve depois para inimigos, portas e golpes.
 - **Pés como referência:** a posição é o centro dos pés e toda folha é desenhada a partir deles, então trocar de animação não faz o personagem "pular". A sombra (`drawShadow.js`) é só visual.
 
 **Animações** (`src/data/characterSprites.js`)
 
 | Animação | Quadros por direção | Tempo | Quadro |
 | --- | --- | --- | --- |
-| Pernas (atrás do tronco) | 12 + 1 parado | 1 quadro a cada 10,83 u andadas (ciclo de 130 u) | 296x259 |
+| Pernas (atrás do tronco) | 12 + 1 parado | 1 quadro a cada 6,67 u andadas (ciclo de 80 u, 6,5 passos por segundo) | 296x259 |
 | Andar (tronco) | 12 | igual ao das pernas | 296x259 |
 | Ataque | 8 | 630 ms (70, 90, 40, 40, 110, 80, 90 e 110) | 420x380 |
 | Dano | 4 | 410 ms (70, 110, 110 e 120) | 296x259 |
+| Morte (uma linha só, sempre de frente) | 14 | 1780 ms (100, 80, 110, 220, 90, 80, 70, 60, 120, 110, 110, 110, 220 e 300) | 600x400 |
 
 - O quadro do andar depende da **distância andada**, e não do tempo: ao parar (depois de 120 ms), ou ao empurrar a parede, as pernas voltam ao quadro parado. Com "reduzir movimento" no sistema, o andar fica parado.
 - O personagem é desenhado em **duas camadas**: as pernas (`pernas.png`) atrás e o tronco (`andar.png` ou `ataque.png`) na frente. Por isso as pernas continuam andando durante o golpe.
-- O tronco (cabeça, corpo, braço e bastão) vem do original, sem as pernas; no andar ele sobe e desce e o bastão balança (mais de frente e de costas). As pernas foram desenhadas por código com o mesmo material do tronco (grade de 3 px, tom, grão e contorno de 9 px): o rosto e a paleta não mudam.
-- O ataque e o dano vêm da pesquisa de sprites e têm os pixels do original (o ataque sem as pernas e o último quadro do dano com a pose parada nova).
+- O tronco (cabeça, corpo, braço e bastão) vem do original, sem as pernas; no andar ele dá um quique macio por passo (5 px de lado, 6 px de frente e de costas), sem balançar para os lados, e o bastão balança pouco, com atraso. De lado, o pé apoiado anda para trás em linha reta, como o chão passando, e o outro volta pelo ar; de frente e de costas, um pé fica no chão e o outro sobe. O corpo não inclina (a inclinação e o balanço lateral saíram a pedido em 2026-11-13). As pernas foram desenhadas por código com o mesmo material do tronco (grade de 3 px, tom, grão e contorno de 9 px): o rosto e a paleta não mudam.
+- O ataque, o dano e a morte vêm da pesquisa de sprites e têm os pixels do original (o ataque sem as pernas e o último quadro do dano com a pose parada nova). A morte gira o corpo; o último quadro, deitado, é uma rotação exata de 90°. As expressões da morte são feitas com o próprio rosto: íris recortadas e movidas, a boca girada, pálpebras feitas com a pele do rosto e uma rachadura na grade de 3 px.
 
 **Ataque**
 
-- O golpe **deixa o personagem mais lento** (metade da velocidade, `ATTACK_MOVE_SPEED`) e não é cortado: dura 630 ms inteiros.
+- O golpe **deixa o personagem um pouco mais lento** (80% da velocidade, `ATTACK_MOVE_SPEED`) e não é cortado: dura 630 ms inteiros.
 - A área do golpe só acerta nos quadros 2 a 4 (de 160 a 350 ms).
 - O cooldown é de 430 ms, contado do **início** do golpe. Como o golpe (630 ms) é mais longo que o cooldown, **a cadência real é de 630 ms** (cerca de 1,6 golpe por segundo); o cooldown só limitaria algo se o golpe ficasse mais curto.
 - Trocar de seta no meio do golpe só vale no golpe seguinte.
 
 **Dano**
 
-- Só existe o estado (`hurtPlayer` em `player.js`): o dano interrompe o golpe, trava o personagem por 410 ms e liga 1000 ms de invencibilidade. A prioridade é dano > ataque > andar. Nada dispara o dano no jogo ainda; isso fica para a issue de inimigos.
+- `hurtPlayer` (em `player.js`) cuida da animação: o dano interrompe o golpe, trava o personagem por 410 ms e liga 1000 ms de invencibilidade. A prioridade é morte > dano > ataque > andar. Quem tira a vida é a run (`run.js`, veja "Vida e morte"). Por enquanto só a chapa quente dispara o dano; os inimigos ficam para outras issues.
 
 Valores para calibrar: `PLAYER_FEET_BOX`, `ROOM_WALLS`, `ATTACK_HITBOXES`, o cooldown e a invencibilidade (`player.js`). Não há biblioteca de jogo.
 
@@ -186,7 +303,7 @@ Valores para calibrar: `PLAYER_FEET_BOX`, `ROOM_WALLS`, `ATTACK_HITBOXES`, o coo
 const { characters } = await apiRequest("/api/characters");
 ```
 
-Por enquanto só a seleção de personagem chama a API (`/api/characters`). O navegador só conversa com a API; o banco nunca é acessado direto do front-end.
+A seleção de personagem usa `/api/characters`, o jogo lê e salva `/api/progress` e envia o fim da run em `POST /api/runs`, e a tela de ranking lê `/api/ranking`. O navegador só conversa com a API; o banco nunca é acessado direto do front-end.
 
 ## Pendências
 
@@ -194,4 +311,5 @@ Por enquanto só a seleção de personagem chama a API (`/api/characters`). O na
 - Cadastro, login e sessão dependem das issues de autenticação (veja o README da TBOTT_api).
 - Antes da primeira chamada à API, a TBOTT_api precisa liberar o CORS para o endereço do front-end. O pacote `cors` está instalado lá, mas ainda não é usado em `src/app.js`.
 - Em celular e tablet sem teclado não há como avançar, porque a Issue #6 pede uma tecla. Definir se o toque também deve avançar.
+- Andares e salas: minimapa; inimigos, itens e chefe (a vida já existe, mas só a chapa quente a tira); tranca do Fliperama (grão) e do Palco (vida cheia), e onde ganhar garfos (hoje só o do começo da run); a função de cada sala especial (comprar, pacto, prato da mamãe, sorteio do fliperama, ondas do palco e dormir na rede); a animação do aviso de morte e o que fazer depois dela (hoje o aviso leva ao menu).
 - Os sprites dos outros dois personagens e os atributos entram quando forem definidos. Falta preencher o `sprite_path` do Tung Tung Sahur na TBOTT_api (a imagem reservada é `/sprites/characters/tung-tung-sahur.png`).

@@ -4,11 +4,14 @@ import {
   getAttackDirection,
   getRoomMovement,
   isRoomKey,
+  RESTART_KEY,
   moveRoomPlayer,
+  PLAYER_FEET_BOX,
   ROOM_PLAYER_BOUNDS,
   ROOM_PLAYER_SPEED,
   ROOM_PLAYER_START,
   ROOM_SIZE,
+  ROOM_WALLS,
   shouldReturnToMenu,
 } from '../src/utils/roomMovement.js'
 
@@ -68,7 +71,12 @@ describe('teclas por código (event.code)', () => {
     assert.deepEqual(getRoomMovement(new Set(['w'])), { x: 0, y: 0 })
   })
 
-  test('isRoomKey reconhece WASD e as setas, e só elas', () => {
+  test('isRoomKey reconhece o R de recomeçar a run', () => {
+    assert.equal(RESTART_KEY, 'KeyR')
+    assert.equal(isRoomKey('KeyR'), true)
+  })
+
+  test('isRoomKey reconhece WASD e as setas (e o R), e só elas', () => {
     for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) {
       assert.equal(isRoomKey(code), true, code)
     }
@@ -119,16 +127,16 @@ describe('moveRoomPlayer (colisão com as bordas)', () => {
   test('mantém os pés dentro do piso da sala de 1600x853', () => {
     assert.deepEqual(ROOM_SIZE, { width: 1600, height: 853 })
     assert.deepEqual(ROOM_PLAYER_BOUNDS, {
-      minX: 140,
-      maxX: 1460,
-      minY: 291,
+      minX: 144,
+      maxX: 1456,
+      minY: 294,
       maxY: 786,
     })
   })
 
-  test('o personagem inteiro (até 59 u dos pés para cada lado) fica dentro da sala', () => {
-    assert.ok(ROOM_PLAYER_BOUNDS.minX - 59 >= 0)
-    assert.ok(ROOM_PLAYER_BOUNDS.maxX + 59 <= ROOM_SIZE.width)
+  test('o personagem inteiro (até 70 u dos pés para cada lado, com a escala 1,18) fica dentro da sala', () => {
+    assert.ok(ROOM_PLAYER_BOUNDS.minX - 70 >= 0)
+    assert.ok(ROOM_PLAYER_BOUNDS.maxX + 70 <= ROOM_SIZE.width)
   })
 
   test('o personagem começa no meio da sala, dentro dos limites', () => {
@@ -172,5 +180,26 @@ describe('moveRoomPlayer (colisão com as bordas)', () => {
   test('limita deltas longos para evitar saltos após uma pausa', () => {
     const next = moveRoomPlayer({ x: 500, y: 400 }, { x: 1, y: 0 }, 1)
     assert.equal(next.x, 500 + ROOM_PLAYER_SPEED * 0.05)
+  })
+})
+
+describe('moveRoomPlayer (sólidos da sala)', () => {
+  const block = { x: 600, y: 380, width: 84, height: 60 }
+
+  test('sem informar os sólidos, usa só as paredes (igual a antes)', () => {
+    const start = { x: ROOM_PLAYER_BOUNDS.maxX, y: 400 }
+    assert.deepEqual(moveRoomPlayer(start, { x: 1, y: 0 }, 0.05), moveRoomPlayer(start, { x: 1, y: 0 }, 0.05, 1, ROOM_WALLS))
+    assert.equal(moveRoomPlayer(start, { x: 1, y: 0 }, 0.05), start)
+  })
+
+  test('para encostado num obstáculo da lista de sólidos', () => {
+    let position = { x: 560, y: 420 }
+    for (let frame = 0; frame < 30; frame++) position = moveRoomPlayer(position, { x: 1, y: 0 }, 0.05, 1, [...ROOM_WALLS, block])
+    assert.deepEqual(position, { x: 600 - PLAYER_FEET_BOX.width / 2, y: 420 })
+  })
+
+  test('o obstáculo fora da lista não bloqueia', () => {
+    const position = moveRoomPlayer({ x: 570, y: 420 }, { x: 1, y: 0 }, 0.05)
+    assert.equal(position.x, 570 + ROOM_PLAYER_SPEED * 0.05)
   })
 })
