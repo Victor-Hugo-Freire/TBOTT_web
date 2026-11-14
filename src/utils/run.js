@@ -194,7 +194,8 @@ export function createRun({
     health, // vida em meios corações (veja health.js)
     death: null, // { cause } depois que a vida acaba: toca a animação de morte e a run termina
     transition: null,
-    banner: room.id === floor.startRoomId ? createBanner(floor) : null,
+    // A faixa com o nome do andar aparece sempre que a run começa (New game, Continue em qualquer sala e R)
+    banner: createBanner(floor),
     finished: false,
   }
   return enterRoom(start, floor, room, getStartPosition(floor, room, position))
@@ -397,6 +398,14 @@ export function updateRestartKey(held, type) {
   if (type === 'press') return true
   if (type === 'release' || type === 'blur') return false
   return held
+}
+
+// Entrada na run (New game, Continue e depois do R): a tela começa preta e clareia em ENTER_FADE_MS, o mesmo
+// tempo do clarear da troca de andar. elapsedMs = tempo desde que a run apareceu. Devolve 1 (preto) a 0 (nada).
+export const ENTER_FADE_MS = 450
+
+export function getEnterFade(elapsedMs) {
+  return Math.min(1, Math.max(0, 1 - elapsedMs / ENTER_FADE_MS))
 }
 
 // Escurecimento da tela enquanto o R é segurado: 0 (nada) a 1 (preto)

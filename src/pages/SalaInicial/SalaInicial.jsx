@@ -18,6 +18,7 @@ import {
 import {
   createRun,
   createRunSnapshot,
+  getEnterFade,
   getRestartFade,
   RESTART_HOLD_MS,
   updateRestartHold,
@@ -108,6 +109,7 @@ export default function SalaInicial() {
     let outcome = 'victory' // resultado da run que acabou: 'victory' (tambor do andar 5) ou 'defeat' (morreu)
     let deathCause = null // o que matou o personagem (id de health.js), para o aviso
     let restartHoldMs = 0 // há quanto tempo o R está segurado (a tela escurece junto)
+    let enterMs = Infinity // tempo desde que a run apareceu: a tela clareia do preto (getEnterFade)
     let restartHeld = false // a tecla R está segurada (veja updateRestartKey em run.js)
     let announcedFloor = 0
     let showDebug = false // F3, só no npm run dev
@@ -152,6 +154,7 @@ export default function SalaInicial() {
         forks: progress.forks,
       })
       elapsedMs = progress.elapsedMs
+      enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)
 
       // Run que já acabou (o jogador saiu antes de o tempo chegar ao ranking, pelo Voltar do navegador ou F5):
       // não deixa jogar de novo nem envia sozinho (o primeiro envio pode ainda estar a caminho e o tempo
@@ -161,7 +164,8 @@ export default function SalaInicial() {
         const died = progress.deathCause !== null || progress.health <= 0
         outcome = died ? 'defeat' : 'victory'
         deathCause = progress.deathCause
-        run = { ...run, finished: true, death: died ? { cause: deathCause } : null }
+        // Sem a faixa do andar: a run parada não conta o tempo dela, e ela ficaria para sempre atrás do aviso
+        run = { ...run, banner: null, finished: true, death: died ? { cause: deathCause } : null }
         // Morto, ele já aparece caído atrás do aviso (tempo infinito = último quadro da animação de morte)
         if (died) run.player = { ...run.player, dead: { elapsed: Infinity } }
         resultSent = true
@@ -245,6 +249,7 @@ export default function SalaInicial() {
       run = createRun({ seed: createRunSeed(), characterId: run.characterId })
       elapsedMs = 0
       restartHoldMs = 0
+      enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez
       void saveProgress()
     }
 
@@ -317,6 +322,7 @@ export default function SalaInicial() {
 
       if (run) {
         const stepMs = Math.min(deltaMs, MAX_STEP_MS)
+        enterMs += stepMs
         // O contador para com a janela sem foco, quando o personagem morre e no fim da run
         if (!isPaused && !run.finished && !run.death) elapsedMs += deltaMs
         run = updateRun(
@@ -348,7 +354,12 @@ export default function SalaInicial() {
     function draw() {
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      if (!run) return
+      // Enquanto o progresso carrega, a tela fica preta: é de onde a sala clareia ao entrar
+      if (!run) {
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        return
+      }
 
       // A partir daqui, tudo é desenhado em unidades da sala
       const scale = view.scale * pixelRatio
@@ -372,18 +383,6 @@ export default function SalaInicial() {
       const visibleTop = Math.max(0, screen.top)
       const visibleHeight = Math.min(ROOM_SIZE.height, screen.top + screen.height) - visibleTop
 
-      if (run.banner) {
-        drawFloorBanner(ctx, {
-          text: run.banner.text,
-          elapsedMs: run.banner.elapsedMs,
-          reduceMotion,
-          left: toScreenX(ROOM_FLOOR.left),
-          right: toScreenX(ROOM_FLOOR.right),
-          centerY: toScreenY(visibleTop + visibleHeight * 0.18),
-          pixelSize: Math.max(3, Math.round(6 * scale)),
-        })
-      }
-
       // O contador e o HUD começam na mesma altura, no alto da tela
       const hudTop = toScreenY(getHudTop(visibleTop))
 
@@ -400,11 +399,25 @@ export default function SalaInicial() {
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
-      // Troca de andar, fim da run e R segurado: a tela escurece por cima de tudo
-      const fade = Math.max(getFloorFade(run), getRestartFade(restartHoldMs))
+      // Entrada na run, troca de andar, fim da run e R segurado: a tela escurece por cima da sala e do HUD
+      const fade = Math.max(getFloorFade(run), getRestartFade(restartHoldMs), getEnterFade(enterMs))
       if (fade > 0) {
         ctx.fillStyle = `rgba(0, 0, 0, ${fade})`
         ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+
+      // A faixa do andar fica por cima do escurecimento: ao entrar na run, o nome aparece sobre o preto
+      // e a sala clareia por baixo dele. Na morte e no fim da run ela não aparece (a run parada não a faz sumir).
+      if (run.banner && !run.death && !run.finished) {
+        drawFloorBanner(ctx, {
+          text: run.banner.text,
+          elapsedMs: run.banner.elapsedMs,
+          reduceMotion,
+          left: toScreenX(ROOM_FLOOR.left),
+          right: toScreenX(ROOM_FLOOR.right),
+          centerY: toScreenY(visibleTop + visibleHeight * 0.18),
+          pixelSize: Math.max(3, Math.round(6 * scale)),
+        })
       }
 
       if (import.meta.env.DEV && showDebug) {
