@@ -1,5 +1,5 @@
 import { applyUnlocking, getRoomDoors, SIDE_VECTORS } from '../../../utils/doors.js'
-import { TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
+import { PUDDLE_FALL_CAUSE, TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 import {
   FLOOR_TRANSITION_MS,
@@ -14,7 +14,7 @@ import { drawDrum, drawDrumText } from './drawDrum.js'
 import { drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
-import { drawSharkGrab } from './drawShark.js'
+import { drawPuddleFall, drawSharkGrab } from './drawShark.js'
 import { drawGodStatue, drawRoomScenery, GOD_STATUE_FEET_Y } from './drawSpecialRooms.js'
 import { ROOM_VIEW_BOTTOM_EXTRA } from './view.js'
 import { ROOM_THEMES } from './themes.js'
@@ -87,11 +87,14 @@ export function getFloorFade(run) {
 // player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, options) {
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs } = options
+  // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
+  // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
+  const fellInPuddle = death?.cause === PUDDLE_FALL_CAUSE
   const theme = getRoomTheme(floor, room)
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
-  drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark })
+  drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle })
 
   const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
   drawDoors(ctx, doors, ROOM_THEMES[theme])
@@ -110,8 +113,9 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, opti
   if (room.type === 'god') sprites.push({ feetY: GOD_STATUE_FEET_Y, draw: () => drawGodStatue(ctx) })
   if (player) {
     const drawTung = () => {
-      // Puxado pelo Tralalero: no lugar do personagem caído, a animação dele sendo levado para a piscina
+      // Na poça, no lugar do personagem caído: a animação dele sendo puxado ou afundando sozinho
       if (pulledByShark) drawSharkGrab(ctx, sheets, player, death.fin, reduceMotion)
+      else if (fellInPuddle) drawPuddleFall(ctx, sheets, player, death.fin, reduceMotion)
       else drawPlayer(ctx, sheets, player, reduceMotion)
     }
     sprites.push({ feetY: player.y, draw: drawTung })

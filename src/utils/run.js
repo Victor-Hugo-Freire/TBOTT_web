@@ -14,7 +14,14 @@ import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, MAX_HEALTH } from './health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
 import { createProgressSnapshot } from './progress.js'
-import { getSharkFinPosition, isInPuddle, isNearFin, SHARK_DEATH_MS, TRALALERO_CAUSE } from './roomInteractions.js'
+import {
+  getSharkFinPosition,
+  isInPuddle,
+  isNearFin,
+  PUDDLE_FALL_CAUSE,
+  SHARK_DEATH_MS,
+  TRALALERO_CAUSE,
+} from './roomInteractions.js'
 import { buildRoomObstacles } from './roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
 import {
@@ -280,16 +287,20 @@ function updateRoom(run, input, deltaSeconds) {
     }
   }
 
-  // Poça do Tralalero (Sala do Pacto): a barbatana dá voltas na poça. Passar perto dela ou pular na poça
-  // faz o tubarão puxar o Tung para a água: ele morre na hora, com qualquer vida.
+  // Poça do Tralalero (Sala do Pacto): a barbatana dá voltas na poça. Ele morre na hora, com qualquer vida:
+  // - passou perto da barbatana: o Tralalero puxa o Tung para a água;
+  // - pisou na poça com a barbatana longe: ele cai sozinho e a barbatana mergulha.
   // death.fin guarda onde a barbatana estava, para a animação começar dali.
   const finMs = run.finMs + deltaSeconds * 1000
   if (room.type === 'pacto' && !death) {
     const fin = getSharkFinPosition(finMs)
-    if (isNearFin(player, fin) || isInPuddle(player)) {
+    let cause = null
+    if (isNearFin(player, fin)) cause = TRALALERO_CAUSE
+    else if (isInPuddle(player)) cause = PUDDLE_FALL_CAUSE
+    if (cause) {
       health = 0
       player = killPlayer(player)
-      death = { cause: TRALALERO_CAUSE, fin: { x: fin.x, y: fin.y } }
+      death = { cause, fin: { x: fin.x, y: fin.y, turn: fin.turn } }
     }
   }
 
@@ -393,7 +404,9 @@ function updateFloorTransition(run, stepMs) {
 // A morte pelo Tralalero tem outra animação (puxado para a piscina), com outra duração.
 function updateDeath(run, deltaSeconds) {
   const player = updatePlayer(run.player, NO_INPUT, deltaSeconds)
-  const animationMs = run.death.cause === TRALALERO_CAUSE ? SHARK_DEATH_MS : DEATH_DURATION_MS
+  const { cause } = run.death
+  const inPuddle = cause === TRALALERO_CAUSE || cause === PUDDLE_FALL_CAUSE
+  const animationMs = inPuddle ? SHARK_DEATH_MS : DEATH_DURATION_MS
   return { ...run, player, finished: player.dead.elapsed >= animationMs + DEATH_HOLD_MS }
 }
 

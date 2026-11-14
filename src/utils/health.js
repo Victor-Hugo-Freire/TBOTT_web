@@ -34,6 +34,7 @@ export function getHeartStates(health, maxHealth = MAX_HEALTH) {
 const DEATH_CAUSES = {
   chapa: 'a chapa quente',
   tralalero: 'o Tralalero', // puxado para a poça da Sala do Pacto
+  'poca-tralalero': 'a poça do Tralalero', // caiu sozinho na poça, com a barbatana longe
 }
 
 export function getDeathCauseLabel(cause) {

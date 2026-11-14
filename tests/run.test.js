@@ -998,12 +998,28 @@ describe('poça do Tralalero (Sala do Pacto)', () => {
     assert.ok(run.death.fin, 'guarda onde a barbatana estava, para a animação')
   })
 
-  test('pular na poça também: ele é puxado ao pisar dentro dela', () => {
+  test('pisar na poça com a barbatana longe: ele cai sozinho (sem o Tralalero puxar)', () => {
     let run = pactRun({ x: PUDDLE.x, y: top - 40 }, FIN_AT_RIGHT)
     run = steps(run, 2, down)
     assert.equal(run.death, null, 'ainda fora')
     run = steps(run, 6, down)
-    assert.equal(run.death?.cause, 'tralalero')
+    assert.equal(run.death?.cause, 'poca-tralalero')
+    assert.equal(run.health, 0)
+    assert.ok(run.death.fin, 'guarda onde a barbatana estava, para ela mergulhar dali')
+  })
+
+  test('na poça com a barbatana perto, quem pega é o Tralalero', () => {
+    const run = updateRun(pactRun({ x: PUDDLE.x, y: top + 10 }, FIN_AT_TOP), IDLE, STEP)
+    assert.equal(run.death.cause, 'tralalero')
+  })
+
+  test('caindo sozinho, a run também termina depois da animação e do tempo parado', () => {
+    let run = steps(pactRun({ x: PUDDLE.x, y: top + 10 }, FIN_AT_RIGHT), 1)
+    assert.equal(run.death.cause, 'poca-tralalero')
+    run = steps(run, Math.ceil((SHARK_DEATH_MS + DEATH_HOLD_MS) / STEP_MS) - 2)
+    assert.equal(run.finished, false)
+    run = steps(run, 2)
+    assert.equal(run.finished, true)
   })
 
   test('andar ao lado da poça sem pisar nela, com a barbatana longe, não mata', () => {

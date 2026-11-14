@@ -73,6 +73,7 @@ describe('getDeathCauseLabel (aviso de morte)', () => {
   test('diz o que matou, completando a frase "morreu para ..."', () => {
     assert.equal(getDeathCauseLabel('chapa'), 'a chapa quente')
     assert.equal(getDeathCauseLabel('tralalero'), 'o Tralalero')
+    assert.equal(getDeathCauseLabel('poca-tralalero'), 'a poça do Tralalero')
   })
 
   test('causa desconhecida (ou save sem causa) tem um texto genérico', () => {

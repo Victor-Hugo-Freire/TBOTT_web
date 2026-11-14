@@ -10,10 +10,14 @@ const OUTLINE = '#140806'
 const SPLASH = EFFECT_SPRITES.respingo
 const SPLASH_ANCHOR = { x: 90, y: 100 } // na folha do respingo: o meio da onda
 
-// Fases da morte puxado pelo tubarão (em ms, desde que ele tentou entrar na piscina)
+// Fases da morte puxado pelo tubarão (em ms, desde que a barbatana pegou o Tung)
 const FIN_ARRIVES_MS = 400 // a barbatana corre até ele
 const PULLED_MS = 1000 // ele é arrastado para a água e afunda; depois sobem bolhas e a barbatana vai embora
 const SINK_DEPTH = 130 // quanto ele desce abaixo da linha d'água
+
+// Fases da queda sozinho na poça (em ms, desde que ele pisou nela)
+const FIN_DIVE_MS = 350 // a barbatana mergulha e some
+const FALL_SINK_MS = 700 // ele afunda onde pisou; depois sobem bolhas
 
 // As imagens são carregadas na primeira vez que aparecem (como a chapa do garfo em drawDoors.js)
 const images = {}
@@ -154,14 +158,53 @@ export function drawSharkGrab(ctx, sheets, player, fin, reduceMotion) {
     return
   }
 
-  // 3) Bolhas sobem onde ele afundou e a barbatana volta para o outro lado
+  // 3) Bolhas sobem onde ele afundou e a barbatana volta para onde estava
   const t = (elapsed - PULLED_MS) / (SHARK_DEATH_MS - PULLED_MS)
+  drawBubbles(ctx, target, t)
+  drawSharkFin(ctx, { x: lerp(target.x, start.x, t), y: lerp(target.y, start.y, t), turn: -finTurn }, elapsed)
+}
+
+// Três bolhas subindo e sumindo (t de 0 a 1) acima do ponto onde ele afundou
+function drawBubbles(ctx, point, t) {
+  ctx.strokeStyle = `rgba(150, 205, 235, ${1 - t})`
+  ctx.lineWidth = 2
   for (let bubble = 0; bubble < 3; bubble++) {
-    ctx.strokeStyle = `rgba(150, 205, 235, ${1 - t})`
-    ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.arc(target.x - 14 + bubble * 14, target.y - t * 34 - bubble * 8, 5 - bubble, 0, Math.PI * 2)
+    ctx.arc(point.x - 14 + bubble * 14, point.y - t * 34 - bubble * 8, 5 - bubble, 0, Math.PI * 2)
     ctx.stroke()
   }
-  drawSharkFin(ctx, { x: lerp(target.x, start.x, t), y: lerp(target.y, start.y, t), turn: -finTurn }, elapsed)
+}
+
+// Morte por cair sozinho na poça (a barbatana estava longe), no lugar do drawPlayer.
+// A barbatana mergulha onde estava (fin = run.death.fin) e ele afunda onde pisou, com respingo e bolhas.
+// Depois dela (e com "reduzir movimento", ou ao recarregar uma run já acabada) a água fica calma, sem o Tung.
+export function drawPuddleFall(ctx, sheets, player, fin, reduceMotion) {
+  const elapsed = player.dead.elapsed
+  if (reduceMotion || elapsed >= SHARK_DEATH_MS) return
+
+  // A barbatana desce e some embaixo da linha d'água
+  if (elapsed < FIN_DIVE_MS) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(fin.x - 80, fin.y - 120, 160, 124)
+    ctx.clip()
+    drawSharkFin(ctx, { x: fin.x, y: fin.y + (elapsed / FIN_DIVE_MS) * 55, turn: fin.turn }, elapsed)
+    ctx.restore()
+  }
+
+  // Ele afunda onde pisou: o que passa da linha d'água (a altura dos pés) some
+  if (elapsed < FALL_SINK_MS) {
+    const feet = { x: player.x, y: player.y + (elapsed / FALL_SINK_MS) * SINK_DEPTH }
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(player.x - 200, player.y - 400, 400, 406)
+    ctx.clip()
+    drawScaredTung(ctx, sheets, feet)
+    ctx.restore()
+    const frame = Math.min(3, Math.floor(elapsed / SPLASH.animations.respingo.durations[0]))
+    drawEffectFrame(ctx, SPLASH, frame, SPLASH_ANCHOR, player.x, player.y, 1)
+    return
+  }
+
+  drawBubbles(ctx, player, (elapsed - FALL_SINK_MS) / (SHARK_DEATH_MS - FALL_SINK_MS))
 }

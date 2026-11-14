@@ -3,9 +3,12 @@
 
 // ---------- Poça do Tralalero (Sala do Pacto) ----------
 
-// O que matou o personagem (vai para o aviso de morte, veja health.js)
+// O que matou o personagem (vai para o aviso de morte, veja health.js):
+// - TRALALERO_CAUSE: passou perto da barbatana e o Tralalero puxou;
+// - PUDDLE_FALL_CAUSE: pisou na poça com a barbatana longe e caiu sozinho (a barbatana mergulha).
 export const TRALALERO_CAUSE = 'tralalero'
-// Animação da morte puxado pelo tubarão: a barbatana vem, ele é puxado e afunda, e sobem bolhas
+export const PUDDLE_FALL_CAUSE = 'poca-tralalero'
+// As duas mortes na poça têm a mesma duração: o Tung afunda, sobem bolhas e a água acalma
 export const SHARK_DEATH_MS = 1600
 
 // A poça é uma elipse no meio da sala, como no protótipo. Fica longe das entradas das portas
