@@ -12,6 +12,7 @@ import { getCellRect } from '../../../utils/roomLayout.js'
 // - Sem pedestal, item, preço ou texto: isso vem quando cada sala ganhar a sua função.
 
 const OUTLINE = '#140806'
+const OUTLINE_WIDTH = 5 // contorno dos móveis (é traçado em cima da peça: metade para dentro, metade para fora)
 
 // Ícones 8x8 do protótipo (ICON de lib.js). Cada letra é uma cor de pal; '.' é transparente.
 const ICONS = {
@@ -62,8 +63,20 @@ function strokeEllipse(ctx, color, lineWidth, x, y, radiusX, radiusY) {
 // Contorno escuro, como o dos obstáculos, para os móveis se destacarem do piso
 function outline(ctx, x, y, width, height) {
   ctx.strokeStyle = OUTLINE
-  ctx.lineWidth = 3
+  ctx.lineWidth = OUTLINE_WIDTH
   ctx.strokeRect(x, y, width, height)
+}
+
+// Contorno de um polígono (o mesmo traço do outline)
+function outlinePolygon(ctx, points) {
+  ctx.beginPath()
+  points.forEach(([x, y], index) => (index === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)))
+  ctx.closePath()
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = OUTLINE_WIDTH
+  ctx.lineJoin = 'round'
+  ctx.stroke()
+  ctx.lineJoin = 'miter'
 }
 
 function roundRect(ctx, color, x, y, width, height, radius) {
@@ -239,7 +252,7 @@ function drawGrainSack(ctx, cell) {
   floorShadow(ctx, centerX + 6, bottom - 2, 44, 8)
   roundRect(ctx, '#a8946a', cell.x + 10, cell.y + 6, cell.width - 20, cell.height - 8, 16)
   ctx.strokeStyle = OUTLINE
-  ctx.lineWidth = 3
+  ctx.lineWidth = OUTLINE_WIDTH
   ctx.stroke()
   rect(ctx, 'rgba(255, 255, 255, 0.15)', cell.x + 18, cell.y + 22, 6, cell.height - 34)
   rect(ctx, '#8a7650', cell.x + 18, cell.y + 2, cell.width - 36, 14)
@@ -268,7 +281,7 @@ function drawPactRoom(ctx) {
   strokeEllipse(ctx, 'rgba(74, 138, 168, 0.5)', 2, centerX, centerY + 4, 250, 20)
   strokeEllipse(ctx, 'rgba(74, 138, 168, 0.4)', 2, centerX, centerY + 4, 140, 11)
   ctx.strokeStyle = OUTLINE
-  ctx.lineWidth = 3
+  ctx.lineWidth = OUTLINE_WIDTH
   ctx.beginPath()
   ctx.roundRect(pool.x - 2.5, pool.y + 1.5, pool.width + 5, pool.height + 1, 12)
   ctx.stroke()
@@ -437,6 +450,9 @@ function drawArcadeTower(ctx, area) {
 
   // Caixa da bolinha na frente da torre (as duas caixas do protótipo)
   roundRect(ctx, '#8a2a3a', left + width / 2 - 30, bottom - 92, 60, 70, 10)
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = OUTLINE_WIDTH
+  ctx.stroke()
   drawIcon(ctx, ICONS.bola, 5, left + width / 2 - 20, bottom - 77)
 }
 
@@ -444,6 +460,7 @@ function drawArcadeTower(ctx, area) {
 function drawFunnel(ctx, centerX, top) {
   polygon(ctx, '#9a6a30', [[centerX - 30, top - 6], [centerX + 30, top - 6], [centerX + 12, top + 22], [centerX - 12, top + 22]])
   polygon(ctx, '#c89050', [[centerX - 30, top - 6], [centerX - 22, top - 6], [centerX - 8, top + 22], [centerX - 12, top + 22]])
+  outlinePolygon(ctx, [[centerX - 30, top - 6], [centerX + 30, top - 6], [centerX + 12, top + 22], [centerX - 12, top + 22]])
 }
 
 // Tambor de bingo: roda escura com aro dourado, raios e bolinhas coloridas dentro
@@ -467,7 +484,7 @@ function drawBingoWheel(ctx, x, y, radius) {
     ellipse(ctx, '#f4f0e8', ballX, ballY, 3.5, 3.5)
   })
   strokeEllipse(ctx, '#e8c040', 6, x, y, radius, radius)
-  strokeEllipse(ctx, OUTLINE, 2, x, y, radius + 4, radius + 4)
+  strokeEllipse(ctx, OUTLINE, OUTLINE_WIDTH, x, y, radius + 5, radius + 5)
   ellipse(ctx, '#e8c040', x, y, 6, 6)
 }
 
@@ -653,8 +670,8 @@ function drawHammock(ctx, area) {
   ctx.rotate(-0.12)
   roundRect(ctx, '#f0e8d8', -30, -12, 60, 24, 12)
   roundRect(ctx, 'rgba(255, 255, 255, 0.6)', -30, -12, 60, 7, 4)
-  ctx.strokeStyle = '#a89878'
-  ctx.lineWidth = 2
+  ctx.strokeStyle = OUTLINE
+  ctx.lineWidth = 3
   ctx.beginPath()
   ctx.roundRect(-30, -12, 60, 24, 12)
   ctx.stroke()
