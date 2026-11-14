@@ -174,14 +174,19 @@ function getFreeSides(occupied, room) {
   })
 }
 
-// Adega secreta (andares 2 a 5, 1 chance em 2): ao lado de uma sala comum a 3 ou mais passos do início.
+// Adega secreta: em todo andar, menos no último (pedido do Victor). Fica ao lado de uma sala comum, de
+// preferência a 3 ou mais passos do início; se não houver, serve uma mais perto (2 passos, depois 1).
 // A sala de origem NÃO guarda a adega em `neighbors`: a passagem é a porta secreta (`secret`),
 // que só abre com 3 golpes. A adega guarda a origem em `neighbors` (a porta de volta).
+// Devolve false quando o andar precisa de adega e não há onde colocá-la (generateFloor tenta outro andar).
 function addCellar(rooms, occupied, number, random) {
-  if (number < 2 || !chance(random, 0.5)) return
+  if (number >= LAST_FLOOR) return true
 
-  const origins = rooms.filter((room) => room.type === 'comum' && room.distance >= 3 && getFreeSides(occupied, room).length > 0)
-  if (origins.length === 0) return
+  let origins = []
+  for (let distance = 3; distance >= 1 && origins.length === 0; distance--) {
+    origins = rooms.filter((room) => room.type === 'comum' && room.distance >= distance && getFreeSides(occupied, room).length > 0)
+  }
+  if (origins.length === 0) return false
 
   const origin = pick(random, origins)
   const side = pick(random, getFreeSides(occupied, origin))
@@ -192,6 +197,7 @@ function addCellar(rooms, occupied, number, random) {
   origin.secret = { side, roomId: cellar.id }
   rooms.push(cellar)
   occupied.set(cellar.id, cellar)
+  return true
 }
 
 // Pacto ou Mamãe (andares 2 a 4, 1 chance em 2): ao lado da sala do chefe. Nunca no andar 1 (pedido do Victor).
@@ -238,7 +244,7 @@ export function generateFloor(seed, number) {
     if (!pickSpecialRooms(rooms, number, random)) continue
 
     const occupied = new Map(rooms.map((room) => [room.id, room]))
-    addCellar(rooms, occupied, number, random)
+    if (!addCellar(rooms, occupied, number, random)) continue
     addPactRoom(rooms, occupied, number, random)
 
     for (const room of rooms) {
