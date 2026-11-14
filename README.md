@@ -184,7 +184,7 @@ Cada andar tem a sua parede, o seu piso e os seus enfeites (`scene/themes.js`); 
 | Palco | 2 a 5 | Se sobrar beco. |
 | Fliperama | todos | 1 chance em 3, se sobrar beco. |
 | Descanso | todos | 1 chance em 4, se sobrar beco. |
-| Adega secreta | 2 a 5 | 1 chance em 2, ao lado de uma sala comum a 3 ou mais salas da inicial. Escondida. |
+| Adega secreta | 1 a 4 (nunca no 5º) | Sempre, uma por andar, ao lado de uma sala comum (de preferência a 3 ou mais salas da inicial). Escondida. |
 | Pacto ou Mamãe | 2 a 4 (nunca no 1º) | 1 chance em 2, ao lado da sala do chefe; a porta aparece com a sala do chefe limpa. |
 
 As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/drawSpecialRooms.js`). A função de cada uma (comprar, pacto, dormir...) ainda não existe.
@@ -203,10 +203,10 @@ As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/dr
 | Sólido | barril, balcão, Vespa, mesa, máquina, caixote de peixe | Bloqueia. |
 | Quebrável | garrafão, saco, caixote de tomate, lagosta | Bloqueia e some com 1 golpe. |
 | Rolante | barril deitado, roda de parmesão | Com 1 golpe, rola na direção do golpe e quebra ao bater. |
-| Escorregadio | vinho, azeite, sorvete, poça | Em cima, o personagem tem inércia: acelera e freia devagar (1,25 s para virar ou ganhar velocidade) e continua deslizando (cerca de 160 u) depois de soltar a tecla. Ao sair, a sobra de velocidade some em até 0,5 s. Bater numa parede ou obstáculo tira a velocidade daquele eixo. |
+| Escorregadio | vinho, azeite, sorvete, poça | Pisar andando dá um escorregão: a velocidade pula para 1,4 vez a do andar (`SLIP_SPEED`) e, em cima, ele tem inércia (vira e freia devagar; parado, leva 1,25 s para ganhar a velocidade do andar). Ele sai da poça embalado: soltando a tecla, só para cerca de 160 u depois dela, e o embalo leva até 0,9 s para sumir. Bater numa parede ou obstáculo tira a velocidade daquele eixo. |
 | Quente | chapa | Encostar queima: toca a animação de dano e tira meio coração (no máximo uma vez por segundo). |
 | Grudento | massa crua, rede | Em cima, anda a 35%. |
-| Esteira | esteira | Empurra para a direita, mais devagar que o andar. As setas andam na mesma velocidade do empurrão (paradas, mas visíveis, com "reduzir movimento"). |
+| Esteira | esteira | Empurra para a direita ou para a esquerda (`getConveyorDirection`: depende da casa; vizinhas na mesma linha empurram juntas), a 220 u/s: dá para andar contra ela, bem devagar. As setas apontam para o lado do empurrão e andam na mesma velocidade dele (paradas, mas visíveis, com "reduzir movimento"). |
 
 Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 
@@ -241,7 +241,8 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala.
 
 **Faixa e HUD**
 
-- Ao chegar à sala inicial de cada andar, uma faixa de tinta preta atravessa a sala com o nome do andar (`scene/drawFloorBanner.js`). Ela entra, fica cerca de 2 s e sai, sem travar o movimento; com "reduzir movimento", só aparece e some.
+- Sempre que a run começa (New game, Continue em qualquer sala e depois do R) e ao chegar a cada andar, uma faixa de tinta preta atravessa a sala com o nome do andar (`scene/drawFloorBanner.js`). Ela entra, fica cerca de 2 s e sai, sem travar o movimento; com "reduzir movimento", só aparece e some. Trocar de sala não traz a faixa de volta.
+- **Entrada na run:** a tela fica preta enquanto o progresso carrega e a sala clareia em 450 ms (`getEnterFade` em `run.js`), com o nome do andar já aparecendo por cima do preto. Vale também para a run nova do R.
 - No canto de cima à esquerda, na altura do contador de tempo, ficam os **corações** de vida (`scene/drawHearts.js`): de madeira, como o corpo do Tung Tung, desenhados por código a partir de `src/data/heartPixels.js` (cheio, meio e vazio). Logo abaixo deles ficam os contadores de grão de café e de garfo (`scene/drawHud.js`): ícone em múltiplo inteiro da arte de 20 x 20 e o número ao lado, na `NUMBER_FONT` (`src/utils/pixelFont.js`, dígitos de 4 x 6 feitos no projeto, a mesma do contador de tempo). A run começa com 00 grão e 01 garfo; o garfo diminui ao abrir uma porta trancada, e ainda não há onde ganhar mais.
 - O leitor de tela anuncia o nome do andar ao chegar a cada andar.
 
