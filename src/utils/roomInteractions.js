@@ -55,14 +55,15 @@ export const PUDDLE_FALL_CAUSE = 'poca-tralalero'
 // As duas mortes na poça têm a mesma duração: o Tung afunda, sobem bolhas e a água acalma
 export const SHARK_DEATH_MS = 1600
 
-// A poça é uma elipse no meio da sala, como no protótipo. Fica longe das entradas das portas
-// (a de cima é em y 318). As casas X do layout 'pacto' (colunas 5 a 7 da fileira 3) ficam dentro dela.
-export const PUDDLE = { x: 800, y: 510, radiusX: 300, radiusY: 80 }
+// A poça é uma elipse no alto da sala, como no protótipo. A Sala do Pacto nunca tem porta em cima
+// (floorGenerator.js), e as outras entradas ficam longe dela. As casas X do layout 'pacto'
+// (colunas 5 a 7 da fileira 1) ficam dentro dela.
+export const PUDDLE = { x: 800, y: 400, radiusX: 300, radiusY: 80 }
 
 export const FIN_LAP_MS = 5000 // uma volta da barbatana em torno da poça
 const FIN_INSET_X = 40 // a volta fica um pouco para dentro da borda
 const FIN_INSET_Y = 22
-const FIN_REACH = 60 // u: os pés a essa distância da barbatana fazem o Tralalero puxar
+const FIN_REACH = 80 // u: os pés até essa distância da barbatana fazem o Tralalero puxar (é o alcance máximo dele)
 
 // Os pés estão dentro da poça? (pular na poça)
 export function isInPuddle(position) {

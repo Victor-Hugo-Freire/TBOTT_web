@@ -28,12 +28,13 @@ describe('poça do Tralalero', () => {
 
   test('perto da barbatana conta; longe dela, não', () => {
     const fin = { x: 800, y: 450 }
-    assert.equal(isNearFin({ x: 800, y: 400 }, fin), true, 'a 50 u')
-    assert.equal(isNearFin({ x: 800, y: 380 }, fin), false, 'a 70 u')
+    assert.equal(isNearFin({ x: 800, y: 372 }, fin), true, 'a 78 u (o caso da print do Victor)')
+    assert.equal(isNearFin({ x: 800, y: 365 }, fin), false, 'a 85 u')
   })
 
   test('as entradas das portas ficam longe da poça e da volta da barbatana (entrar na sala não mata)', () => {
-    for (const side of ['up', 'down', 'left', 'right']) {
+    // A Sala do Pacto nunca tem porta em cima (floorGenerator.test.js confere): só as outras três contam
+    for (const side of ['down', 'left', 'right']) {
       const entry = getEntryPosition(side)
       assert.equal(isInPuddle(entry), false, `entrada da porta ${side}`)
       for (let finMs = 0; finMs < FIN_LAP_MS; finMs += 50) {

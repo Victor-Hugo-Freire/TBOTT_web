@@ -210,7 +210,9 @@ function addPactRoom(rooms, occupied, number, random) {
   if (number < 2 || number > 4 || !rolled) return
 
   const boss = rooms.find((room) => room.type === 'chefe')
-  const sides = getFreeSides(occupied, boss)
+  // Como no Isaac, a sala nunca fica embaixo do chefe: assim a porta dela nunca é a de cima, e a estátua do God
+  // e a poça do Tralalero ficam no alto da sala sem tapar a porta
+  const sides = getFreeSides(occupied, boss).filter((side) => side !== 'down')
   if (sides.length === 0) return
 
   const side = pick(random, sides)

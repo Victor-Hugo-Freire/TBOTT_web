@@ -978,10 +978,11 @@ describe('poça do Tralalero (Sala do Pacto)', () => {
     return run
   }
   const top = PUDDLE.y - PUDDLE.radiusY // borda de cima da poça
+  const bottom = PUDDLE.y + PUDDLE.radiusY // borda de baixo da poça
+  const up = { movement: { x: 0, y: -1 }, attackDirection: null }
   const FIN_AT_TOP = FIN_LAP_MS * 0.75 // a barbatana passando no alto da poça, no meio
   const FIN_AT_RIGHT = 0 // a barbatana na ponta direita da poça
   const BESIDE_TOP = { x: PUDDLE.x, y: top - 6 } // pés na borda de cima, do lado de fora
-  const down = { movement: { x: 0, y: 1 }, attackDirection: null }
   const right = { movement: { x: 1, y: 0 }, attackDirection: null }
 
   test('na borda, com a barbatana longe, nada acontece', () => {
@@ -999,10 +1000,10 @@ describe('poça do Tralalero (Sala do Pacto)', () => {
   })
 
   test('pisar na poça com a barbatana longe: ele cai sozinho (sem o Tralalero puxar)', () => {
-    let run = pactRun({ x: PUDDLE.x, y: top - 40 }, FIN_AT_RIGHT)
-    run = steps(run, 2, down)
+    let run = pactRun({ x: PUDDLE.x, y: bottom + 40 }, FIN_AT_RIGHT) // vem de baixo, andando para cima
+    run = steps(run, 2, up)
     assert.equal(run.death, null, 'ainda fora')
-    run = steps(run, 6, down)
+    run = steps(run, 6, up)
     assert.equal(run.death?.cause, 'poca-tralalero')
     assert.equal(run.health, 0)
     assert.ok(run.death.fin, 'guarda onde a barbatana estava, para ela mergulhar dali')
@@ -1023,7 +1024,7 @@ describe('poça do Tralalero (Sala do Pacto)', () => {
   })
 
   test('andar ao lado da poça sem pisar nela, com a barbatana longe, não mata', () => {
-    const run = steps(pactRun({ x: PUDDLE.x - 150, y: top - 50 }, FIN_AT_RIGHT), 4, right)
+    const run = steps(pactRun({ x: PUDDLE.x - 150, y: bottom + 50 }, FIN_AT_RIGHT), 4, right)
     assert.equal(run.death, null)
   })
 

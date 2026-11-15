@@ -223,6 +223,8 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
       const links = getLinks(pacts[0])
       assert.equal(links.length, 1)
       assert.equal(findRoom(floor, links[0].id).type, 'chefe')
+      // Como no Isaac, ela nunca fica embaixo do chefe: a porta nunca é a de cima (a estátua e a poça ficam no alto)
+      assert.ok(!pacts[0].neighbors.up, `${pacts[0].type} com porta em cima no andar ${floor.number}`)
     })
   })
 

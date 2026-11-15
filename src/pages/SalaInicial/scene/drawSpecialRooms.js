@@ -288,7 +288,7 @@ function drawPactRoom(ctx, { finMs = 0, hideFin = false }) {
   if (!hideFin) drawSharkFin(ctx, getSharkFinPosition(finMs), finMs)
 
   for (const [bubbleX, bubbleY, radius] of BUBBLES) strokeEllipse(ctx, 'rgba(90, 154, 192, 0.6)', 2, bubbleX, bubbleY, radius, radius)
-  SNEAKER_XS.forEach((sneakerX, index) => drawSneaker(ctx, sneakerX, 610 + index * 2))
+  SNEAKER_XS.forEach((sneakerX, index) => drawSneaker(ctx, sneakerX, 500 + index * 2))
 
   glow(ctx, x, y, 420, '60, 140, 180', 0.18)
 }
@@ -304,7 +304,8 @@ function drawSneaker(ctx, x, y) {
 // ---------- Sala do Tung Tung God (tipo 'god'): céu, colunas de mármore, nuvens e a estátua dele ----------
 // Substituiu a Sala da Mamãe em 2026-11-14. A estátua é só visual: não tem função.
 // Ela é desenhada junto com o jogador (drawScene.js), na ordem dos pés, para o Tung passar por trás dela.
-// As casas X do layout 'god' (colunas 5 a 7, fileiras 3 e 4) ficam embaixo do pedestal.
+// As casas X do layout 'god' (colunas 5 a 7, fileiras 1 e 2) ficam embaixo do pedestal: a estátua fica no alto,
+// como a do anjo no Isaac. A sala nunca tem porta em cima (floorGenerator.js), então ela não tapa porta nenhuma.
 
 const COLUMN_GOLD = '#e8c860'
 const COLUMN_GOLD_DARK = '#b89030'
@@ -317,7 +318,7 @@ const MARBLE_DARK = '#b4ab96'
 const CARVE = '#a39a84' // linhas esculpidas: penas, olhos, boca
 const STATUE_GOLD = '#d8b860'
 
-const STATUE_AREA = getCellsArea(5, 3, 7, 4)
+const STATUE_AREA = getCellsArea(5, 1, 7, 2)
 export const GOD_STATUE_FEET_Y = STATUE_AREA.y + STATUE_AREA.height // o desenho da estátua entra na lista pelos pés
 
 const COLUMN_XS = [300, 500, 1100, 1300] // longe da porta de cima (x 690 a 910)
