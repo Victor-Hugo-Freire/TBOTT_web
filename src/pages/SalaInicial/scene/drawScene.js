@@ -4,14 +4,15 @@ import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 import {
   FLOOR_TRANSITION_MS,
   getCurrentRoom,
+  getDrumFall,
   getRoomObstacles,
   getRoomTheme,
   isDrumVisible,
   isSecretMarkVisible,
 } from '../../../utils/run.js'
 import { drawDoors, drawSecretMark } from './drawDoors.js'
-import { drawDrum, drawDrumText } from './drawDrum.js'
-import { drawFloorObstacles, drawObstacle } from './drawObstacles.js'
+import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
+import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
 import { drawPuddleFall, drawSharkGrab } from './drawShark.js'
@@ -34,6 +35,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     unlocking: run.unlocking,
     death: run.death,
     finMs: run.finMs,
+    drumDrop: run.drumDrop, // o tambor caindo do céu na sala do chefe (veja getDrumFall)
   }
   const { transition } = run
   if (transition?.type !== 'room') {
@@ -86,7 +88,7 @@ export function getFloorFade(run) {
 // depois obstáculos, tambor e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, options) {
-  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs } = options
+  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop } = options
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -101,14 +103,17 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, opti
   const secretDoor = room.secret ? doors.find((door) => door.side === room.secret.side) : null
   if (showSecretMark && secretDoor?.state === 'hidden') drawSecretMark(ctx, secretDoor.side)
 
-  const drum = isDrumVisible(room) ? obstacles.find((obstacle) => obstacle.mechanic === 'tambor') : null
+  // O tambor só aparece depois de cair do céu (na sala do chefe que ainda vai entrar deslizando, ele ainda não caiu).
+  // Com "reduzir movimento", ele já aparece no chão, sem a queda e sem a poeira.
+  const drum = isDrumVisible(room) && room.drumDropped ? obstacles.find((obstacle) => obstacle.mechanic === 'tambor') : null
+  const drumFall = reduceMotion ? getDrumFall(null) : getDrumFall(drumDrop)
   const sprites = []
   for (const obstacle of obstacles) {
     if (obstacle.blocking && !obstacle.removed) {
-      sprites.push({ feetY: getFeetY(obstacle.box), draw: () => drawObstacle(ctx, obstacle) })
+      sprites.push({ feetY: getFeetY(obstacle.box), draw: () => drawObstacle(ctx, obstacle, timeMs, reduceMotion) })
     }
   }
-  if (drum) sprites.push({ feetY: getFeetY(drum.box), draw: () => drawDrum(ctx, drum.box) })
+  if (drum) sprites.push({ feetY: getFeetY(drum.box), draw: () => drawDrum(ctx, drum.box, drumFall.height) })
   // A estátua do Tung Tung God também entra na ordem dos pés: o jogador passa por trás dela
   if (room.type === 'god') sprites.push({ feetY: GOD_STATUE_FEET_Y, draw: () => drawGodStatue(ctx) })
   if (player) {
@@ -122,8 +127,11 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, opti
   }
   sprites.sort((a, b) => a.feetY - b.feetY).forEach((sprite) => sprite.draw())
 
-  // O "TUNG" fica acima do tambor: desenhado de novo por último, o jogador não o cobre
-  if (drum) drawDrumText(ctx, drum.box, room.hits)
+  // Cacos do garrafão voando, poeira da batida do tambor no chão e o "TUNG" acima dele:
+  // desenhados por último, o jogador não os cobre
+  drawBreakingObstacles(ctx, obstacles, reduceMotion)
+  if (drum) drawDrumDust(ctx, drum.box, drumFall.landedMs)
+  if (drum && drumFall.height === 0) drawDrumText(ctx, drum.box, room.hits)
 }
 
 // Os pés de um obstáculo ficam no meio da borda de baixo da caixa

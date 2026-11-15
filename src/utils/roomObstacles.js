@@ -19,7 +19,15 @@ export const ROLL_SPEED = 520 // u/s do barril deitado e da roda de parmesão de
 // andar contra ela, bem devagar (40 u/s), e atravessar de lado desvia mais de meia casa.
 export const CONVEYOR_SPEED = 220
 export const STICKY_SPEED = 0.35 // fração da velocidade em cima do piso grudento (era 0,5: segurava pouco)
+export const SHARDS_SPEED = 0.5 // fração da velocidade em cima dos cacos de vidro do garrafão quebrado
+export const BREAK_MS = 350 // animação do garrafão quebrando (os cacos voando)
 const HOT_MARGIN = 2 // a chapa bloqueia, então os pés só encostam: a margem faz o encostar contar
+
+// O garrafão quebrado não some: vira cacos de vidro no piso. Os cacos não bloqueiam, mas deixam o personagem
+// mais lento e machucam (meio coração, como a chapa). Mantêm o id do garrafão, que fica em room.removed.
+export function toShards(obstacle) {
+  return { ...obstacle, kind: 'cacos', mechanic: 'cacos', blocking: false }
+}
 
 // O que bloqueia o jogador agora: as paredes, os obstáculos que bloqueiam (sem os quebrados e sem
 // os que estão rolando, que passariam por cima dele) e as caixas extras (ex.: o tambor).
@@ -28,12 +36,14 @@ export function getRoomSolids(obstacles, extra = []) {
   return [...ROOM_WALLS, ...boxes.map((obstacle) => obstacle.box), ...extra]
 }
 
-// Golpe do bastão: o quebrável que a caixa do golpe toca some; o rolante parado começa a rolar
-// na direção do golpe. Os outros não mudam. hitbox é a de getAttackHitbox (null = golpe fora da janela).
+// Golpe do bastão: o quebrável que a caixa do golpe toca some (o garrafão vira cacos, com breakMs para a
+// animação de quebrar); o rolante parado começa a rolar na direção do golpe. Os outros não mudam.
+// hitbox é a de getAttackHitbox (null = golpe fora da janela).
 export function hitObstacles(obstacles, hitbox, direction) {
   if (!hitbox) return obstacles
   return obstacles.map((obstacle) => {
     if (obstacle.removed || !overlaps(hitbox, obstacle.box)) return obstacle
+    if (obstacle.mechanic === 'quebravel' && obstacle.kind === 'garrafao') return { ...toShards(obstacle), breakMs: 0 }
     if (obstacle.mechanic === 'quebravel') return { ...obstacle, removed: true }
     if (obstacle.mechanic === 'rolante' && !obstacle.rolling) return { ...obstacle, rolling: { ...DIRECTION_VECTORS[direction] } }
     return obstacle
@@ -62,6 +72,14 @@ export function updateRollingObstacles(obstacles, deltaSeconds) {
   })
 }
 
+// O tempo da animação do garrafão quebrando anda até BREAK_MS (depois o breakMs fica parado e nada muda)
+export function updateBreakingObstacles(obstacles, deltaSeconds) {
+  return obstacles.map((obstacle) => {
+    if (obstacle.breakMs === undefined || obstacle.breakMs >= BREAK_MS) return obstacle
+    return { ...obstacle, breakMs: obstacle.breakMs + deltaSeconds * 1000 }
+  })
+}
+
 // O ponto dos pés está dentro da área do obstáculo? (meio-aberto: a borda de baixo e a da direita
 // já são da casa vizinha, então o ponto nunca fica em duas casas ao mesmo tempo)
 function containsPoint(box, point) {
@@ -77,6 +95,7 @@ export function getFloorEffect(obstacles, feet) {
     if (obstacle.removed || !containsPoint(obstacle.box, feet)) continue
     if (obstacle.mechanic === 'escorregadio') effect.slippery = true
     if (obstacle.mechanic === 'grudento') effect.speedMultiplier = STICKY_SPEED
+    if (obstacle.mechanic === 'cacos') effect.speedMultiplier = SHARDS_SPEED
     // direction: 1 empurra para a direita e -1 para a esquerda, como as setas do desenho (veja getConveyorDirection)
     if (obstacle.mechanic === 'esteira') effect.push = { x: CONVEYOR_SPEED * (obstacle.direction ?? 1), y: 0 }
   }
@@ -94,6 +113,11 @@ export function pushPlayer(position, push, deltaSeconds, solids = ROOM_WALLS) {
 export function touchesHot(obstacles, feet) {
   const box = getFeetBox(feet, HOT_MARGIN)
   return obstacles.some((obstacle) => obstacle.mechanic === 'quente' && !obstacle.removed && overlaps(box, obstacle.box))
+}
+
+// Os pés estão em cima dos cacos de vidro? Quem chama aplica hurtPlayer (os cacos não bloqueiam: ele pisa neles).
+export function isOnShards(obstacles, feet) {
+  return obstacles.some((obstacle) => obstacle.mechanic === 'cacos' && !obstacle.removed && containsPoint(obstacle.box, feet))
 }
 
 // ---------- piso escorregadio (vinho, azeite, sorvete e poça) ----------

@@ -32,12 +32,33 @@ const TEXT_PIXEL = 4 // tamanho do pixel da fonte do "TUNG", em unidades da sala
 const TEXT_GAP = 14 // espaço entre a pele do tambor e o texto
 
 // Desenha o tambor (sem o texto: o "TUNG" vem depois do jogador, com drawDrumText).
-export function drawDrum(ctx, box) {
+// height = altura em que ele está caindo do céu (0 = no chão): o desenho sobe e a sombra fica no chão,
+// menor e mais fraca quanto mais alto ele está.
+export function drawDrum(ctx, box, height = 0) {
   const centerX = box.x + box.width / 2
   const feetY = box.y + box.height
-  drawShadow(ctx, centerX, feetY)
-  drawStand(ctx, centerX, feetY)
-  drawBody(ctx, centerX, feetY)
+  drawShadow(ctx, centerX, feetY, Math.max(0.3, 1 - height / 700))
+  drawStand(ctx, centerX, feetY - height)
+  drawBody(ctx, centerX, feetY - height)
+}
+
+// Poeira que o tambor levanta ao bater no chão: nuvenzinhas saindo para os lados e sumindo.
+// landedMs = tempo desde que ele bateu (getDrumFall); depois de DUST_MS não desenha nada.
+const DUST_MS = 400
+export function drawDrumDust(ctx, box, landedMs) {
+  if (landedMs < 0 || landedMs >= DUST_MS) return
+  const centerX = box.x + box.width / 2
+  const feetY = box.y + box.height
+  const t = landedMs / DUST_MS
+  ctx.globalAlpha = 0.55 * (1 - t)
+  for (const side of [-1, 1]) {
+    for (let puff = 0; puff < 3; puff++) {
+      const x = centerX + side * (30 + puff * 18 + t * 50)
+      const y = feetY - 4 - t * 12 - puff * 3
+      ellipse(ctx, '#d8c8a8', x, y, 10 + t * 10 - puff * 2, 6 + t * 5 - puff)
+    }
+  }
+  ctx.globalAlpha = 1
 }
 
 // "TUNG" repetido hits vezes acima do tambor. Desenhado por último, por cima do jogador.
@@ -63,10 +84,11 @@ function fillTextPixels(ctx, text, left, top, grow, color) {
   ctx.fill()
 }
 
-// Sombra no chão, puxada para a direita como a dos obstáculos (luz de cima e da esquerda)
-function drawShadow(ctx, centerX, feetY) {
-  ctx.globalAlpha = 0.3
-  ellipse(ctx, '#000', centerX + 6, feetY - 2, 54, 10)
+// Sombra no chão, puxada para a direita como a dos obstáculos (luz de cima e da esquerda).
+// scale encolhe a sombra quando o tambor está no alto (caindo).
+function drawShadow(ctx, centerX, feetY, scale = 1) {
+  ctx.globalAlpha = 0.3 * scale
+  ellipse(ctx, '#000', centerX + 6, feetY - 2, 54 * scale, 10 * scale)
   ctx.globalAlpha = 1
 }
 

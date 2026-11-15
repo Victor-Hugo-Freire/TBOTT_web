@@ -6,17 +6,20 @@ import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
 import { FIN_LAP_MS, getHammockBox, PUDDLE, SHARK_DEATH_MS, SLEEP_MS } from '../src/utils/roomInteractions.js'
-import { CONVEYOR_SPEED, SLIP_SPEED, STICKY_SPEED } from '../src/utils/roomObstacles.js'
+import { BREAK_MS, CONVEYOR_SPEED, getFloorEffect, SHARDS_SPEED, SLIP_SPEED, STICKY_SPEED, toShards } from '../src/utils/roomObstacles.js'
 import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
 import {
   BANNER_TOTAL_MS,
   createRun,
   createRunSnapshot,
   DEATH_HOLD_MS,
+  DRUM_DROP_MS,
+  DRUM_FALL_MS,
   ENTER_FADE_MS,
   FLOOR_TRANSITION_MS,
   getCurrentRoom,
   getDrumBox,
+  getDrumFall,
   getEnterFade,
   getObstacleTheme,
   getRestartFade,
@@ -89,8 +92,9 @@ function swing(run, direction) {
   return { run, activeFrames }
 }
 
-// Golpe no tambor, de baixo para cima (os pés logo abaixo dele)
+// Golpe no tambor, de baixo para cima (os pés logo abaixo dele). Antes, espera ele acabar de cair do céu.
 function hitDrum(run) {
+  while (run.drumDrop) run = updateRun(run, IDLE, STEP)
   const drum = getDrumBox()
   run.player = createPlayer({ x: drum.x + drum.width / 2, y: drum.y + drum.height + 45 })
   return swing(run, 'up')
@@ -412,7 +416,7 @@ describe('golpes: tambor e parede secreta', () => {
 })
 
 describe('obstáculos na run', () => {
-  test('garrafão quebrado some e não volta ao sair e entrar de novo', () => {
+  test('garrafão quebrado vira cacos, que continuam lá ao sair e entrar de novo', () => {
     // Sala comum da cantina (andar 1) com garrafão
     let run = null
     for (let s = 1; !run; s++) {
@@ -429,14 +433,90 @@ describe('obstáculos na run', () => {
     const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
     run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height + 30 })
     run = swing(run, 'up').run
-    assert.equal(run.obstacles.find((obstacle) => obstacle.id === jar.id).removed, true)
+    const broken = run.obstacles.find((obstacle) => obstacle.id === jar.id)
+    assert.equal(broken.kind, 'cacos')
+    assert.equal(broken.blocking, false, 'os cacos não bloqueiam: ficam no piso')
     assert.ok(room.removed.includes(jar.id))
 
     const door = getRoomDoors(run.floor, room)[0]
     run = goThrough(run, door.side)
     run = goThrough(run, OPPOSITE_SIDE[door.side])
     assert.equal(run.roomId, room.id)
-    assert.equal(run.obstacles.some((obstacle) => obstacle.id === jar.id), false)
+    assert.equal(run.obstacles.find((obstacle) => obstacle.id === jar.id).kind, 'cacos', 'os cacos continuam lá')
+  })
+
+  test('pisar nos cacos deixa mais lento e tira meio coração (e a invencibilidade segura o próximo)', () => {
+    let run = findRunWith('garrafao')
+    const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
+    run.obstacles = run.obstacles.map((obstacle) => (obstacle.id === jar.id ? toShards(obstacle) : obstacle))
+    const middle = { x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height / 2 }
+    assert.equal(getFloorEffect(run.obstacles, middle).speedMultiplier, SHARDS_SPEED)
+
+    run.player = createPlayer(middle)
+    run = updateRun(run, IDLE, STEP)
+    assert.equal(run.health, MAX_HEALTH - DAMAGE_LIGHT)
+    run = steps(run, 10) // 500 ms depois: ainda invencível
+    assert.equal(run.health, MAX_HEALTH - DAMAGE_LIGHT)
+  })
+
+  test('sem vida, morrer nos cacos tem a causa certa no aviso', () => {
+    let run = findRunWith('garrafao')
+    const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
+    run.obstacles = run.obstacles.map((obstacle) => (obstacle.id === jar.id ? toShards(obstacle) : obstacle))
+    run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height / 2 })
+    run.health = 1
+    run = updateRun(run, IDLE, STEP)
+    assert.deepEqual(run.death, { cause: 'cacos' })
+  })
+
+  test('o garrafão quebrando: a animação anda até BREAK_MS e para', () => {
+    let run = findRunWith('garrafao')
+    const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
+    run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height + 30 })
+    run = swing(run, 'up').run
+    assert.ok(run.obstacles.find((obstacle) => obstacle.id === jar.id).breakMs >= BREAK_MS)
+  })
+})
+
+describe('tambor caindo do céu', () => {
+  function bossRun() {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    return createRun({ seed, roomId, characterId: 'x' })
+  }
+
+  test('entrar na sala do chefe faz o tambor cair; enquanto cai, golpe não conta', () => {
+    let run = bossRun()
+    assert.deepEqual(run.drumDrop, { elapsedMs: 0 })
+    assert.equal(getDrumFall(run.drumDrop).height > 0, true, 'começa lá no alto')
+    const drum = getDrumBox()
+    run.player = createPlayer({ x: drum.x + drum.width / 2, y: drum.y + drum.height + 45 })
+    run = swing(run, 'up').run
+    assert.equal(getCurrentRoom(run).hits, 0)
+  })
+
+  test('a queda acaba em DRUM_DROP_MS: o tambor fica no chão e aí os golpes contam', () => {
+    let run = steps(bossRun(), Math.ceil(DRUM_DROP_MS / STEP_MS))
+    assert.equal(run.drumDrop, null)
+    assert.equal(getDrumFall(run.drumDrop).height, 0)
+    run = hitDrum(run).run
+    assert.equal(getCurrentRoom(run).hits, 1)
+  })
+
+  test('cai uma vez só por andar: sair e voltar não repete a queda', () => {
+    let run = steps(bossRun(), Math.ceil(DRUM_DROP_MS / STEP_MS))
+    const room = getCurrentRoom(run)
+    const door = getRoomDoors(run.floor, room).find((item) => item.state === 'open')
+    run = goThrough(run, door.side)
+    run = goThrough(run, OPPOSITE_SIDE[door.side])
+    assert.equal(run.roomId, room.id)
+    assert.equal(run.drumDrop, null)
+  })
+
+  test('a altura cai cada vez mais rápido e chega a 0 em DRUM_FALL_MS', () => {
+    const start = getDrumFall({ elapsedMs: 0 }).height
+    const middle = getDrumFall({ elapsedMs: DRUM_FALL_MS / 2 }).height
+    assert.ok(start - middle < middle, 'na primeira metade cai menos que na segunda')
+    assert.deepEqual(getDrumFall({ elapsedMs: DRUM_FALL_MS }), { height: 0, landedMs: 0 })
   })
 })
 
@@ -674,7 +754,7 @@ describe('estado das salas no progresso: o que quebrou não volta', () => {
 
     const back = saveAndContinue(run)
     assert.equal(back.roomId, room.id)
-    assert.equal(back.obstacles.some((obstacle) => obstacle.id === jar.id), false, 'o garrafão não voltou')
+    assert.equal(back.obstacles.find((obstacle) => obstacle.id === jar.id).kind, 'cacos', 'o garrafão voltou como cacos')
     assert.ok(getCurrentRoom(back).removed.includes(jar.id))
   })
 

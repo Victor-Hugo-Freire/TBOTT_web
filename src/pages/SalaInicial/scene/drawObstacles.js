@@ -6,7 +6,7 @@
 // Peça sem transparência ganha contorno escuro (se não for fina) e chanfro de luz em cima e sombra embaixo.
 // Peça preta ('#000') é sombra: vai por baixo de tudo e sem contorno.
 
-import { CONVEYOR_SPEED } from '../../../utils/roomObstacles.js'
+import { BREAK_MS, CONVEYOR_SPEED } from '../../../utils/roomObstacles.js'
 
 const GRID = 20
 const OBSTACLE_SIZE = 92 // tamanho do desenho, em unidades da sala (o protótipo usava 84 px num quadro menor)
@@ -55,6 +55,14 @@ const OBSTACLE_SHAPES = {
       ['e', 4, 12, 2, 5, '#8a5a30'], ['e', 16, 12, 2, 5, '#4a2a14'], [7, 7, 1, 10, '#2a1a10'], [12, 7, 1, 10, '#2a1a10'], [4, 8.2, 12, 0.9, '#8f5f33'],
       ['e', 4, 12, 0.9, 0.9, '#2a1a10'], [18.2, 10, 1.8, 0.6, '#fff', 0.35], [18.2, 13, 1.8, 0.6, '#fff', 0.35]],
   },
+  // Cacos do garrafão quebrado: vidro verde espalhado numa mancha de vinho (não bloqueiam: ficam no piso)
+  cacos: {
+    flat: true,
+    parts: [['e', 10, 13, 6.6, 2.6, '#5a1a2a', 0.85], ['e', 6.6, 12, 2.6, 1.2, '#5a1a2a', 0.85], ['e', 14, 14.4, 2.2, 0.9, '#5a1a2a', 0.85],
+      [4.6, 11.4, 1.8, 0.9, '#3d6b3a'], [8.4, 13.6, 1.4, 0.8, '#3d6b3a'], [12, 11.8, 2, 1, '#4d7b48'], [14.6, 14, 1.2, 0.7, '#3d6b3a'],
+      [10.2, 10.6, 1, 0.7, '#4d7b48'], [6.4, 14.6, 1.5, 0.7, '#4d7b48'], [11.2, 14.8, 1.6, 0.9, '#3d6b3a'], [8.6, 11.2, 1.4, 1.1, '#c09060'],
+      [4.8, 11.4, 0.6, 0.3, '#fff', 0.8], [12.3, 11.8, 0.7, 0.3, '#fff', 0.8], [11.5, 14.8, 0.6, 0.3, '#fff', 0.7], [6.6, 14.6, 0.5, 0.3, '#fff', 0.7]],
+  },
   vinho: {
     flat: true,
     parts: [['e', 10, 12.5, 8.2, 3.6, '#6a1530'], ['e', 6, 11, 3.5, 1.9, '#6a1530'], ['e', 14.5, 14.2, 3.6, 1.6, '#6a1530'],
@@ -71,8 +79,9 @@ const OBSTACLE_SHAPES = {
   },
   chapa: {
     parts: [SHADOW, [2, 5, 16, 12.5, '#2a2a2e'], [2, 5, 16, 8, '#3c3c42'], ['e', 6.5, 9, 3.2, 2.3, '#e05020'], ['e', 13.5, 9, 3.2, 2.3, '#e05020'],
-      ['e', 6.5, 9, 1.9, 1.3, '#ffb040'], ['e', 13.5, 9, 1.9, 1.3, '#ffb040'], [2, 13.2, 16, 4.3, '#1c1c20'], ['e', 5, 15.3, 1.1, 1.1, '#9a9aa0'], ['e', 10, 15.3, 1.1, 1.1, '#9a9aa0'], ['e', 15, 15.3, 1.1, 1.1, '#9a9aa0'],
-      ['e', 6.5, 4.2, 1.2, 1.6, '#fff', 0.28], ['e', 13.5, 3.2, 1.2, 1.8, '#fff', 0.25]],
+      ['e', 6.5, 9, 1.9, 1.3, '#ffb040'], ['e', 13.5, 9, 1.9, 1.3, '#ffb040'], [2, 13.2, 16, 4.3, '#1c1c20'], ['e', 5, 15.3, 1.1, 1.1, '#9a9aa0'], ['e', 10, 15.3, 1.1, 1.1, '#9a9aa0'], ['e', 15, 15.3, 1.1, 1.1, '#9a9aa0']],
+    // Fumaça das duas bocas do fogão (animada em drawSteam)
+    steam: { sources: [[6.5, 5.5], [13.5, 5.5]], radius: 1.3, rise: 5, alpha: 0.3 },
   },
   azeite: {
     flat: true,
@@ -86,7 +95,9 @@ const OBSTACLE_SHAPES = {
   },
   mesa: {
     parts: [SHADOW, ['e', 10, 16.6, 4.4, 1.4, '#4a3a28'], [9, 9, 2, 7.6, '#4a3a28'], ['e', 10, 7.2, 7.8, 3.1, '#6a4a28'], ['e', 10, 6.5, 7.2, 2.6, '#8a6a40'], ['e', 9, 6, 5, 1.6, '#a88458', 0.5],
-      ['e', 8.2, 6.2, 2.6, 0.8, '#d8d0c0'], [6.6, 3.9, 3.2, 2.4, '#e8e0d0'], ['e', 8.2, 3.9, 1.6, 0.6, '#3a2010'], [9.8, 4.4, 1, 1.4, '#e8e0d0'], [8, 1.3, 0.6, 1.8, '#fff', 0.45], [9.2, 0.8, 0.6, 1.8, '#fff', 0.35]],
+      ['e', 8.2, 6.2, 2.6, 0.8, '#d8d0c0'], [6.6, 3.9, 3.2, 2.4, '#e8e0d0'], ['e', 8.2, 3.9, 1.6, 0.6, '#3a2010'], [9.8, 4.4, 1, 1.4, '#e8e0d0']],
+    // Fumaça do café na xícara (animada em drawSteam)
+    steam: { sources: [[7.6, 3.4], [8.8, 3.4]], radius: 0.45, rise: 3.2, alpha: 0.5 },
   },
   'caixote-tomate': {
     parts: [SHADOW, ['e', 6.5, 7.2, 2.4, 2.3, '#c03020'], ['e', 10.5, 6.2, 2.7, 2.5, '#d83a28'], ['e', 14, 7.2, 2.3, 2.2, '#b02818'], ['e', 8.5, 8.4, 2.2, 1.6, '#d04030'],
@@ -139,13 +150,15 @@ const OBSTACLE_SHAPES = {
 }
 
 // Desenha um obstáculo que bloqueia (barril, garrafão, chapa...). Quem chama ordena pelo y dos pés, junto com o jogador.
-// Os de piso, o cenário e o tambor não são desenhados aqui.
-export function drawObstacle(ctx, obstacle) {
+// Os de piso, o cenário e o tambor não são desenhados aqui. timeMs e reduceMotion animam a fumaça (fogão e café).
+export function drawObstacle(ctx, obstacle, timeMs = 0, reduceMotion = false) {
   if (obstacle.removed || !obstacle.blocking) return
   drawShapeAtBox(ctx, obstacle, OBSTACLE_SIZE)
+  const steam = OBSTACLE_SHAPES[obstacle.kind]?.steam
+  if (steam) drawSteam(ctx, obstacle, OBSTACLE_SIZE, steam, timeMs, reduceMotion)
 }
 
-// Desenha os obstáculos de piso (vinho, massa, esteira...), que ficam sempre por baixo de tudo.
+// Desenha os obstáculos de piso (vinho, massa, esteira, cacos...), que ficam sempre por baixo de tudo.
 // timeMs (relógio do desenho) e reduceMotion só servem para as setas da esteira andarem.
 export function drawFloorObstacles(ctx, obstacles, timeMs = 0, reduceMotion = false) {
   for (const obstacle of obstacles) {
@@ -153,6 +166,70 @@ export function drawFloorObstacles(ctx, obstacles, timeMs = 0, reduceMotion = fa
     drawShapeAtBox(ctx, obstacle, FLOOR_OBSTACLE_SIZE)
     if (obstacle.kind === 'esteira') drawConveyorArrows(ctx, obstacle, FLOOR_OBSTACLE_SIZE, getConveyorShift(timeMs, reduceMotion))
   }
+}
+
+// Garrafões que acabaram de quebrar: os cacos voando. Desenhado por cima do jogador (quem bate fica na frente
+// do garrafão e cobriria a animação). Usa o breakMs de cada um; com "reduzir movimento", nada.
+export function drawBreakingObstacles(ctx, obstacles, reduceMotion = false) {
+  if (reduceMotion) return
+  for (const obstacle of obstacles) {
+    if (obstacle.kind === 'cacos' && obstacle.breakMs < BREAK_MS) {
+      drawBreakingGlass(ctx, obstacle, FLOOR_OBSTACLE_SIZE, obstacle.breakMs / BREAK_MS)
+    }
+  }
+}
+
+// Leva a origem para o canto da grade 20x20 do desenho do obstáculo (o mesmo lugar de drawShapeAtBox)
+function moveToGrid(ctx, obstacle, size) {
+  const { box } = obstacle
+  ctx.translate(box.x + box.width / 2 - size / 2, box.y + box.height / 2 - size * 0.55)
+  ctx.scale(size / GRID, size / GRID)
+}
+
+// Fumaça: de cada fonte saem duas baforadas que se revezam. Cada uma sobe, cresce, balança para os lados e
+// some, e começa de novo (uma volta a cada STEAM_LOOP_MS). Com "reduzir movimento", fica uma baforada parada.
+const STEAM_LOOP_MS = 1400
+function drawSteam(ctx, obstacle, size, steam, timeMs, reduceMotion) {
+  ctx.save()
+  moveToGrid(ctx, obstacle, size)
+  ctx.fillStyle = '#ffffff'
+  steam.sources.forEach(([x, y], index) => {
+    const puffs = reduceMotion ? 1 : 2
+    for (let puff = 0; puff < puffs; puff++) {
+      const t = reduceMotion ? 0.35 : (timeMs / STEAM_LOOP_MS + puff / 2 + index * 0.3) % 1 // de 0 a 1 na subida
+      const sway = Math.sin(t * Math.PI * 2 + index) * 0.5
+      const radius = steam.radius * (0.7 + t * 0.6)
+      ctx.globalAlpha = steam.alpha * Math.sin(Math.PI * t) // aparece, fica e some
+      ctx.beginPath()
+      ctx.ellipse(x + sway, y - t * steam.rise, radius, radius * 1.3, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  })
+  ctx.globalAlpha = 1
+  ctx.restore()
+}
+
+// Garrafão quebrando (progress de 0 a 1): o vinho espirra e dez cacos voam para os lados, sobem um pouco e caem
+function drawBreakingGlass(ctx, obstacle, size, progress) {
+  ctx.save()
+  moveToGrid(ctx, obstacle, size)
+  if (progress < 0.5) {
+    ctx.globalAlpha = 0.8 - progress
+    ctx.fillStyle = '#6a1530'
+    ctx.beginPath()
+    ctx.ellipse(10, 11, 3 + progress * 10, 1.5 + progress * 4, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  for (let piece = 0; piece < 10; piece++) {
+    const angle = (piece * Math.PI) / 5 + 0.3
+    const distance = 2 + progress * 9
+    const lift = Math.sin(Math.PI * progress) * 6 // sobem e caem
+    const x = 10 + Math.cos(angle) * distance
+    const y = 9 + Math.sin(angle) * distance * 0.5 - lift
+    paintRect(ctx, OUTLINE, x - 0.3, y - 0.3, 2.2, 1.6, 1)
+    paintRect(ctx, piece % 2 ? '#4d7b48' : '#9ac898', x, y, 1.6, 1, 1)
+  }
+  ctx.restore()
 }
 
 // Centraliza o desenho na caixa do obstáculo, como o place() do protótipo fazia com o centro da casa.

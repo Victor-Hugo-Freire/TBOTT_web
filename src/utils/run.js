@@ -31,9 +31,12 @@ import {
   getRoomSolids,
   getSlipMovement,
   hitObstacles,
+  isOnShards,
   pushPlayer,
   stopBlockedAxes,
+  toShards,
   touchesHot,
+  updateBreakingObstacles,
   updateRollingObstacles,
 } from './roomObstacles.js'
 
@@ -52,8 +55,15 @@ export const DEATH_HOLD_MS = 500 // depois da animação de morte, ele fica deit
 export const RESTART_HOLD_MS = 1000 // segurar R por 1 s recomeça a run com outra seed (como no Isaac)
 export const STARTING_FORKS = 1 // garfos no começo da run (cada porta trancada gasta 1)
 
-// O que machuca hoje: só a chapa quente. A causa vai para o aviso de morte (veja health.js).
+// O que machuca no piso: a chapa quente e os cacos do garrafão quebrado. A causa vai para o aviso de morte (veja health.js).
 const HOT_PLATE_CAUSE = 'chapa'
+const SHARDS_CAUSE = 'cacos'
+
+// Tambor caindo do céu na sala do chefe: cai em DRUM_FALL_MS (cada vez mais rápido) de DRUM_FALL_HEIGHT u de altura
+// e levanta poeira até DRUM_DROP_MS. Enquanto cai, não dá para bater nele.
+export const DRUM_FALL_MS = 550
+export const DRUM_DROP_MS = 950
+const DRUM_FALL_HEIGHT = 700
 const NO_INPUT = { movement: { x: 0, y: 0 }, attackDirection: null }
 
 const NORMAL_ROOM_TYPES = ['inicial', 'comum']
@@ -88,9 +98,23 @@ export function getObstacleTheme(floor, room) {
   return room.type === 'adega' ? 'cantina' : floor.theme
 }
 
-// Obstáculos da sala, sem os que já quebraram nela
+// Obstáculos da sala, sem os que já quebraram nela. O garrafão quebrado volta como cacos de vidro.
 export function getRoomObstacles(floor, room) {
-  return buildRoomObstacles(room.layoutId, getObstacleTheme(floor, room)).filter((obstacle) => !room.removed.includes(obstacle.id))
+  const obstacles = []
+  for (const obstacle of buildRoomObstacles(room.layoutId, getObstacleTheme(floor, room))) {
+    if (!room.removed.includes(obstacle.id)) obstacles.push(obstacle)
+    else if (obstacle.kind === 'garrafao') obstacles.push(toShards(obstacle))
+  }
+  return obstacles
+}
+
+// Altura do tambor caindo do céu (0 = no chão) e há quanto tempo ele já caiu (-1 = ainda caindo).
+// drumDrop = run.drumDrop ({ elapsedMs }) ou null (sem animação: o tambor está no chão).
+export function getDrumFall(drumDrop) {
+  if (!drumDrop) return { height: 0, landedMs: Infinity }
+  if (drumDrop.elapsedMs >= DRUM_FALL_MS) return { height: 0, landedMs: drumDrop.elapsedMs - DRUM_FALL_MS }
+  const t = drumDrop.elapsedMs / DRUM_FALL_MS
+  return { height: DRUM_FALL_HEIGHT * (1 - t * t), landedMs: -1 } // t * t: cai cada vez mais rápido
 }
 
 // A marca de giz da adega aparece de perto ou depois do 1º golpe
@@ -102,11 +126,18 @@ export function isSecretMarkVisible(run) {
 
 // Entra na sala: ela fica visitada e limpa (sem inimigos, toda sala fica limpa ao entrar).
 // O jogador surge parado, sem golpe e sem dano, virado para `direction`.
+// Na primeira entrada na sala do chefe o tambor cai do céu (quando houver luta, ele vai cair quando o chefe morrer).
 function enterRoom(run, floor, room, position, direction = 'down') {
   room.visited = true
   room.cleared = true
+  let drumDrop = null
+  if (room.type === 'chefe' && !room.drumDropped) {
+    room.drumDropped = true
+    drumDrop = { elapsedMs: 0 }
+  }
   return {
     ...run,
+    drumDrop, // { elapsedMs } enquanto o tambor cai do céu (veja getDrumFall), senão null
     floor,
     roomId: room.id,
     player: { ...createPlayer(position), direction },
@@ -243,18 +274,21 @@ function advanceBanner(banner, stepMs) {
 
 // Ids que quebraram agora vão para room.removed (não voltam ao sair e entrar de novo, nem ao continuar a run).
 // O que está rolando também conta: ele sempre quebra no fim, então sair da sala no meio do caminho não o traz de volta.
+// O garrafão que virou cacos também conta como quebrado (ao voltar, getRoomObstacles traz os cacos de novo).
 function saveRemoved(room, obstacles) {
   for (const obstacle of obstacles) {
-    if ((obstacle.removed || obstacle.rolling) && !room.removed.includes(obstacle.id)) room.removed.push(obstacle.id)
+    const broken = obstacle.removed || obstacle.rolling || obstacle.kind === 'cacos'
+    if (broken && !room.removed.includes(obstacle.id)) room.removed.push(obstacle.id)
   }
 }
 
 // O golpe acerta o tambor ou a parede da adega? (até 3 batidas)
 // A parede secreta só conta golpe com a marca visível (de perto, ou já trincada): de longe, nada acontece.
-function hitsTarget(room, obstacles, hitbox, player) {
+// O tambor ainda caindo do céu (drumFalling) não conta golpe.
+function hitsTarget(room, obstacles, hitbox, player, drumFalling) {
   if (room.hits >= HITS_TO_OPEN) return false
   const drum = obstacles.find((obstacle) => obstacle.mechanic === 'tambor')
-  if (drum && isDrumVisible(room)) return overlaps(hitbox, drum.box)
+  if (drum && isDrumVisible(room)) return !drumFalling && overlaps(hitbox, drum.box)
   if (!room.secret) return false
   const markVisible = room.hits >= 1 || isNearDoor(player, room.secret.side)
   return markVisible && overlaps(hitbox, DOOR_HIT_ZONES[room.secret.side])
@@ -277,17 +311,21 @@ function updateRoom(run, input, deltaSeconds) {
   const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
   player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
 
-  // Chapa quente: meio coração por queimadura. hurtPlayer devolve o mesmo objeto enquanto ele está
-  // invencível, então só o golpe que vale tira vida. Sem vida, ele morre (e a animação de dano nem toca).
+  // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado. hurtPlayer devolve o mesmo
+  // objeto enquanto ele está invencível, então só o golpe que vale tira vida. Sem vida, ele morre (e a animação
+  // de dano nem toca).
   let { health, death } = run
-  if (touchesHot(run.obstacles, player)) {
+  let hazard = null
+  if (touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
+  else if (isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
+  if (hazard) {
     const hurt = hurtPlayer(player)
     if (hurt !== player) {
       player = hurt
       health = applyDamage(health, DAMAGE_LIGHT)
       if (health === 0) {
         player = killPlayer(player)
-        death = { cause: HOT_PLATE_CAUSE }
+        death = { cause: hazard }
       }
     }
   }
@@ -326,15 +364,23 @@ function updateRoom(run, input, deltaSeconds) {
   if (hitbox) {
     obstacles = hitObstacles(obstacles, hitbox, player.attack.direction)
     // A caixa do golpe fica vários quadros em cima do alvo, mas cada golpe conta uma vez só
-    if (!swingCounted && hitsTarget(room, obstacles, hitbox, player)) {
+    if (!swingCounted && hitsTarget(room, obstacles, hitbox, player, Boolean(run.drumDrop))) {
       room.hits += 1
       swingCounted = true
     }
   }
   obstacles = updateRollingObstacles(obstacles, deltaSeconds)
+  obstacles = updateBreakingObstacles(obstacles, deltaSeconds)
+
+  // Tambor caindo do céu: o tempo da animação anda até DRUM_DROP_MS, e aí ela acaba
+  let drumDrop = null
+  if (run.drumDrop) {
+    const elapsedMs = run.drumDrop.elapsedMs + deltaSeconds * 1000
+    if (elapsedMs < DRUM_DROP_MS) drumDrop = { elapsedMs }
+  }
   saveRemoved(room, obstacles)
 
-  const next = { ...run, player, obstacles, slip, swingCounted, health, death, finMs }
+  const next = { ...run, player, obstacles, slip, swingCounted, health, death, finMs, drumDrop }
   if (death) return next // morto não atravessa porta nem passa de andar
   if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
 
