@@ -80,9 +80,9 @@ describe('normalizeProgressPayload', () => {
       },
     })
     assert.deepEqual(payload.roomStates, {
-      '3-3': { removed: ['2-1', '9-4'], hits: 0, unlocked: false },
-      '4-2': { removed: [], hits: 3, unlocked: false },
-      '6-1': { removed: ['1-1'], hits: 3, unlocked: false },
+      '3-3': { removed: ['2-1', '9-4'], hits: 0, unlocked: false, slept: false },
+      '4-2': { removed: [], hits: 3, unlocked: false, slept: false },
+      '6-1': { removed: ['1-1'], hits: 3, unlocked: false, slept: false },
     })
   })
 
@@ -171,7 +171,7 @@ describe('createProgressSnapshot', () => {
     })
     assert.equal(snapshot.health, 3)
     assert.equal(snapshot.deathCause, 'chapa')
-    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0, unlocked: false } })
+    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0, unlocked: false, slept: false } })
   })
 
   test('inclui as salas visitadas', () => {
@@ -214,6 +214,20 @@ describe('garfos e salas trancadas no progresso', () => {
     const { roomStates } = normalizeProgressPayload({
       roomStates: { '4-2': { removed: [], hits: 0, unlocked: true }, '5-3': { removed: [], hits: 0, unlocked: 'sim' } },
     })
-    assert.deepEqual(roomStates, { '4-2': { removed: [], hits: 0, unlocked: true } })
+    assert.deepEqual(roomStates, { '4-2': { removed: [], hits: 0, unlocked: true, slept: false } })
+  })
+})
+
+describe('rede no progresso', () => {
+  test('o "já dormiu" vai para o save, mesmo sem mais nada na sala; só true conta', () => {
+    const { roomStates } = normalizeProgressPayload({
+      roomStates: { '3-2': { removed: [], hits: 0, slept: true }, '4-4': { removed: [], hits: 0, slept: 'sim' } },
+    })
+    assert.deepEqual(roomStates, { '3-2': { removed: [], hits: 0, unlocked: false, slept: true } })
+  })
+
+  test('save antigo, sem o campo, não marca nenhuma sala como "já dormiu"', () => {
+    const { roomStates } = normalizeProgressPayload({ roomStates: { '3-3': { removed: ['2-1'], hits: 0 } } })
+    assert.equal(roomStates['3-3'].slept, false)
   })
 })

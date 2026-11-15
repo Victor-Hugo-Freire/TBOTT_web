@@ -5,6 +5,7 @@ import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
+import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
 import { createRunSeed } from '../../utils/random.js'
 import {
   getAttackDirection,
@@ -29,6 +30,7 @@ import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
 import { drawHud, loadHudImages } from './scene/drawHud.js'
 import { drawRunScene, getFloorFade } from './scene/drawScene.js'
+import { drawSleepText } from './scene/drawSleep.js'
 import { drawTimer } from './scene/drawTimer.js'
 import { loadSheets } from './scene/sheets.js'
 import { getHudTop, getRoomView } from './scene/view.js'
@@ -399,16 +401,29 @@ export default function SalaInicial() {
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
-      // Entrada na run, troca de andar, fim da run e R segurado: a tela escurece por cima da sala e do HUD
-      const fade = Math.max(getFloorFade(run), getRestartFade(restartHoldMs), getEnterFade(enterMs))
+      // Entrada na run, troca de andar, fim da run, R segurado e sono na rede: a tela escurece por cima da sala e do HUD
+      const sleepFade = getSleepFade(run.sleep)
+      const fade = Math.max(getFloorFade(run), getRestartFade(restartHoldMs), getEnterFade(enterMs), sleepFade)
       if (fade > 0) {
         ctx.fillStyle = `rgba(0, 0, 0, ${fade})`
         ctx.fillRect(0, 0, canvas.width, canvas.height)
       }
 
+      // Dormindo: o "ZZZ...." aparece letra por letra no meio da tela preta
+      if (run.sleep) {
+        drawSleepText(
+          ctx,
+          getSleepText(run.sleep),
+          Math.round(canvas.width / 2),
+          Math.round(canvas.height / 2),
+          Math.max(4, Math.round(10 * scale)),
+          sleepFade,
+        )
+      }
+
       // A faixa do andar fica por cima do escurecimento: ao entrar na run, o nome aparece sobre o preto
-      // e a sala clareia por baixo dele. Na morte e no fim da run ela não aparece (a run parada não a faz sumir).
-      if (run.banner && !run.death && !run.finished) {
+      // e a sala clareia por baixo dele. Na morte, no fim da run e no sono ela não aparece (a run parada não a faz sumir).
+      if (run.banner && !run.death && !run.finished && !run.sleep) {
         drawFloorBanner(ctx, {
           text: run.banner.text,
           elapsedMs: run.banner.elapsedMs,

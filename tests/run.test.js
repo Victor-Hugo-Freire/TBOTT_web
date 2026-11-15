@@ -5,7 +5,7 @@ import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
 import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
-import { FIN_LAP_MS, PUDDLE, SHARK_DEATH_MS } from '../src/utils/roomInteractions.js'
+import { FIN_LAP_MS, getHammockBox, PUDDLE, SHARK_DEATH_MS, SLEEP_MS } from '../src/utils/roomInteractions.js'
 import { CONVEYOR_SPEED, SLIP_SPEED, STICKY_SPEED } from '../src/utils/roomObstacles.js'
 import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from '../src/utils/roomMovement.js'
 import {
@@ -670,7 +670,7 @@ describe('estado das salas no progresso: o que quebrou não volta', () => {
     const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
     run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height + 30 })
     run = swing(run, 'up').run
-    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0, unlocked: false } })
+    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0, unlocked: false, slept: false } })
 
     const back = saveAndContinue(run)
     assert.equal(back.roomId, room.id)
@@ -1041,5 +1041,82 @@ describe('poça do Tralalero (Sala do Pacto)', () => {
     const snapshot = createRunSnapshot(updateRun(pactRun(BESIDE_TOP, FIN_AT_TOP), IDLE, STEP), 9000)
     assert.equal(snapshot.finished, true)
     assert.equal(snapshot.deathCause, 'tralalero')
+  })
+})
+
+describe('rede da Sala de Descanso', () => {
+  // Run dentro da sala de descanso, com a vida e o jogador onde o teste mandar
+  const { seed, roomId } = findSeed(3, (room) => room.type === 'descanso')
+  function restRun(position, health) {
+    const run = createRun({ seed, floorNumber: 3, roomId, characterId: 'x', health })
+    run.player = createPlayer(position)
+    return run
+  }
+  const hammock = getHammockBox()
+  const hammockBottom = hammock.y + hammock.height
+  const middleX = hammock.x + hammock.width / 2
+  const NEAR = { x: middleX, y: hammockBottom + 5 + PLAYER_FEET_BOX.height } // pés a 5 u da rede
+  const FAR = { x: middleX, y: hammockBottom + 60 + PLAYER_FEET_BOX.height } // pés a 60 u da rede
+  const halfSteps = Math.ceil(SLEEP_MS / 2 / STEP_MS)
+  const allSteps = Math.ceil(SLEEP_MS / STEP_MS)
+
+  test('com a vida incompleta, chegar perto da rede faz dormir; no meio do sono a vida enche', () => {
+    let run = updateRun(restRun(NEAR, 2), IDLE, STEP)
+    assert.deepEqual(run.sleep, { elapsedMs: 0 })
+    assert.equal(run.health, 2, 'ainda não curou: a tela ainda vai escurecer')
+    run = steps(run, halfSteps)
+    assert.equal(run.health, MAX_HEALTH)
+    assert.equal(getCurrentRoom(run).slept, true, 'a cura e a marca acontecem juntas')
+    run = steps(run, allSteps - halfSteps)
+    assert.equal(run.sleep, null, 'acordou')
+  })
+
+  test('dormindo, os controles são ignorados', () => {
+    let run = updateRun(restRun(NEAR, 2), IDLE, STEP)
+    const { x, y } = run.player
+    run = steps(run, 5, { movement: { x: 1, y: 0 }, attackDirection: 'right' })
+    assert.deepEqual({ x: run.player.x, y: run.player.y }, { x, y })
+    assert.equal(run.player.attack, null)
+  })
+
+  test('não dorme de novo no mesmo andar', () => {
+    let run = steps(updateRun(restRun(NEAR, 2), IDLE, STEP), allSteps)
+    run = { ...run, health: 2 } // levou dano depois de dormir
+    run = updateRun(run, IDLE, STEP)
+    assert.equal(run.sleep, null)
+  })
+
+  test('com a vida cheia, ou longe da rede, não dorme', () => {
+    assert.equal(updateRun(restRun(NEAR, MAX_HEALTH), IDLE, STEP).sleep, null)
+    assert.equal(updateRun(restRun(FAR, 2), IDLE, STEP).sleep, null)
+  })
+
+  test('o "já dormiu" vai para o save e volta ao continuar a run', () => {
+    let run = steps(updateRun(restRun(NEAR, 2), IDLE, STEP), allSteps)
+    run = saveAndContinue(run)
+    assert.equal(getCurrentRoom(run).slept, true)
+    run.health = 2
+    run.player = createPlayer(NEAR)
+    assert.equal(updateRun(run, IDLE, STEP).sleep, null)
+  })
+
+  test('cada andar novo tem a sua rede, sem o "já dormiu"', () => {
+    for (let floorNumber = 1; floorNumber <= LAST_FLOOR; floorNumber++) {
+      assert.ok(generateFloor(seed, floorNumber).rooms.every((room) => room.slept === false), `andar ${floorNumber}`)
+    }
+  })
+})
+
+describe('rede: a faixa do andar não volta depois do sono', () => {
+  test('o tempo da faixa continua contando enquanto ele dorme', () => {
+    const { seed, roomId } = findSeed(3, (room) => room.type === 'descanso')
+    const hammock = getHammockBox()
+    let run = createRun({ seed, floorNumber: 3, roomId, characterId: 'x', health: 2 })
+    run.player = createPlayer({ x: hammock.x + hammock.width / 2, y: hammock.y + hammock.height + 5 + PLAYER_FEET_BOX.height })
+    run = updateRun(run, IDLE, STEP)
+    assert.ok(run.sleep && run.banner, 'dormiu com a faixa ainda na tela')
+    run = steps(run, Math.ceil(SLEEP_MS / STEP_MS))
+    assert.equal(run.sleep, null)
+    assert.ok(run.banner === null || run.banner.elapsedMs >= SLEEP_MS, 'a faixa andou junto com o sono')
   })
 })

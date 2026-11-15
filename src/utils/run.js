@@ -18,8 +18,10 @@ import {
   getSharkFinPosition,
   isInPuddle,
   isNearFin,
+  isNearHammock,
   PUDDLE_FALL_CAUSE,
   SHARK_DEATH_MS,
+  SLEEP_MS,
   TRALALERO_CAUSE,
 } from './roomInteractions.js'
 import { buildRoomObstacles } from './roomLayout.js'
@@ -145,12 +147,13 @@ export function getVisitedRoomIds(floor) {
 }
 
 // O que mudou em cada sala do andar, para o progresso salvo: obstáculos quebrados, batidas
-// (parede da adega e tambor) e se a sala trancada já foi aberta com um garfo. Só entram as salas em que algo mudou.
+// (parede da adega e tambor), se a sala trancada já foi aberta com um garfo e se ele já dormiu na rede.
+// Só entram as salas em que algo mudou.
 export function getRoomStates(floor) {
   const states = {}
   for (const room of floor.rooms) {
-    if (room.removed.length > 0 || room.hits > 0 || room.unlocked) {
-      states[room.id] = { removed: [...room.removed], hits: room.hits, unlocked: room.unlocked }
+    if (room.removed.length > 0 || room.hits > 0 || room.unlocked || room.slept) {
+      states[room.id] = { removed: [...room.removed], hits: room.hits, unlocked: room.unlocked, slept: room.slept }
     }
   }
   return states
@@ -187,6 +190,7 @@ export function createRun({
     saved.removed = [...state.removed]
     saved.hits = state.hits
     saved.unlocked = Boolean(state.unlocked) // a porta aberta com garfo continua aberta
+    saved.slept = Boolean(state.slept) // quem já dormiu na rede deste andar não dorme de novo
   }
 
   // Save antigo (sem o estado das salas) dentro da adega: a parede da origem abre, senão ele ficaria preso
@@ -203,6 +207,7 @@ export function createRun({
     death: null, // { cause } depois que a vida acaba: toca a animação de morte e a run termina
     transition: null,
     finMs: 0, // relógio da barbatana do Tralalero na Sala do Pacto (o desenho usa o mesmo, para bater com o perigo)
+    sleep: null, // { elapsedMs } enquanto ele dorme na rede da Sala de Descanso (veja updateSleep)
     // A faixa com o nome do andar aparece sempre que a run começa (New game, Continue em qualquer sala e R)
     banner: createBanner(floor),
     finished: false,
@@ -304,6 +309,13 @@ function updateRoom(run, input, deltaSeconds) {
     }
   }
 
+  // Rede da Sala de Descanso: chegar perto dela com a vida incompleta faz o Tung dormir. Só uma vez por andar
+  // (room.slept; só existe uma Descanso por andar). A vida enche no meio do sono, com a tela preta (veja updateSleep).
+  let sleep = null
+  if (room.type === 'descanso' && !death && !room.slept && health < MAX_HEALTH && isNearHammock(player)) {
+    sleep = { elapsedMs: 0 }
+  }
+
   // Golpe novo: não havia golpe, ou o tempo dele voltou a ser menor (outro golpe começou)
   const previous = run.player.attack
   const newSwing = player.attack && (!previous || player.attack.elapsed < previous.elapsed)
@@ -324,6 +336,7 @@ function updateRoom(run, input, deltaSeconds) {
 
   const next = { ...run, player, obstacles, slip, swingCounted, health, death, finMs }
   if (death) return next // morto não atravessa porta nem passa de andar
+  if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
 
   // Porta trancada: empurrar com garfo no bolso gasta 1 garfo e abre a sala para o resto da run (target.unlocked).
   // Enquanto a animação toca, a porta ainda não deixa passar; sem garfo, ela só fica trancada.
@@ -410,6 +423,24 @@ function updateDeath(run, deltaSeconds) {
   return { ...run, player, finished: player.dead.elapsed >= animationMs + DEATH_HOLD_MS }
 }
 
+// Sono na rede: o tempo do sono anda e os controles são ignorados (a página escurece a tela com getSleepFade).
+// No meio do sono, com a tela preta, a vida enche e a sala fica marcada como "já dormiu", no mesmo quadro:
+// assim o save automático nunca guarda uma coisa sem a outra.
+function updateSleep(run, stepMs) {
+  const elapsedMs = run.sleep.elapsedMs + stepMs
+  const halfMs = SLEEP_MS / 2
+  let { health } = run
+  if (run.sleep.elapsedMs < halfMs && elapsedMs >= halfMs) {
+    getCurrentRoom(run).slept = true
+    health = MAX_HEALTH
+  }
+  // A faixa do andar (escondida no sono) continua contando, para não voltar a aparecer quando ele acordar
+  const banner = advanceBanner(run.banner, stepMs)
+  // Futuro: quando o sono acabar, tocar o áudio do Tung falando "tung tung sahur"
+  if (elapsedMs >= SLEEP_MS) return { ...run, health, banner, sleep: null }
+  return { ...run, health, banner, sleep: { elapsedMs } }
+}
+
 // Segurar R para recomeçar: o tempo segurado cresce até RESTART_HOLD_MS; soltar antes desfaz (3x mais rápido).
 // A página escurece a tela conforme getRestartFade e cria outra run quando o tempo completa.
 export function updateRestartHold(holdMs, isHeld, stepMs) {
@@ -449,6 +480,7 @@ export function updateRun(run, input, deltaSeconds) {
   if (run.finished) return run
   if (run.death) return updateDeath(run, deltaSeconds)
   const stepMs = Math.max(0, deltaSeconds * 1000)
+  if (run.sleep) return updateSleep(run, stepMs)
 
   // A faixa só começa a contar depois da troca de andar; na troca de sala ela continua contando
   if (run.transition?.type === 'floor') return updateFloorTransition(run, stepMs)

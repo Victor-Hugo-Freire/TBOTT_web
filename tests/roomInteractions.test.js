@@ -2,7 +2,21 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { getEntryPosition } from '../src/utils/doors.js'
 import { buildRoomObstacles } from '../src/utils/roomLayout.js'
-import { FIN_LAP_MS, getPullPoint, getSharkFinPosition, isInPuddle, isNearFin, PUDDLE } from '../src/utils/roomInteractions.js'
+import {
+  FIN_LAP_MS,
+  getHammockBox,
+  getPullPoint,
+  getSharkFinPosition,
+  getSleepFade,
+  getSleepText,
+  isInPuddle,
+  isNearFin,
+  isNearHammock,
+  PUDDLE,
+  SLEEP_FADE_MS,
+  SLEEP_MS,
+} from '../src/utils/roomInteractions.js'
+import { PLAYER_FEET_BOX } from '../src/utils/roomMovement.js'
 
 describe('poça do Tralalero', () => {
   test('pisar na poça conta; na borda, do lado de fora, não', () => {
@@ -63,5 +77,46 @@ describe('poça do Tralalero', () => {
     assert.ok(isInPuddle(above) && above.y < PUDDLE.y)
     const right = getPullPoint({ x: PUDDLE.x + 500, y: PUDDLE.y })
     assert.ok(isInPuddle(right) && right.x > PUDDLE.x)
+  })
+})
+
+describe('rede da Sala de Descanso', () => {
+  test('o sono escurece, fica preto e clareia; acordado, nada', () => {
+    assert.equal(getSleepFade(null), 0)
+    assert.equal(getSleepFade({ elapsedMs: 0 }), 0)
+    assert.equal(getSleepFade({ elapsedMs: SLEEP_FADE_MS / 2 }), 0.5)
+    assert.equal(getSleepFade({ elapsedMs: SLEEP_MS / 2 }), 1)
+    assert.equal(getSleepFade({ elapsedMs: SLEEP_MS - SLEEP_FADE_MS / 2 }), 0.5)
+    assert.equal(getSleepFade({ elapsedMs: SLEEP_MS }), 0)
+  })
+
+  test('o "ZZZ...." aparece letra por letra com a tela preta e fica inteiro até acordar', () => {
+    assert.equal(getSleepText(null), '')
+    assert.equal(getSleepText({ elapsedMs: SLEEP_FADE_MS - 1 }), '', 'ainda escurecendo')
+    assert.equal(getSleepText({ elapsedMs: SLEEP_FADE_MS }), 'Z')
+    let previous = ''
+    for (let elapsedMs = SLEEP_FADE_MS; elapsedMs <= SLEEP_MS; elapsedMs += 50) {
+      const text = getSleepText({ elapsedMs })
+      assert.ok(text.startsWith(previous), `${text} depois de ${previous}`)
+      previous = text
+    }
+    assert.equal(previous, 'ZZZ....')
+  })
+
+  test('perto da rede conta; as entradas das portas ficam longe dela', () => {
+    const hammock = getHammockBox()
+    const below = hammock.y + hammock.height
+    assert.equal(isNearHammock({ x: hammock.x + 50, y: below + 5 + PLAYER_FEET_BOX.height }), true)
+    assert.equal(isNearHammock({ x: hammock.x + 50, y: below + 30 + PLAYER_FEET_BOX.height }), false)
+    for (const side of ['up', 'down', 'left', 'right']) {
+      assert.equal(isNearHammock(getEntryPosition(side)), false, `entrada da porta ${side}`)
+    }
+  })
+
+  test('a caixa da rede é a das casas X do layout da descanso', () => {
+    const solids = buildRoomObstacles('descanso', 'cucina').filter((obstacle) => obstacle.kind === 'cenario')
+    const hammock = getHammockBox()
+    const inside = solids.filter(({ box }) => box.x >= hammock.x - 1e-9 && box.x + box.width <= hammock.x + hammock.width + 1e-9)
+    assert.equal(inside.length, 10, 'as 5 x 2 casas da rede')
   })
 })

@@ -40,9 +40,9 @@ function normalizeIds(value, max) {
   return [...new Set(ids)].slice(0, max)
 }
 
-// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas, unlocked } }.
+// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas, unlocked, slept } }.
 // Só entram as salas em que algo mudou. hits conta as batidas na parede da adega ou no tambor (até 3);
-// unlocked diz que a sala trancada já foi aberta com um garfo.
+// unlocked diz que a sala trancada já foi aberta com um garfo; slept, que ele já dormiu na rede (Sala de Descanso).
 function normalizeRoomStates(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   const states = {}
@@ -51,7 +51,8 @@ function normalizeRoomStates(value) {
     const removed = normalizeIds(state.removed, MAX_OBSTACLES)
     const hits = Number.isInteger(state.hits) ? clamp(state.hits, 0, HITS_TO_OPEN) : 0
     const unlocked = state.unlocked === true // sala trancada já aberta com um garfo
-    if (removed.length > 0 || hits > 0 || unlocked) states[id] = { removed, hits, unlocked }
+    const slept = state.slept === true // já dormiu na rede deste andar
+    if (removed.length > 0 || hits > 0 || unlocked || slept) states[id] = { removed, hits, unlocked, slept }
   }
   return states
 }

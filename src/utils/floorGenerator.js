@@ -66,6 +66,7 @@ function createRoom(col, row, type) {
     removed: [],
     hits: 0,
     unlocked: false, // sala trancada já aberta com um garfo (fica aberta até o fim da run neste andar)
+    slept: false, // Sala de Descanso: ele já dormiu na rede deste andar (não dorme de novo)
   }
 }
 

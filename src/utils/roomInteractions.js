@@ -1,5 +1,49 @@
+import { overlaps } from './collision.js'
+import { getCellRect } from './roomLayout.js'
+import { getFeetBox } from './roomMovement.js'
+
 // Coisas das salas especiais que reagem ao jogador, em funções puras (sem React, sem canvas), para testar.
-// Hoje: a poça do Tralalero, na Sala do Pacto.
+// Hoje: a poça do Tralalero, na Sala do Pacto, e a rede da Sala de Descanso.
+
+// ---------- Rede da Sala de Descanso ----------
+
+// Sono: a tela escurece em SLEEP_FADE_MS, fica preta com o "ZZZ...." e clareia em SLEEP_FADE_MS
+export const SLEEP_MS = 2100
+export const SLEEP_FADE_MS = 450
+const HAMMOCK_REACH = 12 // u: os pés a essa distância da rede já fazem o Tung dormir
+const SLEEP_TEXT = 'ZZZ....'
+
+// A rede cobre as casas (1, 1) a (5, 2) do layout 'descanso' (as casas X dela): é sólida
+export function getHammockBox() {
+  const first = getCellRect(1, 1)
+  const last = getCellRect(5, 2)
+  return { x: first.x, y: first.y, width: last.x + last.width - first.x, height: last.y + last.height - first.y }
+}
+
+// Os pés chegaram perto da rede? (a caixa dos pés, HAMMOCK_REACH maior para cada lado, encosta nela)
+// As entradas das portas ficam a mais de 50 u da rede: entrar na sala não faz dormir.
+export function isNearHammock(position) {
+  return overlaps(getFeetBox(position, HAMMOCK_REACH), getHammockBox())
+}
+
+// Escurecimento do sono: 0 (nada) a 1 (preto). sleep = run.sleep ({ elapsedMs }) ou null (acordado).
+export function getSleepFade(sleep) {
+  if (!sleep) return 0
+  const { elapsedMs } = sleep
+  if (elapsedMs < SLEEP_FADE_MS) return elapsedMs / SLEEP_FADE_MS
+  if (elapsedMs < SLEEP_MS - SLEEP_FADE_MS) return 1
+  return Math.max(0, (SLEEP_MS - elapsedMs) / SLEEP_FADE_MS)
+}
+
+// Texto em cima da tela preta: as letras de "ZZZ...." aparecem uma por vez enquanto ele dorme
+export function getSleepText(sleep) {
+  if (!sleep) return ''
+  const darkMs = sleep.elapsedMs - SLEEP_FADE_MS
+  if (darkMs < 0) return ''
+  const darkTotalMs = SLEEP_MS - SLEEP_FADE_MS * 2
+  const letters = Math.min(SLEEP_TEXT.length, Math.floor((darkMs / darkTotalMs) * SLEEP_TEXT.length) + 1)
+  return SLEEP_TEXT.slice(0, letters)
+}
 
 // ---------- Poça do Tralalero (Sala do Pacto) ----------
 
