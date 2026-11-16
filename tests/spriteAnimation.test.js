@@ -12,20 +12,26 @@ import {
 import { getRoomMovement, moveRoomPlayer, ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 
 describe('getWalkFrame (distância andada -> quadro)', () => {
-  test('um quadro a cada 130/12 u andadas, em um ciclo de 12 quadros', () => {
-    assert.equal(WALK_CYCLE_DISTANCE, 130)
+  test('um quadro a cada 80/12 u andadas, em um ciclo de 12 quadros', () => {
+    assert.equal(WALK_CYCLE_DISTANCE, 80)
     assert.equal(WALK_FRAME_COUNT, 12)
-    assert.ok(Math.abs(WALK_STEP_DISTANCE - 10.8333) < 0.001)
+    assert.ok(Math.abs(WALK_STEP_DISTANCE - 6.6667) < 0.001)
     assert.equal(getWalkFrame(0), 0)
-    assert.equal(getWalkFrame(10.8), 0)
-    assert.equal(getWalkFrame(10.9), 1)
-    assert.equal(getWalkFrame(65.1), 6)
-    assert.equal(getWalkFrame(129.9), 11)
+    assert.equal(getWalkFrame(6.6), 0)
+    assert.equal(getWalkFrame(6.7), 1)
+    assert.equal(getWalkFrame(40.1), 6)
+    assert.equal(getWalkFrame(79.9), 11)
   })
 
-  test('depois do último quadro volta ao primeiro (ciclo de 130 u)', () => {
-    assert.equal(getWalkFrame(130.1), 0)
-    assert.equal(getWalkFrame(141), 1)
+  test('depois do último quadro volta ao primeiro (ciclo de 80 u)', () => {
+    assert.equal(getWalkFrame(80.1), 0)
+    assert.equal(getWalkFrame(87), 1)
+  })
+
+  test('na velocidade do personagem (260 u/s) são 6,5 passos por segundo', () => {
+    // 2 passos por ciclo; mais devagar que isso o pé patina, mais rápido fica frenético
+    const stepsPerSecond = (260 / WALK_CYCLE_DISTANCE) * 2
+    assert.equal(stepsPerSecond, 6.5)
   })
 })
 
@@ -56,10 +62,10 @@ describe('animação com a colisão', () => {
   }
 
   test('andando livre, o quadro muda com a distância', () => {
-    // 15 quadros de 1/60 s a 260 u/s = 65 u andadas = metade do ciclo (quadro 6)
+    // 15 quadros de 1/60 s a 260 u/s = 65 u andadas = quadro 9 (65 / 6,67)
     const { distance } = walk({ x: 300, y: 400 }, ['KeyD'], 15)
     assert.ok(Math.abs(distance - 65) < 0.0001)
-    assert.equal(getWalkFrame(distance + 0.001), 6)
+    assert.equal(getWalkFrame(distance + 0.001), 9)
   })
 
   test('empurrando a parede, a animação para no quadro 0', () => {

@@ -33,7 +33,7 @@ Para trazer essas peças é preciso decidir o recorte (peça por peça, tamanhos
 ## Itens e consumíveis
 
 - **Garfo e grão de café:** contorno fino de 1 pixel, e não o contorno do kit dos itens. É um desvio de estilo ainda não aprovado pelo Victor. Os dois foram integrados normalmente.
-- **Pedestal da Sala da Mamãe:** não existe (`pedestal-base`, `-loja`, `-pacto` e `-adega` existem). Pelas notas do protótipo, os pedestais do Pacto e da Mamãe ainda aparecem como caixas amarelas nas salas.
+- **Pedestal da Sala do Tung Tung God (antiga Sala da Mamãe):** não existe (`pedestal-base`, `-loja`, `-pacto` e `-adega` existem). Pelas notas do protótipo, os pedestais do Pacto e do Tung Tung God ainda aparecem como caixas amarelas nas salas.
 - **Coração (vida):** não existe como sprite; só como ícone 8×8 no protótipo.
 - As folhas `grao-de-cafe-grupos` e `grao-de-cafe-preco` não têm `@1x` e entraram no tamanho final (`scale: 1`).
 

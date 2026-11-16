@@ -1,8 +1,10 @@
-// O ciclo do andar tem 12 quadros e se repete a cada 130 u andadas (um quadro a cada 10,83 u:
-// 24 quadros por segundo a 260 u/s).
+// O ciclo do andar tem 12 quadros (2 passos) e se repete a cada 80 u andadas (um quadro a cada 6,67 u:
+// 39 quadros por segundo a 260 u/s, ou 6,5 passos por segundo).
+// Era 130 u, mas a perna da folha percorre bem menos chão que isso a cada passo: o pé parecia patinar e o andar
+// ficava duro. Com 80 u e a passada maior da folha nova, o pé quase acompanha o chão.
 // O quadro depende da distância, e não do tempo: se o personagem para, ou empurra a
 // parede sem sair do lugar, as pernas param junto.
-export const WALK_CYCLE_DISTANCE = 130
+export const WALK_CYCLE_DISTANCE = 80
 export const WALK_FRAME_COUNT = 12
 export const WALK_STEP_DISTANCE = WALK_CYCLE_DISTANCE / WALK_FRAME_COUNT
 

@@ -195,6 +195,10 @@ export default function Opcoes() {
                 <dd><kbd>↑</kbd> <kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd></dd>
               </div>
               <div>
+                <dt>Restart run (hold)</dt>
+                <dd><kbd>R</kbd></dd>
+              </div>
+              <div>
                 <dt>Return to menu</dt>
                 <dd><kbd>Esc</kbd></dd>
               </div>

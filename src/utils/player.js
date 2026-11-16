@@ -1,26 +1,30 @@
 import { CHARACTER_SPRITES } from '../data/characterSprites.js'
 import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance } from './spriteAnimation.js'
-import { moveRoomPlayer } from './roomMovement.js'
+import { moveRoomPlayer, PLAYER_SCALE, ROOM_WALLS } from './roomMovement.js'
 
 // Estado do personagem na sala, em funções puras (sem React, sem canvas), para testar.
 // Posição (x, y) = centro dos pés. Tempos em ms.
 //
-// O golpe de 630 ms não é cortado e deixa o personagem mais lento (metade da velocidade), sem travar.
+// O golpe de 630 ms não é cortado e deixa o personagem um pouco mais lento (80% da velocidade), sem travar.
 // O cooldown conta do INÍCIO do golpe, mas como o golpe dura mais que o cooldown, a cadência real
 // é de 630 ms (cerca de 1,6 golpe/s): o cooldown só passa a valer se um dia o golpe ficar mais curto que ele.
 export const ATTACK_COOLDOWN_MS = 430
-export const ATTACK_MOVE_SPEED = 0.5 // fração da velocidade normal enquanto ataca
+export const ATTACK_MOVE_SPEED = 0.8 // fração da velocidade normal enquanto ataca (era 0,5: o golpe segurava demais)
 
 const ATTACK = CHARACTER_SPRITES.tungTungSahurAtaque
 const LEGS = CHARACTER_SPRITES.tungTungSahurPernas
 export const ATTACK_DURATION_MS = getTotalDuration(ATTACK.durations)
 
-// Dano: 410 ms de animação, em que o personagem não anda nem ataca (dano > ataque > andar).
+// Dano: 410 ms de animação, em que o personagem não anda nem ataca (morte > dano > ataque > andar).
 // Depois de levar dano fica invencível por 1000 ms, contados do momento do golpe.
-// Por enquanto nada chama hurtPlayer no jogo: só existe o estado, até haver inimigos.
+// Quem tira a vida é a run (run.js): aqui fica só a animação. Por enquanto só a chapa quente machuca.
 const HURT = CHARACTER_SPRITES.tungTungSahurDano
 export const HURT_DURATION_MS = getTotalDuration(HURT.durations)
 export const INVINCIBILITY_MS = 1000
+
+// Morte: a animação toca uma vez e para no último quadro (ele fica deitado). Morto, não anda, não ataca e não leva dano.
+const DEATH = CHARACTER_SPRITES.tungTungSahurMorte
+export const DEATH_DURATION_MS = getTotalDuration(DEATH.durations)
 
 // Passo máximo de lógica por quadro: depois de uma pausa (aba escondida) o jogo não "pula"
 const MAX_STEP_MS = 50
@@ -31,13 +35,27 @@ export const TURN_FRONT_DELAY_MS = 120
 
 // Área do golpe, em unidades da sala e relativa aos pés. Começou como a união dos quadros 2 a 4 do
 // ataque e foi ampliada (cerca de 20% de alcance e abertura; para cima, bem mais larga).
-// O arco branco usa a mesma caixa. Ajuste olhando o debug (F3).
-export const ATTACK_HITBOXES = {
+// Os valores base são do personagem em escala 1; ATTACK_HITBOXES os multiplica por PLAYER_SCALE,
+// para o golpe acompanhar o tamanho do desenho. O arco branco usa a mesma caixa. Ajuste olhando o debug (F3).
+const BASE_ATTACK_HITBOXES = {
   right: { x: 0, y: -67, width: 76, height: 98 },
   left: { x: -76, y: -67, width: 76, height: 98 }, // espelho da direita (era menor porque o sprite da esquerda era menor)
   down: { x: -38, y: -30, width: 86, height: 68 },
   up: { x: -50, y: -136, width: 100, height: 92 },
 }
+
+function scaleBox(box) {
+  return {
+    x: Math.round(box.x * PLAYER_SCALE),
+    y: Math.round(box.y * PLAYER_SCALE),
+    width: Math.round(box.width * PLAYER_SCALE),
+    height: Math.round(box.height * PLAYER_SCALE),
+  }
+}
+
+export const ATTACK_HITBOXES = Object.fromEntries(
+  Object.entries(BASE_ATTACK_HITBOXES).map(([direction, box]) => [direction, scaleBox(box)]),
+)
 
 export function createPlayer(position) {
   return {
@@ -47,6 +65,7 @@ export function createPlayer(position) {
     walkDistance: 0,
     attack: null, // { direction, elapsed } enquanto o golpe acontece
     hurt: null, // { direction, elapsed } enquanto a animação de dano acontece
+    dead: null, // { elapsed } depois que a vida acaba (a animação de morte)
     invincibleMs: 0, // ms de invencibilidade que ainda restam
     sinceAttackStart: Infinity, // ms desde o início do último golpe
     stoppedMs: 0, // ms sem nenhuma tecla de andar apertada
@@ -56,7 +75,7 @@ export function createPlayer(position) {
 // Leva dano: interrompe o golpe, para o personagem e liga a invencibilidade.
 // Enquanto está invencível, outro dano é ignorado.
 export function hurtPlayer(player) {
-  if (player.invincibleMs > 0 || player.hurt) return player
+  if (player.dead || player.invincibleMs > 0 || player.hurt) return player
   return {
     ...player,
     attack: null,
@@ -66,9 +85,15 @@ export function hurtPlayer(player) {
   }
 }
 
+// A vida acabou: começa a animação de morte. Ela é sempre de frente e interrompe o golpe e o dano.
+export function killPlayer(player) {
+  if (player.dead) return player
+  return { ...player, direction: 'down', attack: null, hurt: null, walkDistance: 0, dead: { elapsed: 0 } }
+}
+
 // Começa um golpe se não há golpe nem dano em andamento e o cooldown já acabou.
 export function startAttack(player, direction) {
-  if (!direction || player.attack || player.hurt || player.sinceAttackStart < ATTACK_COOLDOWN_MS) return player
+  if (!direction || player.dead || player.attack || player.hurt || player.sinceAttackStart < ATTACK_COOLDOWN_MS) return player
   // walkDistance não zera: as pernas continuam o ciclo do andar durante o golpe
   return { ...player, direction, attack: { direction, elapsed: 0 }, sinceAttackStart: 0 }
 }
@@ -83,8 +108,15 @@ function getFacingDirection(movement) {
 
 // Avança o personagem um quadro.
 // input: { movement: { x, y }, attackDirection: 'up' | 'down' | 'left' | 'right' | null }
-export function updatePlayer(player, input, deltaSeconds) {
+// options (opcional), para a sala com obstáculos:
+// - solids: caixas que bloqueiam (padrão: só as paredes da sala);
+// - speedMultiplier: velocidade do piso (ex.: 0,5 no piso grudento). Multiplica com a do golpe.
+export function updatePlayer(player, input, deltaSeconds, options = {}) {
+  const { solids = ROOM_WALLS, speedMultiplier = 1 } = options
   const stepMs = Math.max(0, Math.min(deltaSeconds * 1000, MAX_STEP_MS))
+
+  // Morto: só o tempo da animação de morte anda
+  if (player.dead) return { ...player, dead: { elapsed: player.dead.elapsed + stepMs } }
 
   let next = {
     ...player,
@@ -114,7 +146,8 @@ export function updatePlayer(player, input, deltaSeconds) {
   next.stoppedMs = stopped ? player.stoppedMs + stepMs : 0
   const pausing = stopped && next.stoppedMs < TURN_FRONT_DELAY_MS
   if (!attacking && !pausing) next.direction = getFacingDirection(movement)
-  const moved = moveRoomPlayer(next, movement, stepMs / 1000, attacking ? ATTACK_MOVE_SPEED : 1)
+  const speed = (attacking ? ATTACK_MOVE_SPEED : 1) * speedMultiplier
+  const moved = moveRoomPlayer(next, movement, stepMs / 1000, speed, solids)
   if (!pausing) next.walkDistance = updateWalkDistance(next.walkDistance, Math.hypot(moved.x - next.x, moved.y - next.y))
   next.x = moved.x
   next.y = moved.y
@@ -155,12 +188,19 @@ export function getAttackArc(player) {
   return { x: player.x + box.x, y: player.y + box.y, width: box.width, height: box.height, direction, opacity }
 }
 
-// Qual folha, direção e quadro desenhar. reduceMotion deixa o andar parado no quadro 0;
+// Qual folha, direção e quadro desenhar. reduceMotion deixa o andar parado no quadro 0 e a morte já deitada;
 // o golpe sempre anima, porque é informação de jogo.
 // O personagem é desenhado em camadas: as pernas (legs) atrás e o tronco (sheet/direction/frame) na frente.
-// legs é null no dano, que tem o corpo inteiro numa folha só. Parado (ou reduzir movimento), as pernas ficam no
-// quadro parado; andando, o quadro das pernas e o do tronco vêm da mesma distância andada, inclusive no golpe.
+// legs é null no dano e na morte, que têm o corpo inteiro numa folha só.
+// O corpo não inclina ao andar: o Victor rejeitou o balanço (2026-11-13); o passo fica todo na folha.
+// Parado (ou reduzir movimento), as pernas ficam no quadro parado; andando, o quadro das pernas e o do tronco vêm da mesma distância andada, inclusive no golpe.
 export function getPlayerPose(player, reduceMotion = false) {
+  if (player.dead) {
+    // Depois do fim (ou com reduzir movimento, sem a queda), fica no último quadro: deitado
+    const last = DEATH.durations.length - 1
+    const timed = getTimedFrame(DEATH.durations, player.dead.elapsed)
+    return { sheet: 'death', direction: 'down', frame: reduceMotion || timed === -1 ? last : timed, legs: null }
+  }
   if (player.hurt) {
     return { sheet: 'hurt', direction: player.hurt.direction, frame: getTimedFrame(HURT.durations, player.hurt.elapsed), legs: null }
   }
@@ -176,5 +216,6 @@ export function getPlayerPose(player, reduceMotion = false) {
       legs: { direction, frame: legsFrame },
     }
   }
-  return { sheet: 'walk', direction: player.direction, frame: walkFrame, legs: { direction: player.direction, frame: legsFrame } }
+  const { direction } = player
+  return { sheet: 'walk', direction, frame: walkFrame, legs: { direction, frame: legsFrame } }
 }
