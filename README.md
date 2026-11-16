@@ -50,7 +50,7 @@ src/
                      drawScene.js (a sala atual e a transição), drawRoom.js + themes.js, drawWallPattern.js,
                      drawFloorPattern.js e drawWallDecor.js (temas), drawSpecialRooms.js (cenário das salas especiais),
                      drawObstacles.js, drawDoors.js, drawDrum.js, drawPlayer.js, drawFloorBanner.js (faixa),
-                     drawHud.js, drawTimer.js e drawDebug.js (F3)
+                     drawHud.js, drawMinimap.js (minimapa) e drawDebug.js (F3)
   components/        componentes usados por várias telas (CharacterSprite, BotaoVoltar)
   data/              characterSprites.js (arquivo, quadros e direções de cada sprite), uiSprites.js (ícones do HUD)
                      e roomLayouts.json (os 21 layouts de sala)
@@ -256,6 +256,7 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala; o g
 - Sempre que a run começa (New game, Continue em qualquer sala e depois do R) e ao chegar a cada andar, uma faixa de tinta preta atravessa a sala com o nome do andar (`scene/drawFloorBanner.js`). Ela entra, fica cerca de 2 s e sai, sem travar o movimento; com "reduzir movimento", só aparece e some. Trocar de sala não traz a faixa de volta.
 - **Entrada na run:** a tela fica preta enquanto o progresso carrega e a sala clareia em 450 ms (`getEnterFade` em `run.js`), com o nome do andar já aparecendo por cima do preto. Vale também para a run nova do R.
 - No canto de cima à esquerda, na altura do contador de tempo, ficam os **corações** de vida (`scene/drawHearts.js`): de madeira, como o corpo do Tung Tung, desenhados por código a partir de `src/data/heartPixels.js` (cheio, meio e vazio). Logo abaixo deles ficam os contadores de grão de café e de garfo (`scene/drawHud.js`): ícone em múltiplo inteiro da arte de 20 x 20 e o número ao lado, na `NUMBER_FONT` (`src/utils/pixelFont.js`, dígitos de 4 x 6 feitos no projeto, a mesma do contador de tempo). A run começa com 00 grão e 01 garfo; o garfo diminui ao abrir uma porta trancada, e ainda não há onde ganhar mais.
+- O **minimapa** (`scene/drawMinimap.js`) fica no canto superior direito e mostra o mapa do andar. Salas já visitadas aparecem identificadas, a atual é destacada, e salas comuns vizinhas às visitadas aparecem como silhuetas. Salas especiais reveladas pela exploração têm cores próprias e uma letra identificadora; a adega secreta não aparece até o jogador entrar nela. Pressione **Tab** para abrir ou fechar o mapa ampliado.
 - O leitor de tela anuncia o nome do andar ao chegar a cada andar.
 
 **F3: camada de teste** (`scene/drawDebug.js`, só em `npm run dev`)
@@ -266,7 +267,7 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala; o g
 **O que é salvo no progresso** (`src/utils/progress.js`)
 
 - A seed, o andar, a sala atual (id na grade), a posição dos pés, o tempo e o personagem, a cada 5 s e ao sair da sala.
-- As salas já visitadas do andar (`visitedRoomIds`, ids `col-row`). A fonte única é `room.visited`, o campo que o mapa do F3 lê (e o minimapa do jogo vai ler). Save antigo sem a lista marca só a sala atual.
+- As salas já visitadas do andar (`visitedRoomIds`, ids `col-row`). A fonte única é `room.visited`, usada pelo mapa do F3 e pelo minimapa. Save antigo sem a lista marca só a sala atual.
 - A partida nova da seleção é salva sem seed; a sala cria a seed ao abrir e salva na hora. O jogo só começa depois de ler o progresso.
 - O estado das salas (`roomStates`): os obstáculos quebrados, as batidas na parede da adega e no tambor, as salas trancadas já abertas com garfo (`unlocked`) e se ele já dormiu na rede do andar (`slept`). O que quebrou não volta ao continuar a run (o garrafão volta como cacos), e a adega e as portas trancadas abertas continuam abertas.
 - Os garfos que sobraram (`forks`, de 0 a 99). Save antigo, sem o campo, começa com 1. O que está rolando conta como quebrado na hora do golpe (ele sempre quebra no fim).

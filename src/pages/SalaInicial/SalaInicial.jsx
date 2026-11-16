@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
+import { FLOOR_COLS, FLOOR_ROWS } from '../../utils/floorGenerator.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
@@ -19,6 +20,7 @@ import {
 import {
   createRun,
   createRunSnapshot,
+  getCurrentRoom,
   getEnterFade,
   getRestartFade,
   RESTART_HOLD_MS,
@@ -29,6 +31,7 @@ import {
 import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
 import { drawHud, loadHudImages } from './scene/drawHud.js'
+import { drawMinimap } from './scene/drawMinimap.js'
 import { drawRunScene, getFloorFade } from './scene/drawScene.js'
 import { drawSleepText } from './scene/drawSleep.js'
 import { drawTimer } from './scene/drawTimer.js'
@@ -115,6 +118,7 @@ export default function SalaInicial() {
     let restartHeld = false // a tecla R está segurada (veja updateRestartKey em run.js)
     let announcedFloor = 0
     let showDebug = false // F3, só no npm run dev
+    let showMinimap = false // Tab: mapa ampliado
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
@@ -280,6 +284,12 @@ export default function SalaInicial() {
         return
       }
 
+      if (event.code === 'Tab') {
+        event.preventDefault()
+        showMinimap = !showMinimap
+        return
+      }
+
       // preventDefault também nas setas, para a página não rolar
       if (!isRoomKey(event.code)) return
 
@@ -400,6 +410,33 @@ export default function SalaInicial() {
       })
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
+
+      const minimapCell = Math.max(8, Math.round(12 * scale))
+      const minimapPadding = Math.max(6, Math.round(6 * pixelRatio))
+      const mapLeft = Math.max(
+        Math.round(canvas.width - (FLOOR_COLS * minimapCell + minimapPadding * 2 + 22 * pixelRatio)),
+        Math.round(18 * pixelRatio),
+      )
+      const mapTop = Math.round(18 * pixelRatio)
+      if (showMinimap) {
+        const panelCell = Math.max(14, Math.round(16 * scale))
+        const panelPadding = Math.max(10, Math.round(10 * pixelRatio))
+        const panelLeft = Math.round(canvas.width / 2 - (FLOOR_COLS * panelCell + panelPadding * 2) / 2)
+        const panelTop = Math.round(canvas.height / 2 - (FLOOR_ROWS * panelCell + panelPadding * 2) / 2)
+        drawMinimap(ctx, run.floor, getCurrentRoom(run), {
+          left: panelLeft,
+          top: panelTop,
+          cell: panelCell,
+          padding: panelPadding,
+        })
+      } else {
+        drawMinimap(ctx, run.floor, getCurrentRoom(run), {
+          left: mapLeft,
+          top: mapTop,
+          cell: minimapCell,
+          padding: minimapPadding,
+        })
+      }
 
       // Entrada na run, troca de andar, fim da run, R segurado e sono na rede: a tela escurece por cima da sala e do HUD
       const sleepFade = getSleepFade(run.sleep)
