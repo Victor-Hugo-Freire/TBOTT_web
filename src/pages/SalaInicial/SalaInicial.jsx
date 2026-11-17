@@ -117,7 +117,7 @@ export default function SalaInicial() {
     let restartHeld = false // a tecla R está segurada (veja updateRestartKey em run.js)
     let announcedFloor = 0
     let showDebug = false // F3, só no npm run dev
-    let showMinimap = false // Tab: mapa ampliado
+    let showMinimap = false // Tab segurado: mapa ampliado
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
@@ -283,9 +283,10 @@ export default function SalaInicial() {
         return
       }
 
+      // Tab segurado = mapa ampliado. Sem alternar: o keydown repete enquanto a tecla está segurada e o mapa piscaria
       if (event.code === 'Tab') {
         event.preventDefault()
-        showMinimap = !showMinimap
+        showMinimap = true
         return
       }
 
@@ -302,11 +303,13 @@ export default function SalaInicial() {
     }
 
     function handleKeyUp(event) {
+      if (event.code === 'Tab') showMinimap = false
       pressedKeys.delete(event.code)
       if (event.code === RESTART_KEY) restartHeld = updateRestartKey(restartHeld, 'release')
     }
 
     function clearPressedKeys() {
+      showMinimap = false // Alt+Tab: o keyup do Tab não chega
       pressedKeys.clear()
       restartHeld = updateRestartKey(restartHeld, 'blur')
     }
@@ -410,22 +413,15 @@ export default function SalaInicial() {
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
-      const minimapScale = Math.max(0.45, pixelRatio * (showMinimap ? 1.05 : 0.65))
-      const mapRight = canvas.width - Math.round(18 * pixelRatio)
-      const mapTop = Math.round(18 * pixelRatio)
-      if (showMinimap) {
-        drawMinimap(ctx, run.floor, getCurrentRoom(run), {
-          centerX: canvas.width / 2,
-          centerY: canvas.height / 2,
-          scale: minimapScale,
-        })
-      } else {
-        drawMinimap(ctx, run.floor, getCurrentRoom(run), {
-          right: mapRight,
-          top: mapTop,
-          scale: minimapScale,
-        })
-      }
+      // Sempre no canto superior direito; segurar Tab amplia o mapa
+      drawMinimap(ctx, run.floor, getCurrentRoom(run), {
+        right: canvas.width - Math.round(18 * pixelRatio),
+        top: Math.round(18 * pixelRatio),
+        scale: pixelRatio * (showMinimap ? 2 : 0.9),
+        expanded: showMinimap,
+        maxWidth: canvas.width * 0.5,
+        maxHeight: canvas.height * 0.75,
+      })
 
       // Entrada na run, troca de andar, fim da run, R segurado e sono na rede: a tela escurece por cima da sala e do HUD
       const sleepFade = getSleepFade(run.sleep)

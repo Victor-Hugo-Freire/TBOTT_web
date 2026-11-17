@@ -84,111 +84,149 @@ export function getMinimapConnections(floor, currentRoomId) {
   return connections
 }
 
-export function drawMinimap(ctx, floor, currentRoom, { top, scale = 1, right, centerX, centerY, left = 0 }) {
-  const roomWidth = 30 * scale
-  const roomHeight = 24 * scale
-  const gap = 10 * scale
-  const padding = 10 * scale
-  const knownRooms = floor.rooms.filter((room) => getMinimapRoomState(floor, room, currentRoom?.id) !== 'hidden')
-  if (knownRooms.length === 0) return
+// Medidas com escala 1, como no Isaac: salas coladas, só com uma fresta entre elas
+const ROOM_WIDTH = 30
+const ROOM_HEIGHT = 24
+const GAP = 4
+const PADDING = 8
+// O quadro normal acompanha o mapa conhecido: no mínimo 3 x 3 salas (não fica minúsculo no começo do andar)
+// e no máximo 7 x 7 (cabe quase todo andar gerado, que costuma ter de 4 x 4 a 7 x 7)
+const MIN_VIEW = 3
+const MAX_VIEW = 7
 
-  const minCol = Math.min(...knownRooms.map((room) => room.col))
-  const maxCol = Math.max(...knownRooms.map((room) => room.col))
-  const minRow = Math.min(...knownRooms.map((room) => room.row))
-  const maxRow = Math.max(...knownRooms.map((room) => room.row))
-  const width = (maxCol - minCol + 1) * roomWidth + (maxCol - minCol) * gap + padding * 2
-  const height = (maxRow - minRow + 1) * roomHeight + (maxRow - minRow) * gap + padding * 2
-  const panelLeft = right !== undefined ? right - width : centerX !== undefined ? centerX - width / 2 : left
-  const panelTop = centerY !== undefined ? centerY - height / 2 : top ?? 0
+// A caixa que cobre as salas dadas (colunas e linhas ocupadas, sem sobra)
+export function getMinimapBounds(rooms) {
+  const minCol = Math.min(...rooms.map((room) => room.col))
+  const minRow = Math.min(...rooms.map((room) => room.row))
+  const cols = Math.max(...rooms.map((room) => room.col)) - minCol + 1
+  const rows = Math.max(...rooms.map((room) => room.row)) - minRow + 1
+  return { cols, rows, minCol, minRow }
+}
+
+// Quantas salas cabem no quadro e qual coluna/linha fica no canto de cima à esquerda (pode ser fracionária).
+// Normal: o quadro tem o tamanho do mapa conhecido, entre 3 x 3 e 7 x 7 salas, com o mapa centralizado;
+// se o mapa passar de 7 (andar muito comprido), centraliza a sala atual, como no Isaac, e o resto fica
+// cortado pela borda.
+// Ampliado (Tab): o quadro é do tamanho exato das salas conhecidas, sem espaço sobrando.
+export function getMinimapLayout(knownRooms, currentRoom, expanded) {
+  const bounds = getMinimapBounds(knownRooms)
+  if (expanded) return { cols: bounds.cols, rows: bounds.rows, startCol: bounds.minCol, startRow: bounds.minRow }
+
+  const cols = Math.min(MAX_VIEW, Math.max(MIN_VIEW, bounds.cols))
+  const rows = Math.min(MAX_VIEW, Math.max(MIN_VIEW, bounds.rows))
+  const startCol = bounds.cols <= cols ? bounds.minCol - (cols - bounds.cols) / 2 : currentRoom.col - (cols - 1) / 2
+  const startRow = bounds.rows <= rows ? bounds.minRow - (rows - bounds.rows) / 2 : currentRoom.row - (rows - 1) / 2
+  return { cols, rows, startCol, startRow }
+}
+
+// Sempre no canto superior direito: `right` e `top` são a margem até a borda do canvas.
+// A Adega Secreta não conta antes de visitada (está oculta), então não dá pista do lugar dela.
+// maxWidth e maxHeight: o painel nunca passa disso, mesmo em janela pequena (a escala diminui).
+export function drawMinimap(ctx, floor, currentRoom, { top, right, scale = 1, expanded = false, maxWidth = Infinity, maxHeight = Infinity }) {
+  if (!currentRoom) return
+  const knownRooms = floor.rooms.filter((room) => getMinimapRoomState(floor, room, currentRoom.id) !== 'hidden')
+  const { cols, rows, startCol, startRow } = getMinimapLayout(knownRooms, currentRoom, expanded)
+
+  const fit = Math.min(
+    maxWidth / (cols * (ROOM_WIDTH + GAP) - GAP + PADDING * 2),
+    maxHeight / (rows * (ROOM_HEIGHT + GAP) - GAP + PADDING * 2),
+  )
+  scale = Math.min(scale, fit)
+  // tudo em pixels inteiros, para a pixel art não borrar
+  const unit = Math.max(1, Math.round(scale))
+  const roomWidth = Math.round(ROOM_WIDTH * scale)
+  const roomHeight = Math.round(ROOM_HEIGHT * scale)
+  const gap = Math.max(1, Math.round(GAP * scale))
+  const padding = Math.round(PADDING * scale)
+  const width = cols * (roomWidth + gap) - gap + padding * 2
+  const height = rows * (roomHeight + gap) - gap + padding * 2
+  const panelLeft = Math.round(right - width)
+  const panelTop = Math.round(top)
   const position = (room) => ({
-    x: panelLeft + padding + (room.col - minCol) * (roomWidth + gap),
-    y: panelTop + padding + (room.row - minRow) * (roomHeight + gap),
+    x: panelLeft + padding + Math.round((room.col - startCol) * (roomWidth + gap)),
+    y: panelTop + padding + Math.round((room.row - startRow) * (roomHeight + gap)),
   })
 
   ctx.save()
-  drawPanel(ctx, panelLeft, panelTop, width, height, scale)
-  const connections = getMinimapConnections(floor, currentRoom?.id)
-  drawConnections(ctx, connections, position, roomWidth, roomHeight, gap, scale)
+  drawPanel(ctx, panelLeft, panelTop, width, height, unit)
+  ctx.beginPath()
+  ctx.rect(panelLeft, panelTop, width, height)
+  ctx.clip()
+  const connections = getMinimapConnections(floor, currentRoom.id)
+  drawConnections(ctx, connections, position, roomWidth, roomHeight, gap)
 
+  const iconPixel = Math.max(1, Math.round(roomHeight / 11)) // o ícone (8 x 8) ocupa quase a altura da sala
   for (const room of knownRooms) {
-    const state = getMinimapRoomState(floor, room, currentRoom?.id)
+    const state = getMinimapRoomState(floor, room, currentRoom.id)
     const { x, y } = position(room)
-    drawRoomTile(ctx, x, y, roomWidth, roomHeight, state, scale)
+    drawRoomTile(ctx, x, y, roomWidth, roomHeight, state, unit)
 
     const icon = ROOM_ICONS[room.type]
-    if (icon) drawBitmap(ctx, ICONS[icon], 2 * scale, x + (roomWidth - 16 * scale) / 2, y + (roomHeight - 16 * scale) / 2)
+    const iconSize = 8 * iconPixel
+    if (icon) drawBitmap(ctx, ICONS[icon], iconPixel, x + Math.round((roomWidth - iconSize) / 2), y + Math.round((roomHeight - iconSize) / 2))
   }
 
+  const forkPixel = Math.max(1, Math.round(roomHeight / 16))
   for (const connection of connections) {
     if (!connection.locked) continue
     const from = position(connection.from)
     const to = position(connection.to)
-    const x = (from.x + to.x + roomWidth) / 2
-    const y = (from.y + to.y + roomHeight) / 2
-    drawBitmap(ctx, ICONS.garfo, 1.5 * scale, x - 6 * scale, y - 6 * scale, true)
+    const x = Math.round((from.x + to.x + roomWidth) / 2 - 4 * forkPixel)
+    const y = Math.round((from.y + to.y + roomHeight) / 2 - 4 * forkPixel)
+    drawBitmap(ctx, ICONS.garfo, forkPixel, x, y, true)
   }
 
   ctx.restore()
 }
 
-function drawPanel(ctx, left, top, width, height, scale) {
+function drawPanel(ctx, left, top, width, height, unit) {
   ctx.fillStyle = `rgba(20, 8, 6, 0.9)`
   ctx.beginPath()
-  ctx.roundRect(left - 2 * scale, top - 2 * scale, width + 4 * scale, height + 4 * scale, 9 * scale)
+  ctx.roundRect(left - 2 * unit, top - 2 * unit, width + 4 * unit, height + 4 * unit, 6 * unit)
   ctx.fill()
   ctx.fillStyle = 'rgba(12, 8, 6, 0.78)'
   ctx.beginPath()
-  ctx.roundRect(left, top, width, height, 8 * scale)
+  ctx.roundRect(left, top, width, height, 5 * unit)
   ctx.fill()
   ctx.strokeStyle = '#5a4636'
-  ctx.lineWidth = Math.max(1, 2 * scale)
+  ctx.lineWidth = unit
   ctx.beginPath()
-  ctx.roundRect(left + scale, top + scale, width - 2 * scale, height - 2 * scale, 8 * scale)
+  ctx.roundRect(left + unit / 2, top + unit / 2, width - unit, height - unit, 5 * unit)
   ctx.stroke()
 }
 
-function drawConnections(ctx, connections, position, roomWidth, roomHeight, gap, scale) {
+// A ligação é uma pontezinha na fresta entre duas salas: mostra que a sala especial liga a uma vizinha só
+function drawConnections(ctx, connections, position, roomWidth, roomHeight, gap) {
   for (const { from, to, visited } of connections) {
     const first = position(from)
     const second = position(to)
     const horizontal = first.y === second.y
+    const thickness = Math.max(2, Math.round(roomHeight / 4))
     const line = horizontal
-      ? { x: first.x + roomWidth, y: first.y + roomHeight / 2 - 3 * scale, width: gap, height: 6 * scale }
-      : { x: first.x + roomWidth / 2 - 3 * scale, y: first.y + roomHeight, width: 6 * scale, height: gap }
+      ? { x: first.x + roomWidth, y: first.y + Math.round((roomHeight - thickness) / 2), width: gap, height: thickness }
+      : { x: first.x + Math.round((roomWidth - thickness) / 2), y: first.y + roomHeight, width: thickness, height: gap }
 
-    ctx.fillStyle = '#140806'
-    ctx.fillRect(line.x, line.y, line.width, line.height)
     ctx.fillStyle = visited ? '#8f8a84' : '#4a443e'
-    ctx.fillRect(
-      line.x + (horizontal ? 0 : scale),
-      line.y + (horizontal ? scale : 0),
-      line.width - (horizontal ? 0 : 2 * scale),
-      line.height - (horizontal ? 2 * scale : 0),
-    )
+    ctx.fillRect(line.x, line.y, line.width, line.height)
   }
 }
 
-function drawRoomTile(ctx, x, y, width, height, state, scale) {
-  ctx.fillStyle = '#140806'
-  ctx.fillRect(x - scale, y - scale, width + 2 * scale, height + 2 * scale)
-
+function drawRoomTile(ctx, x, y, width, height, state, unit) {
   if (state === 'seen') {
     ctx.fillStyle = ROOM_FILL.seen
-    ctx.globalAlpha = 0.6
     ctx.fillRect(x, y, width, height)
-    ctx.globalAlpha = 1
     ctx.strokeStyle = '#8a847c'
-    ctx.lineWidth = Math.max(1, 2 * scale)
-    ctx.strokeRect(x + scale, y + scale, width - 2 * scale, height - 2 * scale)
+    ctx.lineWidth = unit
+    ctx.strokeRect(x + unit / 2, y + unit / 2, width - unit, height - unit)
     return
   }
 
   ctx.fillStyle = ROOM_FILL[state]
   ctx.fillRect(x, y, width, height)
   ctx.fillStyle = state === 'current' ? '#fff' : '#aaa59e'
-  ctx.fillRect(x, y, width, scale)
+  ctx.fillRect(x, y, width, unit)
   ctx.fillStyle = state === 'current' ? '#c8c2b6' : '#6e6a64'
-  ctx.fillRect(x, y + height - 2 * scale, width, 2 * scale)
+  ctx.fillRect(x, y + height - 2 * unit, width, 2 * unit)
 }
 
 function drawBitmap(ctx, icon, pixelSize, left, top, outlined = true) {
