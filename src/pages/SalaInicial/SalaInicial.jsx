@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
-import { FLOOR_COLS, FLOOR_ROWS } from '../../utils/floorGenerator.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
@@ -411,30 +410,20 @@ export default function SalaInicial() {
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
-      const minimapCell = Math.max(8, Math.round(12 * scale))
-      const minimapPadding = Math.max(6, Math.round(6 * pixelRatio))
-      const mapLeft = Math.max(
-        Math.round(canvas.width - (FLOOR_COLS * minimapCell + minimapPadding * 2 + 22 * pixelRatio)),
-        Math.round(18 * pixelRatio),
-      )
+      const minimapScale = Math.max(0.45, pixelRatio * (showMinimap ? 1.05 : 0.65))
+      const mapRight = canvas.width - Math.round(18 * pixelRatio)
       const mapTop = Math.round(18 * pixelRatio)
       if (showMinimap) {
-        const panelCell = Math.max(14, Math.round(16 * scale))
-        const panelPadding = Math.max(10, Math.round(10 * pixelRatio))
-        const panelLeft = Math.round(canvas.width / 2 - (FLOOR_COLS * panelCell + panelPadding * 2) / 2)
-        const panelTop = Math.round(canvas.height / 2 - (FLOOR_ROWS * panelCell + panelPadding * 2) / 2)
         drawMinimap(ctx, run.floor, getCurrentRoom(run), {
-          left: panelLeft,
-          top: panelTop,
-          cell: panelCell,
-          padding: panelPadding,
+          centerX: canvas.width / 2,
+          centerY: canvas.height / 2,
+          scale: minimapScale,
         })
       } else {
         drawMinimap(ctx, run.floor, getCurrentRoom(run), {
-          left: mapLeft,
+          right: mapRight,
           top: mapTop,
-          cell: minimapCell,
-          padding: minimapPadding,
+          scale: minimapScale,
         })
       }
 
