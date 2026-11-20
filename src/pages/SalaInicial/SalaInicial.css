@@ -1,3 +1,12 @@
+/* Fonte das descrições dos itens (frase do banner e caixa de descrição), desenhadas no canvas.
+   Tem minúsculas e acentos; licença OFL (public/fonts/PixelifySans-OFL.txt e docs/sprites/CREDITS.md). */
+@font-face {
+  font-family: 'Pixelify Sans';
+  src: url('/fonts/PixelifySans.ttf') format('truetype');
+  font-weight: 400 700;
+  font-display: swap;
+}
+
 /* A sala ocupa exatamente a janela. O canvas desenha a sala com escala
    uniforme (veja getRoomView, que corta até 30 u das paredes de cima e de baixo); a sobra fica na cor de fundo do jogo. */
 .sala-inicial {
