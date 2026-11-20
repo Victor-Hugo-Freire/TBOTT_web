@@ -14,6 +14,7 @@ import {
 import { drawDoors, drawSecretMark } from './drawDoors.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
+import { drawFlashes, drawPlayerAuras, drawPuddles } from './drawItemEffects.js'
 import { drawHeldItem, drawPedestal } from './drawPedestals.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
@@ -40,6 +41,10 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     drumDrop: run.drumDrop, // o tambor caindo do céu na sala do chefe (veja getDrumFall)
     pickup: run.pickup, // o item pego agora, sobre a cabeça do Tung
     vanishing: run.vanishing, // itens sumindo da sala de escolha (cada um diz de que sala é)
+    // Efeitos dos itens na sala atual (itemEffects.js): poças, efeitos que tocam uma vez e o que acompanha o Tung
+    puddles: run.puddles,
+    flashes: run.flashes,
+    effects: run.effects,
   }
   const { transition } = run
   if (transition?.type !== 'room') {
@@ -62,6 +67,8 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       ...options,
       unlocking: null,
       pickup: null,
+      puddles: [],
+      flashes: [],
     })
   const progress = transition.elapsedMs / transition.durationMs
 
@@ -100,7 +107,7 @@ export function getFloorFade(run) {
 // depois obstáculos, tambor, pedestais e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
-  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
+  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing, puddles, flashes, effects } = options
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -108,6 +115,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   const theme = getRoomTheme(floor, room)
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
+  drawPuddles(ctx, puddles) // poças de molho da Concha, no chão
   drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle })
 
   const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
@@ -138,7 +146,12 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
       // Na poça, no lugar do personagem caído: a animação dele sendo puxado ou afundando sozinho
       if (pulledByShark) drawSharkGrab(ctx, sheets, player, death.fin, reduceMotion)
       else if (fellInPuddle) drawPuddleFall(ctx, sheets, player, death.fin, reduceMotion)
-      else drawPlayer(ctx, sheets, player, reduceMotion)
+      else {
+        // Efeitos dos itens que acompanham os pés dele: o escudo atrás, o vapor e o cacau na frente
+        if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs, true)
+        drawPlayer(ctx, sheets, player, reduceMotion)
+        if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs, false)
+      }
       // Item que ele acabou de pegar, sobre a cabeça (não aparece na morte)
       if (pickup && !player.dead) drawHeldItem(ctx, player, pickup)
     }
@@ -151,6 +164,8 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawBreakingObstacles(ctx, obstacles, reduceMotion)
   if (drum) drawDrumDust(ctx, drum.box, drumFall.landedMs)
   if (drum && drumFall.height === 0) drawDrumText(ctx, drum.box, room.hits)
+  // Efeitos dos itens que tocam uma vez (estalo, notas, mordida, faísca...), por cima de tudo
+  drawFlashes(ctx, flashes)
 }
 
 // Os pés de um obstáculo ficam no meio da borda de baixo da caixa

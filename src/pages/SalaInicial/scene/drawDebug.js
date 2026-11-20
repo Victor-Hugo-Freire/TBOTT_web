@@ -174,6 +174,9 @@ export function drawDebugPanel(ctx, run, { right, top, fontSize }) {
     `dano ${stats.damage}  velocidade ${stats.moveSpeed.toFixed(2)}  golpe ${stats.attackSpeed.toFixed(2)}`,
     `vida ${run.health}/${stats.maxHealth}  invencível ${stats.invincibilityMs} ms`,
     `abates na sala ${run.roomKills}`,
+    // Contagens dos efeitos dos itens (itemEffects.js)
+    `golpes ${run.effects.swingCount}  ritmo ${run.effects.rhythmCombo}  acertos seguidos ${run.effects.hitStreak}`,
+    `frenesi ${run.effects.frenzyStacks}  escudo ${run.effects.shieldHits}  curas no andar ${run.effects.floorHealsUsed}`,
     `itens ${run.items.length}`,
   ]
   // Os itens, três por linha (a lista inteira numa linha só deixaria o painel largo demais)
