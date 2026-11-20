@@ -1,5 +1,6 @@
 import { BrowserRouter } from 'react-router-dom'
 import { SessionProvider } from './context/SessionContext.jsx'
+import { AudioProvider } from './context/AudioContext.jsx'
 import AppRoutes from './routes/AppRoutes.jsx'
 
 // Componente raiz: liga o sistema de rotas e a sessão do jogador acessível
@@ -8,7 +9,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <SessionProvider>
-        <AppRoutes />
+        <AudioProvider>
+          <AppRoutes />
+        </AudioProvider>
       </SessionProvider>
     </BrowserRouter>
   )

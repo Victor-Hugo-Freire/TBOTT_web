@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAudio } from '../../context/useAudio.js'
 import { ROUTES } from '../../routes/paths.js'
 import { isAdvanceKey } from '../../utils/keyboard.js'
 import TitleScene from './TitleScene.jsx'
@@ -9,6 +10,7 @@ import './Inicial.css'
 // quando o jogador aperta uma tecla válida (veja isAdvanceKey).
 export default function Inicial() {
   const navigate = useNavigate()
+  const { unlock } = useAudio()
   // true enquanto a animação de saída (transição para o menu) acontece
   const [saindo, setSaindo] = useState(false)
 
@@ -18,12 +20,13 @@ export default function Inicial() {
       // Remove o listener antes de começar a saída: outra tecla apertada
       // no mesmo instante não dispara uma segunda navegação.
       window.removeEventListener('keydown', handleKeyDown)
+      void unlock()
       setSaindo(true)
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [unlock])
 
   // Vai para o menu quando a animação de saída da tela termina.
   // As animações de dentro da cena (como a respiração) também disparam esse

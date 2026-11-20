@@ -132,7 +132,13 @@ A tela `/opcoes`, acessível pelo item **Options** do menu principal, permite aj
 - **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar, **R** (segurando) para recomeçar a run e **Esc** para voltar ao menu.
 - **Teclado:** **W/S** ou **↑/↓** percorrem os itens; **Enter** ativa botões; **←/→** ajustam o volume quando o controle deslizante está selecionado. **A/←** seleciona o botão de voltar e **D/→** seleciona o cartão do usuário. Também é possível operar a tela com mouse ou outro dispositivo apontador.
 
-Os volumes ficam salvos localmente, mas ainda não alteram a reprodução de áudio: música e efeitos sonoros ainda não estão implementados no jogo.
+Os volumes ficam salvos localmente e são aplicados ao sistema central de áudio em tempo real. A infraestrutura usa Web Audio API nativa e fica disponível globalmente pela tela inicial até o término do jogo. Nesta issue não foram registrados efeitos específicos nem músicas de andares ou chefes.
+
+## Sistema de áudio
+
+A implementação central fica em `src/audio/AudioManager.js`, com o provedor React em `src/context/AudioContext.jsx` e o hook público em `src/context/useAudio.js`. O gerenciador mantém um único `AudioContext`, controla volumes independentes, mute, registro por nome e interrupção de fontes. A tela inicial desbloqueia o contexto no primeiro gesto válido do jogador; o sistema não reproduz automaticamente nenhuma música ou efeito.
+
+Não há música da sala inicial restaurada. Sons de inimigos, chefes, personagens, andares e interface devem ser registrados pelas issues responsáveis, sem acoplar o gameplay ao `AudioContext`.
 
 ## Seleção de personagem
 
@@ -221,7 +227,7 @@ As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/dr
 
 Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala; o garrafão volta como cacos. A fumaça do fogão (chapa) e do café (mesa) sobe e balança (`drawSteam` em `scene/drawObstacles.js`); com "reduzir movimento", fica parada.
 
-**Portas e transição** (`src/utils/doors.js` e `scene/drawDoors.js`)
+**Portas e transição** (`src/utils/doors.js` e scene/drawDoors.js`)
 
 - Uma porta em cada lado que tem sala vizinha. O desenho segue o tipo da sala especial do outro lado (ou da própria sala especial). Entre o chefe e o pacto (ou a sala do Tung Tung God), a porta é a do pacto (ou a do Tung Tung God) dos dois lados. A porta abre quando a sala está limpa; como ainda não há inimigos, toda sala fica limpa ao entrar.
 - Para atravessar, os pés encostam na parede dentro do vão e o jogador continua apertando para aquele lado.
