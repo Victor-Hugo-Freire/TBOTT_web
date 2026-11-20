@@ -2,6 +2,7 @@ import { HITS_TO_OPEN } from './doors.js'
 import { LAST_FLOOR } from './floorGenerator.js'
 import { normalizeHealth } from './health.js'
 import { ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
+import { getBaseStats } from './stats.js'
 
 // Valor antigo do roomId. A run (run.js) trata qualquer id que não existe no andar como a sala inicial.
 export const DEFAULT_ROOM_ID = 'sala-inicial'
@@ -66,11 +67,12 @@ function normalizeDeathCause(value) {
 // campos que faltam ganham valores padrão e a posição fica dentro da sala.
 export function normalizeProgressPayload(value) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  const characterId =
+    typeof source.characterId === 'string' && source.characterId ? source.characterId : DEFAULT_CHARACTER_ID
 
   return {
     roomId: typeof source.roomId === 'string' && source.roomId ? source.roomId : DEFAULT_ROOM_ID,
-    characterId:
-      typeof source.characterId === 'string' && source.characterId ? source.characterId : DEFAULT_CHARACTER_ID,
+    characterId,
     playerX: clamp(source.playerX ?? ROOM_PLAYER_START.x, ROOM_PLAYER_BOUNDS.minX, ROOM_PLAYER_BOUNDS.maxX),
     playerY: clamp(source.playerY ?? ROOM_PLAYER_START.y, ROOM_PLAYER_BOUNDS.minY, ROOM_PLAYER_BOUNDS.maxY),
     elapsedMs: clamp(source.elapsedMs ?? 0, 0, Infinity),
@@ -82,8 +84,11 @@ export function normalizeProgressPayload(value) {
     visitedRoomIds: normalizeIds(source.visitedRoomIds, MAX_ROOMS),
     // Obstáculos quebrados e batidas de cada sala: o que quebrou não volta ao continuar a run
     roomStates: normalizeRoomStates(source.roomStates),
-    // Vida em meios corações (6 = 3 corações) e o que matou o personagem, se a run acabou em derrota
-    health: normalizeHealth(source.health),
+    // Vida em meios corações (6 = 3 corações), até a vida máxima da ficha do personagem; o createRun corta de novo
+    // pela vida máxima com os itens. E o que matou o personagem, se a run acabou em derrota.
+    // shortcut: se um item aumentar a vida máxima, a vida acima da ficha volta como vida cheia da ficha ao continuar;
+    // quando existir um item assim, validar aqui com STAT_LIMITS.maxHealth.max.
+    health: normalizeHealth(source.health, getBaseStats(characterId).maxHealth),
     deathCause: normalizeDeathCause(source.deathCause),
     // Garfos que sobraram (inteiro de 0 a 99). Save antigo, sem o campo, começa com o garfo do início da run.
     forks: Number.isInteger(source.forks) ? clamp(source.forks, 0, MAX_FORKS) : STARTING_FORKS,

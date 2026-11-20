@@ -34,9 +34,9 @@ export function getCountersTop(top, pixelSize) {
 }
 
 // left e top = canto superior esquerdo do HUD; pixelSize = o mesmo do contador de tempo.
-// health = vida em meios corações (health.js).
-export function drawHud(ctx, images, { health, grains, forks, left, top, pixelSize }) {
-  drawHearts(ctx, getHeartStates(health), left, top, pixelSize)
+// health e maxHealth = vida e vida máxima atual, em meios corações (health.js): um coração para cada 2 de vida máxima.
+export function drawHud(ctx, images, { health, maxHealth, grains, forks, left, top, pixelSize }) {
+  drawHearts(ctx, getHeartStates(health, maxHealth), left, top, pixelSize)
   const countersTop = getCountersTop(top, pixelSize)
   const rowHeight = getHudIconSize(pixelSize) + GAP_PIXELS * pixelSize
   drawCounter(ctx, images.grains, grains, left, countersTop, pixelSize)

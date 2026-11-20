@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { FORK_UNLOCK_MS, getEntryPosition, getRoomDoors, OPPOSITE_SIDE, SIDE_VECTORS } from '../src/utils/doors.js'
 import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
-import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
+import { DAMAGE_LIGHT } from '../src/utils/health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
 import { FIN_LAP_MS, getHammockBox, PUDDLE, SHARK_DEATH_MS, SLEEP_MS } from '../src/utils/roomInteractions.js'
@@ -25,16 +25,25 @@ import {
   getRestartFade,
   getRoomStates,
   getRoomTheme,
+  getRunStats,
   getVisitedRoomIds,
+  giveNextItem,
   isDrumVisible,
   isSecretMarkVisible,
+  removeTrainingTarget,
   RESTART_HOLD_MS,
   ROOM_TRANSITION_MS,
   STARTING_FORKS,
+  toggleTrainingTarget,
   updateRestartHold,
   updateRestartKey,
   updateRun,
 } from '../src/utils/run.js'
+import { getBaseStats } from '../src/utils/stats.js'
+import { TRAINING_RESPAWN_MS } from '../src/utils/targets.js'
+
+// Vida máxima da ficha do Tung (sem itens)
+const MAX_HEALTH = getBaseStats('tung-tung-sahur').maxHealth
 
 // Passo de 1/20 s (50 ms, o maior passo que o jogador aceita): deixa os testes rápidos
 const STEP = 1 / 20
@@ -1199,5 +1208,82 @@ describe('rede: a faixa do andar não volta depois do sono', () => {
     run = steps(run, Math.ceil(SLEEP_MS / STEP_MS))
     assert.equal(run.sleep, null)
     assert.ok(run.banner === null || run.banner.elapsedMs >= SLEEP_MS, 'a faixa andou junto com o sono')
+  })
+})
+
+describe('atributos e itens na run', () => {
+  test('a run começa sem itens, sem alvos e com a vida máxima dos atributos', () => {
+    const run = createRun({ seed: 1, characterId: 'tung-tung-sahur' })
+    assert.deepEqual([run.items, run.targets, run.roomKills], [[], [], 0])
+    assert.deepEqual(getRunStats(run), getBaseStats('tung-tung-sahur'))
+    assert.equal(run.health, getRunStats(run).maxHealth)
+  })
+
+  test('vida salva acima da vida máxima vira a vida máxima; abaixo, fica', () => {
+    assert.equal(createRun({ seed: 1, characterId: 'x', health: 9 }).health, MAX_HEALTH)
+    assert.equal(createRun({ seed: 1, characterId: 'x', health: 3 }).health, 3)
+  })
+
+  test('tecla I: dá o próximo item do catálogo que ele ainda não tem, na ordem do catálogo', () => {
+    let run = createRun({ seed: 1, characterId: 'x', catalog: { 'cafe-duplo': {}, mucarela: {} } })
+    run = giveNextItem(run)
+    assert.deepEqual(run.items, ['cafe-duplo'])
+    run = giveNextItem(run)
+    assert.deepEqual(run.items, ['cafe-duplo', 'mucarela'])
+    assert.equal(giveNextItem(run), run, 'com todos os itens, nada muda')
+  })
+})
+
+describe('alvo de treino (F3 + T)', () => {
+  // Run na sala inicial com o alvo de treino, e o jogador logo abaixo dele (o golpe para cima acerta)
+  function runWithTarget() {
+    const run = toggleTrainingTarget(createRun({ seed: 1, characterId: 'x' }))
+    const target = run.targets[0]
+    run.player = createPlayer({ x: target.x, y: target.y + 45 })
+    return run
+  }
+
+  test('T põe o alvo numa casa livre perto do meio da sala; T de novo (ou desligar o F3) tira', () => {
+    const run = runWithTarget()
+    assert.equal(run.targets.length, 1)
+    assert.equal(run.targets[0].training, true)
+    assert.equal(run.targets[0].health, 30)
+    assert.deepEqual(toggleTrainingTarget(run).targets, [])
+    assert.deepEqual(removeTrainingTarget(run).targets, [])
+  })
+
+  test('na sala do chefe o alvo não fica em cima do tambor', () => {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    const run = toggleTrainingTarget(createRun({ seed, roomId, characterId: 'x' }))
+    const drum = getDrumBox()
+    assert.ok(run.targets[0].x < drum.x || run.targets[0].x > drum.x + drum.width)
+  })
+
+  test('cada golpe tira 3 de vida do alvo, uma vez só, mesmo com a caixa ativa por vários quadros', () => {
+    const { run, activeFrames } = swing(runWithTarget(), 'up')
+    assert.ok(activeFrames > 1)
+    assert.equal(run.targets[0].health, 30 - getRunStats(run).damage)
+    assert.equal(run.targets[0].health, 27)
+    assert.deepEqual(run.targets[0].damageTexts.map((text) => text.amount), [3])
+  })
+
+  test('10 golpes abatem o alvo: conta 1 abate e ele volta com a vida cheia 1 s depois', () => {
+    let run = runWithTarget()
+    for (let hit = 0; hit < 10; hit++) run = swing(run, 'up').run
+    assert.equal(run.targets[0].dead, true)
+    assert.equal(run.roomKills, 1)
+    run = steps(run, Math.ceil(TRAINING_RESPAWN_MS / STEP_MS) + 1)
+    assert.equal(run.targets[0].dead, false)
+    assert.equal(run.targets[0].health, 30)
+    assert.equal(run.roomKills, 1)
+  })
+
+  test('o alvo não muda cleared, não vai para o progresso e sai ao trocar de sala', () => {
+    let run = swing(runWithTarget(), 'up').run
+    assert.equal(getCurrentRoom(run).cleared, true)
+    const snapshot = JSON.stringify(createRunSnapshot(run, 1000))
+    assert.ok(!snapshot.includes('treino') && !snapshot.includes('targets'))
+    run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run))[0].side)
+    assert.deepEqual([run.targets, run.roomKills], [[], 0])
   })
 })

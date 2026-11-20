@@ -12,7 +12,6 @@ import {
   getPlayerPose,
   HURT_DURATION_MS,
   hurtPlayer,
-  INVINCIBILITY_MS,
   isAttackHitActive,
   killPlayer,
   startAttack,
@@ -22,6 +21,9 @@ import {
 import { CHARACTER_SPRITES } from '../src/data/characterSprites.js'
 import { PLAYER_FEET_BOX, ROOM_PLAYER_SPEED, ROOM_WALLS } from '../src/utils/roomMovement.js'
 import { getWalkFrame, WALK_CYCLE_DISTANCE, WALK_STEP_DISTANCE } from '../src/utils/spriteAnimation.js'
+import { getBaseStats } from '../src/utils/stats.js'
+
+const TUNG = getBaseStats('tung-tung-sahur')
 
 const START = { x: 500, y: 400 }
 const NO_INPUT = { movement: { x: 0, y: 0 }, attackDirection: null }
@@ -121,6 +123,53 @@ describe('ataque: o golpe deixa o personagem mais lento e não é cortado', () =
     assert.equal(player.attack.direction, 'up')
     player = run(player, { ...NO_INPUT, attackDirection: 'left' }, 400).player
     assert.equal(player.attack.direction, 'left')
+  })
+})
+
+describe('atributos: golpe mais rápido, andar mais rápido e invencibilidade', () => {
+  // Começa um golpe e conta quantos ms (em passos de 1 ms) ele dura
+  function attackDuration(stats) {
+    let player = updatePlayer(createPlayer(START), { ...NO_INPUT, attackDirection: 'down' }, 0.001, { stats })
+    let ms = 0
+    while (player.attack) {
+      player = updatePlayer(player, NO_INPUT, 0.001, { stats })
+      ms++
+    }
+    return ms
+  }
+
+  test('golpe 1,4 vezes mais rápido dura 450 ms (630 / 1,4)', () => {
+    assert.ok(Math.abs(attackDuration(TUNG) - 630) <= 1)
+    const ms = attackDuration({ ...TUNG, attackSpeed: 1.4 })
+    assert.ok(Math.abs(ms - 450) <= 1, `durou ${ms} ms`)
+  })
+
+  test('golpe mais rápido: a espera também encurta (430 / 1,4 = 307 ms)', () => {
+    const base = createPlayer(START)
+    assert.equal(startAttack({ ...base, sinceAttackStart: 306 }, 'up', 1.4).attack, null)
+    assert.ok(startAttack({ ...base, sinceAttackStart: 308 }, 'up', 1.4).attack)
+  })
+
+  test('golpe mais rápido: a janela de acerto e o arco chegam antes, na mesma proporção', () => {
+    // Na velocidade 2, aos 100 ms o golpe já está no tempo 200 (o acerto vai de 160 a 350)
+    const stats = { ...TUNG, attackSpeed: 2 }
+    let fast = updatePlayer(createPlayer(START), { ...NO_INPUT, attackDirection: 'down' }, 0.001, { stats })
+    for (let ms = 0; ms < 100; ms++) fast = updatePlayer(fast, NO_INPUT, 0.001, { stats })
+    assert.ok(getAttackHitbox(fast), 'acertando aos 100 ms')
+    assert.ok(getAttackArc(fast), 'com o arco aos 100 ms')
+    const normal = run(updatePlayer(createPlayer(START), { ...NO_INPUT, attackDirection: 'down' }, 0.001), NO_INPUT, 100, 0.001)
+    assert.equal(getAttackHitbox(normal.player), null, 'na velocidade 1, aos 100 ms ainda não acerta')
+  })
+
+  test('andar mais rápido: moveSpeed multiplica a velocidade de andar', () => {
+    const stats = { ...TUNG, moveSpeed: 1.5 }
+    const player = updatePlayer(createPlayer(START), { movement: { x: 1, y: 0 }, attackDirection: null }, 0.02, { stats })
+    assert.ok(Math.abs(player.x - (START.x + ROOM_PLAYER_SPEED * 1.5 * 0.02)) < 1e-9)
+  })
+
+  test('a invencibilidade vem do atributo', () => {
+    assert.equal(hurtPlayer(createPlayer(START), 2000).invincibleMs, 2000)
+    assert.equal(hurtPlayer(createPlayer(START)).invincibleMs, TUNG.invincibilityMs)
   })
 })
 
@@ -292,7 +341,7 @@ describe('getPlayerPose (o que desenhar)', () => {
 describe('dano (só o estado: nada dispara o dano no jogo ainda)', () => {
   test('a animação dura 410 ms e a invencibilidade 1000 ms', () => {
     assert.equal(HURT_DURATION_MS, 410)
-    assert.equal(INVINCIBILITY_MS, 1000)
+    assert.equal(TUNG.invincibilityMs, 1000)
   })
 
   test('levar dano liga a animação e a invencibilidade, na direção atual', () => {

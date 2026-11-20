@@ -1,13 +1,14 @@
 import { CHARACTER_SPRITES } from '../data/characterSprites.js'
 import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance } from './spriteAnimation.js'
 import { moveRoomPlayer, PLAYER_SCALE, ROOM_WALLS } from './roomMovement.js'
+import { getBaseStats } from './stats.js'
 
 // Estado do personagem na sala, em funções puras (sem React, sem canvas), para testar.
 // Posição (x, y) = centro dos pés. Tempos em ms.
 //
-// O golpe de 630 ms não é cortado e deixa o personagem um pouco mais lento (80% da velocidade), sem travar.
-// O cooldown conta do INÍCIO do golpe, mas como o golpe dura mais que o cooldown, a cadência real
-// é de 630 ms (cerca de 1,6 golpe/s): o cooldown só passa a valer se um dia o golpe ficar mais curto que ele.
+// Na velocidade de golpe 1 (atributo attackSpeed): o golpe de 630 ms não é cortado e deixa o personagem um pouco
+// mais lento (80% da velocidade), sem travar. O cooldown conta do INÍCIO do golpe, mas como o golpe dura mais que
+// o cooldown, a cadência real é de 630 ms (cerca de 1,6 golpe/s). Com o golpe mais rápido, os dois encurtam juntos.
 export const ATTACK_COOLDOWN_MS = 430
 export const ATTACK_MOVE_SPEED = 0.8 // fração da velocidade normal enquanto ataca (era 0,5: o golpe segurava demais)
 
@@ -16,11 +17,13 @@ const LEGS = CHARACTER_SPRITES.tungTungSahurPernas
 export const ATTACK_DURATION_MS = getTotalDuration(ATTACK.durations)
 
 // Dano: 410 ms de animação, em que o personagem não anda nem ataca (morte > dano > ataque > andar).
-// Depois de levar dano fica invencível por 1000 ms, contados do momento do golpe.
-// Quem tira a vida é a run (run.js): aqui fica só a animação. Por enquanto só a chapa quente machuca.
+// Depois de levar dano fica invencível pelo tempo do atributo invincibilityMs (1000 ms no Tung), contado do golpe.
+// Quem tira a vida é a run (run.js): aqui fica só a animação. Por enquanto só a chapa quente e os cacos machucam.
 const HURT = CHARACTER_SPRITES.tungTungSahurDano
 export const HURT_DURATION_MS = getTotalDuration(HURT.durations)
-export const INVINCIBILITY_MS = 1000
+
+// Atributos usados quando quem chama não passa os dele (como nos testes): o Tung Tung sem itens
+const DEFAULT_STATS = getBaseStats('tung-tung-sahur')
 
 // Morte: a animação toca uma vez e para no último quadro (ele fica deitado). Morto, não anda, não ataca e não leva dano.
 const DEATH = CHARACTER_SPRITES.tungTungSahurMorte
@@ -72,16 +75,16 @@ export function createPlayer(position) {
   }
 }
 
-// Leva dano: interrompe o golpe, para o personagem e liga a invencibilidade.
+// Leva dano: interrompe o golpe, para o personagem e liga a invencibilidade por invincibilityMs (atributo).
 // Enquanto está invencível, outro dano é ignorado.
-export function hurtPlayer(player) {
+export function hurtPlayer(player, invincibilityMs = DEFAULT_STATS.invincibilityMs) {
   if (player.dead || player.invincibleMs > 0 || player.hurt) return player
   return {
     ...player,
     attack: null,
     walkDistance: 0,
     hurt: { direction: player.direction, elapsed: 0 },
-    invincibleMs: INVINCIBILITY_MS,
+    invincibleMs: invincibilityMs,
   }
 }
 
@@ -92,8 +95,10 @@ export function killPlayer(player) {
 }
 
 // Começa um golpe se não há golpe nem dano em andamento e o cooldown já acabou.
-export function startAttack(player, direction) {
-  if (!direction || player.dead || player.attack || player.hurt || player.sinceAttackStart < ATTACK_COOLDOWN_MS) return player
+// attackSpeed (atributo): com o golpe mais rápido, o cooldown encurta na mesma proporção.
+export function startAttack(player, direction, attackSpeed = 1) {
+  const cooldownMs = ATTACK_COOLDOWN_MS / attackSpeed
+  if (!direction || player.dead || player.attack || player.hurt || player.sinceAttackStart < cooldownMs) return player
   // walkDistance não zera: as pernas continuam o ciclo do andar durante o golpe
   return { ...player, direction, attack: { direction, elapsed: 0 }, sinceAttackStart: 0 }
 }
@@ -110,9 +115,12 @@ function getFacingDirection(movement) {
 // input: { movement: { x, y }, attackDirection: 'up' | 'down' | 'left' | 'right' | null }
 // options (opcional), para a sala com obstáculos:
 // - solids: caixas que bloqueiam (padrão: só as paredes da sala);
-// - speedMultiplier: velocidade do piso (ex.: 0,5 no piso grudento). Multiplica com a do golpe.
+// - speedMultiplier: velocidade do piso (ex.: 0,5 no piso grudento). Multiplica com a do golpe;
+// - stats: atributos do jogador (stats.js; padrão: o Tung sem itens). moveSpeed multiplica a velocidade de andar
+//   e attackSpeed a do golpe: o tempo do golpe anda mais depressa, então a animação, a janela de acerto e o arco
+//   encolhem juntos (todos usam attack.elapsed).
 export function updatePlayer(player, input, deltaSeconds, options = {}) {
-  const { solids = ROOM_WALLS, speedMultiplier = 1 } = options
+  const { solids = ROOM_WALLS, speedMultiplier = 1, stats = DEFAULT_STATS } = options
   const stepMs = Math.max(0, Math.min(deltaSeconds * 1000, MAX_STEP_MS))
 
   // Morto: só o tempo da animação de morte anda
@@ -124,7 +132,7 @@ export function updatePlayer(player, input, deltaSeconds, options = {}) {
     invincibleMs: Math.max(0, player.invincibleMs - stepMs),
   }
   if (next.attack) {
-    const elapsed = next.attack.elapsed + stepMs
+    const elapsed = next.attack.elapsed + stepMs * stats.attackSpeed
     next.attack = elapsed >= ATTACK_DURATION_MS ? null : { ...next.attack, elapsed }
   }
   if (next.hurt) {
@@ -132,7 +140,7 @@ export function updatePlayer(player, input, deltaSeconds, options = {}) {
     next.hurt = elapsed >= HURT_DURATION_MS ? null : { ...next.hurt, elapsed }
   }
 
-  next = startAttack(next, input.attackDirection)
+  next = startAttack(next, input.attackDirection, stats.attackSpeed)
 
   // Durante o dano o personagem não anda
   if (next.hurt) return { ...next, walkDistance: 0 }
@@ -146,7 +154,7 @@ export function updatePlayer(player, input, deltaSeconds, options = {}) {
   next.stoppedMs = stopped ? player.stoppedMs + stepMs : 0
   const pausing = stopped && next.stoppedMs < TURN_FRONT_DELAY_MS
   if (!attacking && !pausing) next.direction = getFacingDirection(movement)
-  const speed = (attacking ? ATTACK_MOVE_SPEED : 1) * speedMultiplier
+  const speed = (attacking ? ATTACK_MOVE_SPEED : 1) * speedMultiplier * stats.moveSpeed
   const moved = moveRoomPlayer(next, movement, stepMs / 1000, speed, solids)
   if (!pausing) next.walkDistance = updateWalkDistance(next.walkDistance, Math.hypot(moved.x - next.x, moved.y - next.y))
   next.x = moved.x

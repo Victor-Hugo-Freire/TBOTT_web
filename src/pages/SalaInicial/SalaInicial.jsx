@@ -4,6 +4,7 @@ import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
+import { buildItemCatalog } from '../../utils/itemCatalog.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
 import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
 import { createRunSeed } from '../../utils/random.js'
@@ -22,7 +23,11 @@ import {
   getCurrentRoom,
   getEnterFade,
   getRestartFade,
+  getRunStats,
+  giveNextItem,
+  removeTrainingTarget,
   RESTART_HOLD_MS,
+  toggleTrainingTarget,
   updateRestartHold,
   updateRestartKey,
   updateRun,
@@ -66,9 +71,12 @@ export default function SalaInicial() {
   const endingRef = useRef(null)
   const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
+  const retryLoadRef = useRef(null)
   const [floorInfo, setFloorInfo] = useState(null) // { number, name } do andar atual
   // Aviso de fim: { outcome: 'victory' | 'defeat', cause, time, status: 'sending' | 'sent' | 'error', message }
   const [ending, setEnding] = useState(null)
+  // Mensagem de erro se o catálogo de itens não carregou (sem ele a run não começa)
+  const [loadError, setLoadError] = useState(null)
   const endingStatus = ending?.status
 
   // Personagem escolhido na seleção: o id vai para a run (e para o ranking) e o nome para o leitor de tela.
@@ -121,9 +129,31 @@ export default function SalaInicial() {
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
+    // Primeiro o catálogo de itens (GET /api/catalog: nomes, salas e os números dos efeitos), depois o progresso.
+    // Sem o catálogo a run não começa: aparece o aviso de erro com "Tentar de novo".
+    async function loadGame() {
+      let catalog
+      try {
+        const response = await apiRequest('/api/catalog', { credentials: 'include' })
+        if (isCancelled) return
+        catalog = buildItemCatalog(response?.items)
+      } catch (error) {
+        if (isCancelled) return
+        // Sessão vencida (401): o apiRequest já leva para a tela de entrar
+        if (error?.status !== 401) setLoadError(error?.message || 'Tente de novo daqui a pouco.')
+        return
+      }
+      // Item sem sprite no jogo (ou sprite sem item no catálogo) fica fora da run
+      if (catalog.missingSprite.length > 0 || catalog.missingInCatalog.length > 0) {
+        console.warn('Itens ignorados.', { semSprite: catalog.missingSprite, semCatalogo: catalog.missingInCatalog })
+      }
+      await loadProgress(catalog.items)
+    }
+    retryLoadRef.current = loadGame
+
     // O andar, a sala, a posição e o tempo vêm da API (e não do state da navegação, que o navegador
     // guarda no histórico e pode estar velho). A partida nova já foi salva pela seleção, sem seed.
-    async function loadProgress() {
+    async function loadProgress(catalog) {
       let progress = normalizeProgressPayload(null)
       let characterId = selectedCharacter.id
       try {
@@ -157,6 +187,7 @@ export default function SalaInicial() {
         roomStates: progress.roomStates,
         health: progress.health,
         forks: progress.forks,
+        catalog,
       })
       elapsedMs = progress.elapsedMs
       enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)
@@ -251,7 +282,7 @@ export default function SalaInicial() {
     // A tela está preta nesta hora. O tempo segurado volta a 0: a tela clareia na run nova e, com o R ainda
     // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
     function restartRun() {
-      run = createRun({ seed: createRunSeed(), characterId: run.characterId })
+      run = createRun({ seed: createRunSeed(), characterId: run.characterId, catalog: run.catalog })
       elapsedMs = 0
       restartHoldMs = 0
       enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez
@@ -280,6 +311,17 @@ export default function SalaInicial() {
       if (import.meta.env.DEV && event.code === 'F3') {
         event.preventDefault()
         showDebug = !showDebug
+        // O alvo de treino só existe com o F3 ligado
+        if (!showDebug && run) run = removeTrainingTarget(run)
+        return
+      }
+
+      // Ferramentas de teste do F3: T põe ou tira o alvo de treino e I dá o próximo item que ele ainda não tem.
+      // Segurar a tecla não repete.
+      if (import.meta.env.DEV && showDebug && run && (event.code === 'KeyT' || event.code === 'KeyI')) {
+        event.preventDefault()
+        if (event.repeat) return
+        run = event.code === 'KeyT' ? toggleTrainingTarget(run) : giveNextItem(run)
         return
       }
 
@@ -404,6 +446,7 @@ export default function SalaInicial() {
       // os corações em cima e os contadores de grão e de garfo embaixo deles
       drawHud(ctx, hudImages, {
         health: run.health,
+        maxHealth: getRunStats(run).maxHealth,
         grains: run.grains,
         forks: run.forks,
         left: toScreenX(screen.left + 20),
@@ -474,7 +517,7 @@ export default function SalaInicial() {
     window.addEventListener('blur', handleBlur)
     window.addEventListener('focus', handleFocus)
     BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
-    void loadProgress()
+    void loadGame()
     // Parado na janela sem foco, não há o que salvar
     const saveTimer = window.setInterval(() => {
       if (!isPaused) void saveProgress()
@@ -522,6 +565,37 @@ export default function SalaInicial() {
         role="img"
         aria-label={floorInfo ? `Andar ${floorInfo.number}, ${floorInfo.name}, com ${characterName}` : `Sala com ${characterName}`}
       />
+
+      {/* Erro ao carregar o catálogo. Usa o visual e o ref do aviso de fim: os dois nunca aparecem juntos
+          (sem catálogo a run não existe), e o ref deixa o mouse clicar nos botões */}
+      {loadError && (
+        <div className="sala-inicial__fim" ref={endingRef}>
+          <section className="sala-inicial__fim-painel" role="dialog" aria-modal="true" aria-labelledby="sala-inicial-erro-titulo">
+            <h2 id="sala-inicial-erro-titulo" className="sala-inicial__fim-titulo">
+              Erro ao carregar
+            </h2>
+            <p className="sala-inicial__fim-mensagem" role="alert">
+              Não foi possível carregar os itens do jogo. {loadError}
+            </p>
+            <div className="sala-inicial__fim-botoes">
+              <button type="button" className="sala-inicial__fim-botao" onClick={() => navigate(ROUTES.menuPrincipal)}>
+                Voltar ao menu
+              </button>
+              <button
+                type="button"
+                className="sala-inicial__fim-botao"
+                autoFocus
+                onClick={() => {
+                  setLoadError(null)
+                  retryLoadRef.current?.()
+                }}
+              >
+                Tentar de novo
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {ending && (
         <div className="sala-inicial__fim" ref={endingRef}>

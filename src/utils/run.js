@@ -11,7 +11,7 @@ import {
   OPPOSITE_SIDE,
 } from './doors.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
-import { applyDamage, DAMAGE_LIGHT, MAX_HEALTH } from './health.js'
+import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
 import { createProgressSnapshot } from './progress.js'
 import {
@@ -24,7 +24,7 @@ import {
   SLEEP_MS,
   TRALALERO_CAUSE,
 } from './roomInteractions.js'
-import { buildRoomObstacles } from './roomLayout.js'
+import { buildRoomObstacles, findFreeCell, getCellRect } from './roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
 import {
   getFloorEffect,
@@ -39,6 +39,8 @@ import {
   updateBreakingObstacles,
   updateRollingObstacles,
 } from './roomObstacles.js'
+import { getBaseStats, getPlayerStats } from './stats.js'
+import { createTrainingTarget, swingAtTargets, updateTargets } from './targets.js'
 
 // Estado da run: o andar, a sala atual, o jogador, as transições, a faixa e os contadores.
 // Funções puras no estilo de player.js (sem React, sem canvas), para testar com node:test.
@@ -86,6 +88,12 @@ function findRoom(floor, id) {
 
 export function getCurrentRoom(run) {
   return findRoom(run.floor, run.roomId)
+}
+
+// Atributos do jogador agora (dano, velocidades, vida máxima e invencibilidade): a ficha do personagem com os
+// bônus (veja stats.js). Ainda não há bônus: o custo da Sala do Pacto e os efeitos dos itens vão entrar aqui.
+export function getRunStats(run) {
+  return getPlayerStats(getBaseStats(run.characterId), [])
 }
 
 // Paleta da sala: a inicial e as comuns usam o tema do andar; as especiais, a paleta do tipo delas
@@ -145,6 +153,10 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     slip: null, // velocidade do deslize no líquido ({ x, y }) ou null (veja getSlipMovement)
     swingCounted: false,
     unlocking: null, // porta trancada abrindo agora: { side, elapsedMs } (veja "Porta trancada" em updateRoom)
+    // Alvos da sala (targets.js): hoje só o alvo de treino; depois, os inimigos. Saem ao trocar de sala.
+    targets: [],
+    swingTargetIds: [], // alvos que o golpe atual já acertou (cada golpe acerta um alvo uma vez)
+    roomKills: 0, // abates nesta sala
   }
 }
 
@@ -194,9 +206,10 @@ export function getRoomStates(floor) {
 // Do progresso salvo vêm também:
 // - visitedRoomIds: as salas já visitadas;
 // - roomStates: o que quebrou e as batidas de cada sala (formato de getRoomStates);
-// - health: a vida, em meios corações;
+// - health: a vida, em meios corações (sem ela, ou acima da vida máxima, a run começa com a vida máxima);
 // - forks: os garfos que sobraram (a run começa com STARTING_FORKS).
 // Ids que não existem neste andar são ignorados (os ids repetem de um andar para outro).
+// catalog = itens do catálogo da API, por id (itemCatalog.js); items = ids dos itens que ele já tem.
 export function createRun({
   seed,
   floorNumber = 1,
@@ -205,8 +218,10 @@ export function createRun({
   characterId,
   visitedRoomIds = [],
   roomStates = {},
-  health = MAX_HEALTH,
+  health,
   forks = STARTING_FORKS,
+  catalog = {},
+  items = [],
 }) {
   const floor = generateFloor(seed, floorNumber)
   const room = findRoom(floor, roomId) ?? findRoom(floor, floor.startRoomId)
@@ -232,9 +247,11 @@ export function createRun({
   const start = {
     seed,
     characterId,
+    catalog,
+    items: [...items], // na ordem em que foram pegos
     grains: 0,
     forks,
-    health, // vida em meios corações (veja health.js)
+    health: 0, // vida em meios corações (veja health.js): vem logo abaixo, com a vida máxima dos atributos
     death: null, // { cause } depois que a vida acaba: toca a animação de morte e a run termina
     transition: null,
     finMs: 0, // relógio da barbatana do Tralalero na Sala do Pacto (o desenho usa o mesmo, para bater com o perigo)
@@ -243,6 +260,7 @@ export function createRun({
     banner: createBanner(floor),
     finished: false,
   }
+  start.health = normalizeHealth(health, getRunStats(start).maxHealth)
   return enterRoom(start, floor, room, getStartPosition(floor, room, position))
 }
 
@@ -297,6 +315,7 @@ function hitsTarget(room, obstacles, hitbox, player, drumFalling) {
 // Um quadro normal dentro da sala
 function updateRoom(run, input, deltaSeconds) {
   const room = getCurrentRoom(run)
+  const stats = getRunStats(run)
 
   // Piso: escorregadio (inércia), grudento (mais lento) e esteira (empurra)
   const effect = getFloorEffect(run.obstacles, run.player)
@@ -307,6 +326,7 @@ function updateRoom(run, input, deltaSeconds) {
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
     solids,
     speedMultiplier: effect.speedMultiplier,
+    stats,
   })
   const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
   player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
@@ -319,7 +339,7 @@ function updateRoom(run, input, deltaSeconds) {
   if (touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
   else if (isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
   if (hazard) {
-    const hurt = hurtPlayer(player)
+    const hurt = hurtPlayer(player, stats.invincibilityMs)
     if (hurt !== player) {
       player = hurt
       health = applyDamage(health, DAMAGE_LIGHT)
@@ -350,7 +370,7 @@ function updateRoom(run, input, deltaSeconds) {
   // Rede da Sala de Descanso: chegar perto dela com a vida incompleta faz o Tung dormir. Só uma vez por andar
   // (room.slept; só existe uma Descanso por andar). A vida enche no meio do sono, com a tela preta (veja updateSleep).
   let sleep = null
-  if (room.type === 'descanso' && !death && !room.slept && health < MAX_HEALTH && isNearHammock(player)) {
+  if (room.type === 'descanso' && !death && !room.slept && health < stats.maxHealth && isNearHammock(player)) {
     sleep = { elapsedMs: 0 }
   }
 
@@ -358,8 +378,12 @@ function updateRoom(run, input, deltaSeconds) {
   const previous = run.player.attack
   const newSwing = player.attack && (!previous || player.attack.elapsed < previous.elapsed)
   let swingCounted = newSwing ? false : run.swingCounted
+  let swingTargetIds = newSwing ? [] : run.swingTargetIds
 
   let obstacles = run.obstacles
+  // Alvos: os tempos deles andam (lento, preso, empurrão, números de dano e a volta do alvo de treino)
+  let targets = updateTargets(run.targets, deltaSeconds, solids)
+  let roomKills = run.roomKills
   const hitbox = getAttackHitbox(player)
   if (hitbox) {
     obstacles = hitObstacles(obstacles, hitbox, player.attack.direction)
@@ -368,6 +392,11 @@ function updateRoom(run, input, deltaSeconds) {
       room.hits += 1
       swingCounted = true
     }
+    // Nos alvos também: cada golpe acerta cada alvo uma vez, com o dano dos atributos
+    const swing = swingAtTargets(targets, hitbox, stats.damage, swingTargetIds)
+    targets = swing.targets
+    swingTargetIds = swing.hitIds
+    roomKills += swing.kills
   }
   obstacles = updateRollingObstacles(obstacles, deltaSeconds)
   obstacles = updateBreakingObstacles(obstacles, deltaSeconds)
@@ -380,7 +409,7 @@ function updateRoom(run, input, deltaSeconds) {
   }
   saveRemoved(room, obstacles)
 
-  const next = { ...run, player, obstacles, slip, swingCounted, health, death, finMs, drumDrop }
+  const next = { ...run, player, obstacles, slip, swingCounted, swingTargetIds, targets, roomKills, health, death, finMs, drumDrop }
   if (death) return next // morto não atravessa porta nem passa de andar
   if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
 
@@ -478,7 +507,7 @@ function updateSleep(run, stepMs) {
   let { health } = run
   if (run.sleep.elapsedMs < halfMs && elapsedMs >= halfMs) {
     getCurrentRoom(run).slept = true
-    health = MAX_HEALTH
+    health = getRunStats(run).maxHealth
   }
   // A faixa do andar (escondida no sono) continua contando, para não voltar a aparecer quando ele acordar
   const banner = advanceBanner(run.banner, stepMs)
@@ -534,4 +563,33 @@ export function updateRun(run, input, deltaSeconds) {
   const current = { ...run, banner: advanceBanner(run.banner, stepMs) }
   if (current.transition) return updateRoomTransition(current, stepMs)
   return updateRoom(current, input, deltaSeconds)
+}
+
+// ---------- ferramentas de teste (só no npm run dev, com o F3 ligado; veja SalaInicial.jsx) ----------
+
+const CENTER_CELL = { col: 6, row: 3 } // casa do meio da sala (a grade tem 13 x 7)
+
+// Tecla T: põe o alvo de treino numa casa livre perto do meio da sala, ou tira o que já está lá.
+// A base fica a 3/4 da altura da casa, para a caixa da base (a que bate no empurrão) caber dentro dela.
+export function toggleTrainingTarget(run) {
+  if (run.targets.some((target) => target.training)) return removeTrainingTarget(run)
+  const cell = findFreeCell(getCurrentRoom(run).layoutId, CENTER_CELL.col, CENTER_CELL.row)
+  if (!cell) return run
+  const rect = getCellRect(cell.col, cell.row)
+  const target = createTrainingTarget({ x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.75 })
+  return { ...run, targets: [...run.targets, target] }
+}
+
+// Desligar o F3 tira o alvo de treino: ele só existe com o F3 ligado
+export function removeTrainingTarget(run) {
+  return { ...run, targets: run.targets.filter((target) => !target.training) }
+}
+
+// Tecla I: dá o próximo item do catálogo que o jogador ainda não tem (na ordem do catálogo, que vem por nome).
+// Por enquanto o item só entra na lista: pedestais, efeitos e aparência vêm nas próximas etapas.
+export function giveNextItem(run) {
+  for (const id of Object.keys(run.catalog)) {
+    if (!run.items.includes(id)) return { ...run, items: [...run.items, id] }
+  }
+  return run
 }
