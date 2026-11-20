@@ -1,5 +1,6 @@
 import { DOOR_HIT_ZONES, getRoomDoors } from '../../../utils/doors.js'
 import { FLOOR_COLS, FLOOR_ROWS, getRoomId } from '../../../utils/floorGenerator.js'
+import { getPedestalSolids, getRoomPedestals } from '../../../utils/pedestals.js'
 import { getAttackHitbox } from '../../../utils/player.js'
 import { getCellRect, getLayoutPoints } from '../../../utils/roomLayout.js'
 import { getRoomSolids } from '../../../utils/roomObstacles.js'
@@ -46,7 +47,7 @@ export function drawDebug(ctx, run) {
   ctx.save()
   ctx.lineWidth = 2
 
-  for (const solid of getRoomSolids(run.obstacles)) {
+  for (const solid of getRoomSolids(run.obstacles, getPedestalSolids(getRoomPedestals(run, room)))) {
     strokeBox(ctx, solid, 'rgba(255, 60, 60, 0.25)', 'rgba(255, 60, 60, 0.9)')
   }
 

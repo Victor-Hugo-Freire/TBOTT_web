@@ -1,3 +1,4 @@
+import { ITEM_BANNERS } from '../data/itemBanners.js'
 import { overlaps } from './collision.js'
 import {
   applyUnlocking,
@@ -12,6 +13,8 @@ import {
 } from './doors.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
+import { assignPedestalItems, findTouchedPedestal, getPedestalSolids, getRoomPedestals } from './pedestals.js'
+import { removeAccents } from './pixelFont.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
 import { createProgressSnapshot } from './progress.js'
 import {
@@ -39,7 +42,7 @@ import {
   updateBreakingObstacles,
   updateRollingObstacles,
 } from './roomObstacles.js'
-import { getBaseStats, getPlayerStats } from './stats.js'
+import { getBaseStats, getPlayerStats, STAT_LIMITS } from './stats.js'
 import { createTrainingTarget, swingAtTargets, updateTargets } from './targets.js'
 
 // Estado da run: o andar, a sala atual, o jogador, as transições, a faixa e os contadores.
@@ -56,6 +59,8 @@ export const FLOOR_TRANSITION_MS = 900 // escurece 450, troca de andar, clareia 
 export const DEATH_HOLD_MS = 500 // depois da animação de morte, ele fica deitado esse tempo antes do aviso
 export const RESTART_HOLD_MS = 1000 // segurar R por 1 s recomeça a run com outra seed (como no Isaac)
 export const STARTING_FORKS = 1 // garfos no começo da run (cada porta trancada gasta 1)
+export const PICKUP_MS = 1000 // o item pego fica este tempo sobre a cabeça do Tung (ele continua andando e atacando)
+export const VANISH_MS = 600 // numa sala de escolha, o item que não foi pego some (sobe e apaga) neste tempo
 
 // O que machuca no piso: a chapa quente e os cacos do garrafão quebrado. A causa vai para o aviso de morte (veja health.js).
 const HOT_PLATE_CAUSE = 'chapa'
@@ -70,7 +75,7 @@ const NO_INPUT = { movement: { x: 0, y: 0 }, attackDirection: null }
 
 const NORMAL_ROOM_TYPES = ['inicial', 'comum']
 
-// O tambor fica sempre na mesma casa da sala do chefe (D em (6,3) no layout "chefe")
+// O tambor fica sempre na mesma casa da sala do chefe (D em (6,2) no layout "chefe", acima do meio da sala)
 const DRUM_BOX = buildRoomObstacles('chefe', 'cantina').find((obstacle) => obstacle.mechanic === 'tambor').box
 
 export function getDrumBox() {
@@ -90,10 +95,54 @@ export function getCurrentRoom(run) {
   return findRoom(run.floor, run.roomId)
 }
 
+// Bônus dos itens que ele tem. Por enquanto só o custo da Sala do Pacto: o item com maxHealthCost tira essa vida
+// máxima para sempre (o custo é pago ao pegar). Os efeitos dos outros itens vão entrar aqui.
+function getItemBonuses(run) {
+  const bonuses = []
+  for (const id of run.items) {
+    const cost = run.catalog[id]?.effect?.maxHealthCost
+    if (cost) bonuses.push({ stat: 'maxHealth', add: -cost })
+  }
+  return bonuses
+}
+
 // Atributos do jogador agora (dano, velocidades, vida máxima e invencibilidade): a ficha do personagem com os
-// bônus (veja stats.js). Ainda não há bônus: o custo da Sala do Pacto e os efeitos dos itens vão entrar aqui.
+// bônus dos itens (veja stats.js)
 export function getRunStats(run) {
-  return getPlayerStats(getBaseStats(run.characterId), [])
+  return getPlayerStats(getBaseStats(run.characterId), getItemBonuses(run))
+}
+
+// O item entra na lista (na ordem em que foi pego), fica PICKUP_MS sobre a cabeça do Tung e aparece o banner
+// com o nome dele e a frase do item.md. Se o item tira vida máxima (Pacto), a vida que passar do novo máximo cai junto.
+function giveItem(run, itemId) {
+  const next = { ...run, items: [...run.items, itemId] }
+  next.health = Math.min(next.health, getRunStats(next).maxHealth)
+  const name = run.catalog[itemId]?.name ?? itemId
+  next.banner = { text: removeAccents(name), subtitle: ITEM_BANNERS[itemId] ?? '', elapsedMs: 0 }
+  next.pickup = { itemId, elapsedMs: 0 }
+  return next
+}
+
+// O item sobre a cabeça: o tempo anda até PICKUP_MS, e aí ele some
+function advancePickup(pickup, stepMs) {
+  if (!pickup) return null
+  const elapsedMs = pickup.elapsedMs + stepMs
+  return elapsedMs >= PICKUP_MS ? null : { ...pickup, elapsedMs }
+}
+
+// Itens sumindo (sala de escolha): o tempo de cada um anda até VANISH_MS, e aí ele sai da lista
+function advanceVanishing(vanishing, stepMs) {
+  const next = []
+  for (const item of vanishing) {
+    const elapsedMs = item.elapsedMs + stepMs
+    if (elapsedMs < VANISH_MS) next.push({ ...item, elapsedMs })
+  }
+  return next
+}
+
+// Dá para pagar o custo do item? O custo em vida máxima não pode deixar menos de 1 coração (STAT_LIMITS)
+function canPayItemCost(run, pedestal) {
+  return getRunStats(run).maxHealth - pedestal.maxHealthCost >= STAT_LIMITS.maxHealth.min
 }
 
 // Paleta da sala: a inicial e as comuns usam o tema do andar; as especiais, a paleta do tipo delas
@@ -190,13 +239,19 @@ export function getVisitedRoomIds(floor) {
 }
 
 // O que mudou em cada sala do andar, para o progresso salvo: obstáculos quebrados, batidas
-// (parede da adega e tambor), se a sala trancada já foi aberta com um garfo e se ele já dormiu na rede.
-// Só entram as salas em que algo mudou.
+// (parede da adega e tambor), se a sala trancada já foi aberta com um garfo, se ele já dormiu na rede
+// e os pedestais que ficaram vazios. Só entram as salas em que algo mudou.
 export function getRoomStates(floor) {
   const states = {}
   for (const room of floor.rooms) {
-    if (room.removed.length > 0 || room.hits > 0 || room.unlocked || room.slept) {
-      states[room.id] = { removed: [...room.removed], hits: room.hits, unlocked: room.unlocked, slept: room.slept }
+    if (room.removed.length > 0 || room.hits > 0 || room.unlocked || room.slept || room.emptied.length > 0) {
+      states[room.id] = {
+        removed: [...room.removed],
+        hits: room.hits,
+        unlocked: room.unlocked,
+        slept: room.slept,
+        emptied: [...room.emptied],
+      }
     }
   }
   return states
@@ -237,6 +292,7 @@ export function createRun({
     saved.hits = state.hits
     saved.unlocked = Boolean(state.unlocked) // a porta aberta com garfo continua aberta
     saved.slept = Boolean(state.slept) // quem já dormiu na rede deste andar não dorme de novo
+    saved.emptied = [...(state.emptied ?? [])] // pedestal de onde o item já saiu continua vazio
   }
 
   // Save antigo (sem o estado das salas) dentro da adega: a parede da origem abre, senão ele ficaria preso
@@ -249,6 +305,8 @@ export function createRun({
     characterId,
     catalog,
     items: [...items], // na ordem em que foram pegos
+    pedestalItems: assignPedestalItems(seed, catalog), // itens dos pedestais de todos os andares (pedestals.js)
+    pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
     grains: 0,
     forks,
     health: 0, // vida em meios corações (veja health.js): vem logo abaixo, com a vida máxima dos atributos
@@ -280,6 +338,7 @@ export function createRunSnapshot(run, elapsedMs) {
     health: run.health,
     forks: run.forks,
     deathCause: run.death?.cause ?? null,
+    items: run.items,
   })
 }
 
@@ -321,7 +380,9 @@ function updateRoom(run, input, deltaSeconds) {
   const effect = getFloorEffect(run.obstacles, run.player)
   const slipping = getSlipMovement(run.slip, effect, input.movement, deltaSeconds)
   const { movement } = slipping
-  const solids = getRoomSolids(run.obstacles)
+  // Os pedestais são sólidos, como os obstáculos
+  const pedestals = getRoomPedestals(run, room)
+  const solids = getRoomSolids(run.obstacles, getPedestalSolids(pedestals))
 
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
     solids,
@@ -409,9 +470,19 @@ function updateRoom(run, input, deltaSeconds) {
   }
   saveRemoved(room, obstacles)
 
-  const next = { ...run, player, obstacles, slip, swingCounted, swingTargetIds, targets, roomKills, health, death, finMs, drumDrop }
+  let next = { ...run, player, obstacles, slip, swingCounted, swingTargetIds, targets, roomKills, health, death, finMs, drumDrop }
   if (death) return next // morto não atravessa porta nem passa de andar
   if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
+
+  // Pedestal: encostar pega o item, se der para pagar o custo (Sala do Pacto). Todos os pedestais da sala ficam
+  // vazios: numa sala de escolha (2 pedestais), o outro item some e não aparece mais na run.
+  const touched = findTouchedPedestal(pedestals, player)
+  if (touched && canPayItemCost(next, touched)) {
+    for (const pedestal of pedestals) {
+      if (!room.emptied.includes(pedestal.id)) room.emptied.push(pedestal.id)
+    }
+    next = giveItem(next, touched.itemId)
+  }
 
   // Porta trancada: empurrar com garfo no bolso gasta 1 garfo e abre a sala para o resto da run (target.unlocked).
   // Enquanto a animação toca, a porta ainda não deixa passar; sem garfo, ela só fica trancada.
@@ -560,7 +631,8 @@ export function updateRun(run, input, deltaSeconds) {
   // A faixa só começa a contar depois da troca de andar; na troca de sala ela continua contando
   if (run.transition?.type === 'floor') return updateFloorTransition(run, stepMs)
 
-  const current = { ...run, banner: advanceBanner(run.banner, stepMs) }
+  // O item sobre a cabeça continua na troca de sala: ele anda junto com o Tung
+  const current = { ...run, banner: advanceBanner(run.banner, stepMs), pickup: advancePickup(run.pickup, stepMs) }
   if (current.transition) return updateRoomTransition(current, stepMs)
   return updateRoom(current, input, deltaSeconds)
 }
@@ -585,11 +657,11 @@ export function removeTrainingTarget(run) {
   return { ...run, targets: run.targets.filter((target) => !target.training) }
 }
 
-// Tecla I: dá o próximo item do catálogo que o jogador ainda não tem (na ordem do catálogo, que vem por nome).
-// Por enquanto o item só entra na lista: pedestais, efeitos e aparência vêm nas próximas etapas.
+// Tecla I: dá o próximo item do catálogo que o jogador ainda não tem (na ordem do catálogo, que vem por nome),
+// com o banner, como se tivesse pego. Ele não aparece mais no pedestal da sala dele.
 export function giveNextItem(run) {
   for (const id of Object.keys(run.catalog)) {
-    if (!run.items.includes(id)) return { ...run, items: [...run.items, id] }
+    if (!run.items.includes(id)) return giveItem(run, id)
   }
   return run
 }

@@ -5,6 +5,7 @@ import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
 import { buildItemCatalog } from '../../utils/itemCatalog.js'
+import { findNearbyPedestal, getRoomPedestals } from '../../utils/pedestals.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
 import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
 import { createRunSeed } from '../../utils/random.js'
@@ -34,8 +35,11 @@ import {
 } from '../../utils/run.js'
 import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
-import { drawHud, loadHudImages } from './scene/drawHud.js'
+import { drawHud, getHudBottom, loadHudImages } from './scene/drawHud.js'
+import { drawItemInfo } from './scene/drawItemInfo.js'
+import { drawItemList } from './scene/drawItemList.js'
 import { drawMinimap } from './scene/drawMinimap.js'
+import { loadDescriptionFont } from './scene/fonts.js'
 import { drawRunScene, getFloorFade } from './scene/drawScene.js'
 import { drawSleepText } from './scene/drawSleep.js'
 import { drawTimer } from './scene/drawTimer.js'
@@ -99,6 +103,7 @@ export default function SalaInicial() {
     const ctx = canvas.getContext('2d')
     const sheets = loadSheets()
     const hudImages = loadHudImages()
+    loadDescriptionFont()
     // Quem pede "reduzir movimento" no sistema vê o andar parado no quadro 0, a faixa sem deslizar
     // e a troca de sala por escurecimento
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -188,6 +193,7 @@ export default function SalaInicial() {
         health: progress.health,
         forks: progress.forks,
         catalog,
+        items: progress.items,
       })
       elapsedMs = progress.elapsedMs
       enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)
@@ -456,15 +462,34 @@ export default function SalaInicial() {
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
+      // Perto de um pedestal com item: a caixa com o nome e a descrição do item, embaixo do HUD
+      const room = getCurrentRoom(run)
+      const pedestals = run.transition || run.death ? [] : getRoomPedestals(run, room)
+      const nearby = findNearbyPedestal(pedestals, run.player)
+      if (nearby) {
+        drawItemInfo(ctx, {
+          item: run.catalog[nearby.itemId],
+          left: toScreenX(screen.left + 20),
+          top: getHudBottom(hudTop, pixelSize) + pixelSize * 4,
+          maxWidth: Math.round(Math.min(canvas.width * 0.34, 460 * pixelRatio)),
+          fontSize: Math.round(Math.max(13, 17 * view.scale) * pixelRatio),
+        })
+      }
+
       // Sempre no canto superior direito; segurar Tab amplia o mapa
-      drawMinimap(ctx, run.floor, getCurrentRoom(run), {
-        right: canvas.width - Math.round(18 * pixelRatio),
+      const minimapRight = canvas.width - Math.round(18 * pixelRatio)
+      const minimapBottom = drawMinimap(ctx, run.floor, room, {
+        right: minimapRight,
         top: Math.round(18 * pixelRatio),
         scale: pixelRatio * (showMinimap ? 2 : 0.9),
         expanded: showMinimap,
         maxWidth: canvas.width * 0.5,
         maxHeight: canvas.height * 0.75,
       })
+      // Itens pegos, na ordem, embaixo do minimapa (com o mapa ampliado, ele cobriria a lista)
+      if (!showMinimap) {
+        drawItemList(ctx, run.items, { right: minimapRight, top: minimapBottom + Math.round(8 * pixelRatio), size: Math.round(26 * pixelRatio) })
+      }
 
       // Entrada na run, troca de andar, fim da run, R segurado e sono na rede: a tela escurece por cima da sala e do HUD
       const sleepFade = getSleepFade(run.sleep)
@@ -491,11 +516,13 @@ export default function SalaInicial() {
       if (run.banner && !run.death && !run.finished && !run.sleep) {
         drawFloorBanner(ctx, {
           text: run.banner.text,
+          subtitle: run.banner.subtitle, // só a faixa de item tem a frase embaixo do nome
           elapsedMs: run.banner.elapsedMs,
           reduceMotion,
           left: toScreenX(ROOM_FLOOR.left),
           right: toScreenX(ROOM_FLOOR.right),
-          centerY: toScreenY(visibleTop + visibleHeight * 0.18),
+          // A faixa de item tem duas linhas e é mais alta: fica mais embaixo, para não cobrir o HUD e o minimapa
+          centerY: toScreenY(visibleTop + visibleHeight * (run.banner.subtitle ? 0.3 : 0.18)),
           pixelSize: Math.max(3, Math.round(6 * scale)),
         })
       }

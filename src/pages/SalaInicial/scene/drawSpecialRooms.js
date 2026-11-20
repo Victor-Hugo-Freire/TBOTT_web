@@ -11,7 +11,8 @@ import { drawSharkFin } from './drawShark.js'
 // - Nada é desenhado nas casas de porta (6,0), (6,6), (0,3) e (12,3), além do piso.
 // - Peças de parede ficam na faixa de parede (y 134..226) e nos painéis de cima, longe da porta de cima
 //   (x 690..910) e do contador de tempo (alto do meio, y < 70).
-// - Sem pedestal, item, preço ou texto: isso vem quando cada sala ganhar a sua função.
+// - Sem pedestal, item, preço ou texto aqui: os pedestais com os itens (Tesouro, Chefe, Adega, Pacto e God) são
+//   desenhados por drawPedestals.js, na ordem dos pés; os da Loja e do Fliperama vêm quando essas salas funcionarem.
 
 const OUTLINE = '#140806'
 const OUTLINE_WIDTH = 5 // contorno dos móveis (é traçado em cima da peça: metade para dentro, metade para fora)

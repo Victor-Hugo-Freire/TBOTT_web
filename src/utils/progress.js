@@ -14,6 +14,8 @@ const MAX_OBSTACLES = 91 // a sala tem 13 x 7 casas
 const GRID_ID = /^\d{1,2}-\d{1,2}$/ // ids de sala e de obstáculo são 'col-row', como '3-5'
 const MAX_CAUSE_LENGTH = 32
 const MAX_FORKS = 99 // o HUD mostra 2 dígitos
+const MAX_ITEMS = 50 // bem mais que os itens do catálogo
+const ITEM_ID = /^[a-z0-9-]{1,40}$/ // ids de item são como 'cafe-duplo'
 const STARTING_FORKS = 1 // igual a run.js (progress.js não importa run.js para não criar um ciclo)
 
 // Número dentro de [min, max]; valor que não é número vira o mínimo
@@ -41,9 +43,10 @@ function normalizeIds(value, max) {
   return [...new Set(ids)].slice(0, max)
 }
 
-// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas, unlocked, slept } }.
-// Só entram as salas em que algo mudou. hits conta as batidas na parede da adega ou no tambor (até 3);
-// unlocked diz que a sala trancada já foi aberta com um garfo; slept, que ele já dormiu na rede (Sala de Descanso).
+// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas, unlocked, slept,
+// emptied } }. Só entram as salas em que algo mudou. hits conta as batidas na parede da adega ou no tambor (até 3);
+// unlocked diz que a sala trancada já foi aberta com um garfo; slept, que ele já dormiu na rede (Sala de Descanso);
+// emptied, as casas dos pedestais de onde o item já foi pego.
 function normalizeRoomStates(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   const states = {}
@@ -53,9 +56,23 @@ function normalizeRoomStates(value) {
     const hits = Number.isInteger(state.hits) ? clamp(state.hits, 0, HITS_TO_OPEN) : 0
     const unlocked = state.unlocked === true // sala trancada já aberta com um garfo
     const slept = state.slept === true // já dormiu na rede deste andar
-    if (removed.length > 0 || hits > 0 || unlocked || slept) states[id] = { removed, hits, unlocked, slept }
+    const emptied = normalizeIds(state.emptied, MAX_OBSTACLES) // pedestais vazios
+    if (removed.length > 0 || hits > 0 || unlocked || slept || emptied.length > 0) {
+      states[id] = { removed, hits, unlocked, slept, emptied }
+    }
   }
   return states
+}
+
+// Itens pegos, na ordem: lista de ids sem repetição. Save antigo, sem o campo, começa sem itens.
+// Id que não está no catálogo (item que saiu do banco) continua na lista, mas não faz nada.
+function normalizeItems(value) {
+  if (!Array.isArray(value)) return []
+  const items = []
+  for (const id of value) {
+    if (typeof id === 'string' && ITEM_ID.test(id) && !items.includes(id)) items.push(id)
+  }
+  return items.slice(0, MAX_ITEMS)
 }
 
 // O que matou o personagem (id curto, como 'chapa') ou null se ele está vivo
@@ -92,6 +109,8 @@ export function normalizeProgressPayload(value) {
     deathCause: normalizeDeathCause(source.deathCause),
     // Garfos que sobraram (inteiro de 0 a 99). Save antigo, sem o campo, começa com o garfo do início da run.
     forks: Number.isInteger(source.forks) ? clamp(source.forks, 0, MAX_FORKS) : STARTING_FORKS,
+    // Itens pegos na run, na ordem (ids do catálogo)
+    items: normalizeItems(source.items),
   }
 }
 
@@ -110,6 +129,7 @@ export function createProgressSnapshot({
   health,
   deathCause,
   forks,
+  items,
 }) {
   return normalizeProgressPayload({
     roomId,
@@ -125,5 +145,6 @@ export function createProgressSnapshot({
     health,
     deathCause,
     forks,
+    items,
   })
 }

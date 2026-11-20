@@ -33,6 +33,11 @@ export function getCountersTop(top, pixelSize) {
   return top + getHeartsHeight(pixelSize) + HEARTS_GAP_PIXELS * pixelSize
 }
 
+// Onde o HUD termina (embaixo do contador de garfos): a caixa de descrição do item fica logo abaixo
+export function getHudBottom(top, pixelSize) {
+  return getCountersTop(top, pixelSize) + 2 * (getHudIconSize(pixelSize) + GAP_PIXELS * pixelSize)
+}
+
 // left e top = canto superior esquerdo do HUD; pixelSize = o mesmo do contador de tempo.
 // health e maxHealth = vida e vida máxima atual, em meios corações (health.js): um coração para cada 2 de vida máxima.
 export function drawHud(ctx, images, { health, maxHealth, grains, forks, left, top, pixelSize }) {

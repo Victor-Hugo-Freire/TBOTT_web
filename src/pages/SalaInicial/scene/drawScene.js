@@ -1,4 +1,5 @@
 import { applyUnlocking, getRoomDoors, SIDE_VECTORS } from '../../../utils/doors.js'
+import { getRoomPedestals } from '../../../utils/pedestals.js'
 import { PUDDLE_FALL_CAUSE, TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 import {
@@ -13,6 +14,7 @@ import {
 import { drawDoors, drawSecretMark } from './drawDoors.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
+import { drawHeldItem, drawPedestal } from './drawPedestals.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
 import { drawPuddleFall, drawSharkGrab } from './drawShark.js'
@@ -36,21 +38,30 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     death: run.death,
     finMs: run.finMs,
     drumDrop: run.drumDrop, // o tambor caindo do céu na sala do chefe (veja getDrumFall)
+    pickup: run.pickup, // o item pego agora, sobre a cabeça do Tung
   }
   const { transition } = run
   if (transition?.type !== 'room') {
-    drawRoomScene(ctx, run.floor, getCurrentRoom(run), run.obstacles, run.player, isSecretMarkVisible(run), options)
+    const room = getCurrentRoom(run)
+    const pedestals = getRoomPedestals(run, room)
+    drawRoomScene(ctx, run.floor, room, run.obstacles, pedestals, run.player, isSecretMarkVisible(run), options)
     return
   }
 
   // Durante a troca de sala, run.roomId ainda é a sala de origem
   const fromRoom = getCurrentRoom(run)
   const toRoom = run.floor.rooms.find((room) => room.id === transition.toRoomId)
+  const fromPedestals = getRoomPedestals(run, fromRoom)
+  const toPedestals = getRoomPedestals(run, toRoom)
   const drawFrom = () =>
-    drawRoomScene(ctx, run.floor, fromRoom, transition.fromObstacles, transition.fromPlayer, isSecretMarkVisible(run), options)
+    drawRoomScene(ctx, run.floor, fromRoom, transition.fromObstacles, fromPedestals, transition.fromPlayer, isSecretMarkVisible(run), options)
   // A sala nova entra vazia: o jogador aparece nela quando a transição termina
   const drawTo = () =>
-    drawRoomScene(ctx, run.floor, toRoom, getRoomObstacles(run.floor, toRoom), null, false, { ...options, unlocking: null })
+    drawRoomScene(ctx, run.floor, toRoom, getRoomObstacles(run.floor, toRoom), toPedestals, null, false, {
+      ...options,
+      unlocking: null,
+      pickup: null,
+    })
   const progress = transition.elapsedMs / transition.durationMs
 
   // Reduzir movimento: em vez de deslizar, escurece até a metade e clareia já na sala nova
@@ -85,10 +96,10 @@ export function getFloorFade(run) {
 }
 
 // Uma sala, de baixo para cima: sala, piso, cenário, portas, marca da adega,
-// depois obstáculos, tambor e jogador na ordem dos pés (quem está mais embaixo fica na frente).
-// player = null desenha a sala sem o jogador.
-function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, options) {
-  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop } = options
+// depois obstáculos, tambor, pedestais e jogador na ordem dos pés (quem está mais embaixo fica na frente).
+// pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
+function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
+  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup } = options
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -116,12 +127,17 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, opti
   if (drum) sprites.push({ feetY: getFeetY(drum.box), draw: () => drawDrum(ctx, drum.box, drumFall.height) })
   // A estátua do Tung Tung God também entra na ordem dos pés: o jogador passa por trás dela
   if (room.type === 'god') sprites.push({ feetY: GOD_STATUE_FEET_Y, draw: () => drawGodStatue(ctx) })
+  for (const pedestal of pedestals) {
+    sprites.push({ feetY: pedestal.y, draw: () => drawPedestal(ctx, pedestal, { timeMs, reduceMotion }) })
+  }
   if (player) {
     const drawTung = () => {
       // Na poça, no lugar do personagem caído: a animação dele sendo puxado ou afundando sozinho
       if (pulledByShark) drawSharkGrab(ctx, sheets, player, death.fin, reduceMotion)
       else if (fellInPuddle) drawPuddleFall(ctx, sheets, player, death.fin, reduceMotion)
       else drawPlayer(ctx, sheets, player, reduceMotion)
+      // Item que ele acabou de pegar, sobre a cabeça (não aparece na morte)
+      if (pickup && !player.dead) drawHeldItem(ctx, player, pickup)
     }
     sprites.push({ feetY: player.y, draw: drawTung })
   }

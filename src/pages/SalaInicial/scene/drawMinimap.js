@@ -122,8 +122,9 @@ export function getMinimapLayout(knownRooms, currentRoom, expanded) {
 // Sempre no canto superior direito: `right` e `top` são a margem até a borda do canvas.
 // A Adega Secreta não conta antes de visitada (está oculta), então não dá pista do lugar dela.
 // maxWidth e maxHeight: o painel nunca passa disso, mesmo em janela pequena (a escala diminui).
+// Devolve a altura (em pixels da tela) onde o painel termina.
 export function drawMinimap(ctx, floor, currentRoom, { top, right, scale = 1, expanded = false, maxWidth = Infinity, maxHeight = Infinity }) {
-  if (!currentRoom) return
+  if (!currentRoom) return top
   const knownRooms = floor.rooms.filter((room) => getMinimapRoomState(floor, room, currentRoom.id) !== 'hidden')
   const { cols, rows, startCol, startRow } = getMinimapLayout(knownRooms, currentRoom, expanded)
 
@@ -177,6 +178,8 @@ export function drawMinimap(ctx, floor, currentRoom, { top, right, scale = 1, ex
   }
 
   ctx.restore()
+  // Onde o painel termina (com a moldura): a lista de itens pegos fica logo abaixo
+  return panelTop + height + 2 * unit
 }
 
 function drawPanel(ctx, left, top, width, height, unit) {
