@@ -7,6 +7,7 @@ import {
   buildRoomObstacles,
   CELL_HEIGHT,
   CELL_WIDTH,
+  findFreeCell,
   findLayoutProblems,
   getCellRect,
   getLayout,
@@ -256,5 +257,30 @@ describe('pickLayout (sorteio do layout)', () => {
 
   test('lança erro quando nenhum layout serve', () => {
     assert.throws(() => pickLayout('inexistente', ['up'], createRandom(1)), /Nenhum layout/)
+  })
+})
+
+describe('findFreeCell (casa livre perto de um ponto)', () => {
+  test('a casa pedida, se estiver livre', () => {
+    assert.deepEqual(findFreeCell('inicial', 6, 3), { col: 6, row: 3 })
+  })
+
+  test('na sala do chefe, o centro é o tambor: vale a casa livre mais perto', () => {
+    assert.equal(getLayout('chefe').tiles[3][6], 'D')
+    assert.deepEqual(findFreeCell('chefe', 6, 3), { col: 5, row: 3 })
+  })
+
+  test('nunca devolve casa de porta', () => {
+    for (const side of SIDES) {
+      const { col, row } = DOOR_CELLS[side]
+      assert.notDeepEqual(findFreeCell('inicial', col, row), { col, row }, side)
+    }
+  })
+
+  test('em todo layout, a casa achada perto do centro está livre', () => {
+    for (const layout of ROOM_LAYOUTS) {
+      const cell = findFreeCell(layout.id, 6, 3)
+      assert.equal(layout.tiles[cell.row][cell.col], '.', layout.id)
+    }
   })
 })
