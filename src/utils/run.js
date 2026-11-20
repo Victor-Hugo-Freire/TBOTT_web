@@ -43,7 +43,25 @@ import {
   updateRollingObstacles,
 } from './roomObstacles.js'
 import { getBaseStats, getPlayerStats, STAT_LIMITS } from './stats.js'
-import { createTrainingTarget, swingAtTargets, updateTargets } from './targets.js'
+import {
+  addBumpFlashes,
+  applyMotherHeal,
+  armRoomShield,
+  createItemEffects,
+  createSwing,
+  endSwing,
+  getItemBonuses,
+  hitWithSwing,
+  onKills,
+  onPlayerHurt,
+  startSwing,
+  updateEffectTimers,
+  updateFlashes,
+  updatePuddles,
+  updateShards,
+  spendShield,
+} from './itemEffects.js'
+import { countNewKills, createTrainingTarget, updateTargets } from './targets.js'
 
 // Estado da run: o andar, a sala atual, o jogador, as transições, a faixa e os contadores.
 // Funções puras no estilo de player.js (sem React, sem canvas), para testar com node:test.
@@ -95,21 +113,28 @@ export function getCurrentRoom(run) {
   return findRoom(run.floor, run.roomId)
 }
 
-// Bônus dos itens que ele tem. Por enquanto só o custo da Sala do Pacto: o item com maxHealthCost tira essa vida
-// máxima para sempre (o custo é pago ao pegar). Os efeitos dos outros itens vão entrar aqui.
-function getItemBonuses(run) {
-  const bonuses = []
-  for (const id of run.items) {
-    const cost = run.catalog[id]?.effect?.maxHealthCost
-    if (cost) bonuses.push({ stat: 'maxHealth', add: -cost })
-  }
-  return bonuses
-}
-
 // Atributos do jogador agora (dano, velocidades, vida máxima e invencibilidade): a ficha do personagem com os
-// bônus dos itens (veja stats.js)
+// bônus dos itens (getItemBonuses, em itemEffects.js; os limites ficam em stats.js)
 export function getRunStats(run) {
   return getPlayerStats(getBaseStats(run.characterId), getItemBonuses(run))
+}
+
+// Dano no jogador (hoje a chapa quente e os cacos; depois, os inimigos). Devolve { player, health, death, effects }.
+// - invencível, no meio do dano ou morto: nada acontece;
+// - Caldo da Mamãe: o escudo da sala anula o dano (ele fica invencível um pouco, sem a animação de dano,
+//   e o Café não dispara);
+// - senão perde a vida, liga a corrida do Café e zera a sequência do Elixir; com pouca vida, o Caldo cura.
+function damagePlayer(run, player, health, effects, amount, cause, stats) {
+  const hurt = hurtPlayer(player, stats.invincibilityMs)
+  if (hurt === player) return { player, health, death: null, effects }
+  const shielded = spendShield(effects)
+  if (shielded) return { player: { ...player, invincibleMs: stats.invincibilityMs }, health, death: null, effects: shielded }
+
+  const nextHealth = applyDamage(health, amount)
+  const hurtEffects = onPlayerHurt(run, effects)
+  if (nextHealth === 0) return { player: killPlayer(hurt), health: 0, death: { cause }, effects: hurtEffects }
+  const healed = applyMotherHeal(run, nextHealth, stats.maxHealth, hurtEffects)
+  return { player: hurt, health: healed.health, death: null, effects: healed.effects }
 }
 
 // O item entra na lista (na ordem em que foi pego), fica PICKUP_MS sobre a cabeça do Tung e aparece o banner
@@ -204,8 +229,13 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     unlocking: null, // porta trancada abrindo agora: { side, elapsedMs } (veja "Porta trancada" em updateRoom)
     // Alvos da sala (targets.js): hoje só o alvo de treino; depois, os inimigos. Saem ao trocar de sala.
     targets: [],
-    swingTargetIds: [], // alvos que o golpe atual já acertou (cada golpe acerta um alvo uma vez)
+    swing: createSwing(), // o golpe atual: alvos que ele já acertou e os efeitos de item que valem nele
     roomKills: 0, // abates nesta sala
+    // Coisas dos efeitos dos itens que ficam na sala (itemEffects.js): somem ao trocar de sala
+    shards: [], // lascas do Parmesão voando
+    puddles: [], // poças da Concha
+    flashes: [], // efeitos visuais que tocam uma vez (estalo, notas, mordida, faísca...)
+    effects: { ...run.effects, shieldHits: 0 }, // o escudo do Caldo é de cada sala
   }
 }
 
@@ -277,6 +307,7 @@ export function createRun({
   forks = STARTING_FORKS,
   catalog = {},
   items = [],
+  floorHealsUsed = 0,
 }) {
   const floor = generateFloor(seed, floorNumber)
   const room = findRoom(floor, roomId) ?? findRoom(floor, floor.startRoomId)
@@ -308,6 +339,9 @@ export function createRun({
     pedestalItems: assignPedestalItems(seed, catalog), // itens dos pedestais de todos os andares (pedestals.js)
     pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
     vanishing: [], // itens sumindo da sala de escolha: { roomId, pedestalId, itemId, elapsedMs } (VANISH_MS)
+    effects: createItemEffects(floorHealsUsed), // tempos e contagens dos efeitos dos itens (itemEffects.js)
+    swing: createSwing(), // o golpe atual (o enterRoom zera de novo a cada sala)
+    attackHeld: false, // a seta de ataque estava segurada no quadro anterior
     grains: 0,
     forks,
     health: 0, // vida em meios corações (veja health.js): vem logo abaixo, com a vida máxima dos atributos
@@ -340,6 +374,7 @@ export function createRunSnapshot(run, elapsedMs) {
     forks: run.forks,
     deathCause: run.death?.cause ?? null,
     items: run.items,
+    floorHealsUsed: run.effects.floorHealsUsed,
   })
 }
 
@@ -393,23 +428,18 @@ function updateRoom(run, input, deltaSeconds) {
   const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
   player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
 
-  // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado. hurtPlayer devolve o mesmo
-  // objeto enquanto ele está invencível, então só o golpe que vale tira vida. Sem vida, ele morre (e a animação
-  // de dano nem toca).
-  let { health, death } = run
+  // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado (veja damagePlayer). Enquanto ele
+  // está invencível, só o golpe que vale tira vida. Sem vida, ele morre (e a animação de dano nem toca).
+  let { health, death, effects } = run
   let hazard = null
   if (touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
   else if (isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
   if (hazard) {
-    const hurt = hurtPlayer(player, stats.invincibilityMs)
-    if (hurt !== player) {
-      player = hurt
-      health = applyDamage(health, DAMAGE_LIGHT)
-      if (health === 0) {
-        player = killPlayer(player)
-        death = { cause: hazard }
-      }
-    }
+    const hit = damagePlayer(run, player, health, effects, DAMAGE_LIGHT, hazard, stats)
+    player = hit.player
+    health = hit.health
+    effects = hit.effects
+    if (hit.death) death = hit.death
   }
 
   // Poça do Tralalero (Sala do Pacto): a barbatana dá voltas na poça. Ele morre na hora, com qualquer vida:
@@ -436,16 +466,14 @@ function updateRoom(run, input, deltaSeconds) {
     sleep = { elapsedMs: 0 }
   }
 
-  // Golpe novo: não havia golpe, ou o tempo dele voltou a ser menor (outro golpe começou)
+  // Golpe novo: não havia golpe, ou o tempo dele voltou a ser menor (outro golpe começou).
+  // O golpe anterior acabou se não há mais golpe, ou se outro começou no mesmo quadro.
   const previous = run.player.attack
   const newSwing = player.attack && (!previous || player.attack.elapsed < previous.elapsed)
+  const swingEnded = Boolean(previous) && (!player.attack || newSwing)
   let swingCounted = newSwing ? false : run.swingCounted
-  let swingTargetIds = newSwing ? [] : run.swingTargetIds
 
   let obstacles = run.obstacles
-  // Alvos: os tempos deles andam (lento, preso, empurrão, números de dano e a volta do alvo de treino)
-  let targets = updateTargets(run.targets, deltaSeconds, solids)
-  let roomKills = run.roomKills
   const hitbox = getAttackHitbox(player)
   if (hitbox) {
     obstacles = hitObstacles(obstacles, hitbox, player.attack.direction)
@@ -454,11 +482,6 @@ function updateRoom(run, input, deltaSeconds) {
       room.hits += 1
       swingCounted = true
     }
-    // Nos alvos também: cada golpe acerta cada alvo uma vez, com o dano dos atributos
-    const swing = swingAtTargets(targets, hitbox, stats.damage, swingTargetIds)
-    targets = swing.targets
-    swingTargetIds = swing.hitIds
-    roomKills += swing.kills
   }
   obstacles = updateRollingObstacles(obstacles, deltaSeconds)
   obstacles = updateBreakingObstacles(obstacles, deltaSeconds)
@@ -471,7 +494,35 @@ function updateRoom(run, input, deltaSeconds) {
   }
   saveRemoved(room, obstacles)
 
-  let next = { ...run, player, obstacles, slip, swingCounted, swingTargetIds, targets, roomKills, health, death, finMs, drumDrop }
+  // Alvos e efeitos dos itens (itemEffects.js), nesta ordem: os tempos andam (os dos alvos também: lento, preso,
+  // empurrão e a volta do alvo de treino), o golpe que acabou, o que começou, os acertos dele, as lascas,
+  // as poças e, no fim, os abates do quadro (de qualquer dano: golpe, lascas, onda, raio ou parede).
+  const stepMs = deltaSeconds * 1000
+  let next = {
+    ...run,
+    player,
+    obstacles,
+    slip,
+    swingCounted,
+    health,
+    death,
+    finMs,
+    drumDrop,
+    effects: updateEffectTimers(effects, stepMs),
+    targets: updateTargets(run.targets, deltaSeconds, solids),
+    flashes: updateFlashes(run.flashes, stepMs),
+    // A seta está segurada agora? (a Batuta só conta o golpe de uma seta apertada de novo, e não segurada)
+    attackHeld: input.attackDirection !== null,
+  }
+  next = addBumpFlashes(next)
+  if (swingEnded) next = endSwing(next)
+  if (newSwing) next = startSwing(next, !run.attackHeld, stats)
+  if (hitbox) next = hitWithSwing(next, hitbox, stats)
+  next = updateShards(next, deltaSeconds)
+  next = updatePuddles(next, stepMs)
+  const kills = countNewKills(run.targets, next.targets)
+  next = onKills({ ...next, roomKills: run.roomKills + kills }, kills)
+
   if (death) return next // morto não atravessa porta nem passa de andar
   if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
 
@@ -560,6 +611,8 @@ function updateFloorTransition(run, stepMs) {
     const floor = generateFloor(run.seed, run.floor.number + 1)
     next = enterRoom(next, floor, findRoom(floor, floor.startRoomId), { ...ROOM_PLAYER_START })
     next.banner = createBanner(floor)
+    // Andar novo: as curas do Caldo da Mamãe ("por andar") voltam
+    next.effects = { ...next.effects, floorHealsUsed: 0 }
   }
 
   if (elapsedMs >= FLOOR_TRANSITION_MS) next.transition = null
@@ -662,7 +715,8 @@ export function toggleTrainingTarget(run) {
   if (!cell) return run
   const rect = getCellRect(cell.col, cell.row)
   const target = createTrainingTarget({ x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.75 })
-  return { ...run, targets: [...run.targets, target] }
+  // Com o alvo na sala, o escudo do Caldo arma, como ao entrar numa sala com inimigos
+  return armRoomShield({ ...run, targets: [...run.targets, target] })
 }
 
 // Desligar o F3 tira o alvo de treino: ele só existe com o F3 ligado

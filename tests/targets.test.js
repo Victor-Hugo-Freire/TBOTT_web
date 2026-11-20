@@ -2,16 +2,18 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
 import {
+  countNewKills,
   createTarget,
   createTrainingTarget,
   damageTarget,
   DAMAGE_TEXT_MS,
+  findSwingHits,
+  findTargetsNear,
   getTargetBox,
   PUSH_MS,
   pushTarget,
   slowTarget,
   stunTarget,
-  swingAtTargets,
   TRAINING_HEALTH,
   TRAINING_RESPAWN_MS,
   updateTarget,
@@ -89,31 +91,33 @@ describe('dano no alvo', () => {
   })
 })
 
-describe('golpe nos alvos (swingAtTargets)', () => {
-  test('acerta cada alvo uma vez por golpe, com o dano pedido', () => {
+describe('golpe e área (findSwingHits, findTargetsNear) e abates (countNewKills)', () => {
+  test('o golpe acha o alvo que a caixa toca, uma vez por golpe', () => {
     const target = createTrainingTarget(HOME)
-    const first = swingAtTargets([target], hitboxOn(target), 3, [])
-    assert.equal(first.targets[0].health, 27)
-    assert.deepEqual(first.hitIds, ['treino'])
-    // a caixa continua em cima nos quadros seguintes do mesmo golpe: nada muda
-    const again = swingAtTargets(first.targets, hitboxOn(target), 3, first.hitIds)
-    assert.equal(again.targets[0].health, 27)
+    assert.deepEqual(findSwingHits([target], hitboxOn(target), []), [0])
+    // já acertado por este golpe: os quadros seguintes não acertam de novo
+    assert.deepEqual(findSwingHits([target], hitboxOn(target), ['treino']), [])
   })
 
-  test('não acerta alvo longe da caixa do golpe nem alvo morto', () => {
+  test('não acha alvo longe da caixa do golpe nem alvo morto', () => {
     const target = createTrainingTarget(HOME)
-    const far = swingAtTargets([target], { x: 0, y: 0, width: 20, height: 20 }, 3, [])
-    assert.equal(far.targets[0].health, 30)
-    assert.deepEqual(far.hitIds, [])
+    assert.deepEqual(findSwingHits([target], { x: 0, y: 0, width: 20, height: 20 }, []), [])
     const dead = damageTarget(target, 30)
-    assert.equal(swingAtTargets([dead], hitboxOn(dead), 3, []).targets[0], dead)
+    assert.deepEqual(findSwingHits([dead], hitboxOn(dead), []), [])
   })
 
-  test('conta o abate quando o golpe mata', () => {
-    const target = { ...createTrainingTarget(HOME), health: 2 }
-    const result = swingAtTargets([target], hitboxOn(target), 3, [])
-    assert.equal(result.kills, 1)
-    assert.equal(result.targets[0].dead, true)
+  test('alvos vivos perto de um ponto', () => {
+    const near = createTarget({ id: 'a', x: 100, y: 100, width: 10, height: 10, health: 3 })
+    const far = createTarget({ id: 'b', x: 300, y: 100, width: 10, height: 10, health: 3 })
+    const dead = damageTarget(createTarget({ id: 'c', x: 110, y: 100, width: 10, height: 10, health: 3 }), 3)
+    assert.deepEqual(findTargetsNear([near, far, dead], 120, 100, 50), [0])
+  })
+
+  test('conta os alvos que morreram no quadro; o alvo de treino que voltou não conta', () => {
+    const alive = createTrainingTarget(HOME)
+    const dead = damageTarget(alive, 30)
+    assert.equal(countNewKills([alive, alive], [dead, alive]), 1)
+    assert.equal(countNewKills([dead], [{ ...alive }]), 0)
   })
 })
 
@@ -144,6 +148,23 @@ describe('lentidão, prisão e empurrão', () => {
     const target = wait(pushTarget(nearWall, 1, 0, 300), PUSH_MS + 40)
     assert.equal(target.push, null)
     assert.equal(target.x, 1482 - 22, 'a base encosta na parede')
+    assert.equal(target.health, 30, 'sem dano de parede, a batida não machuca')
+  })
+
+  test('empurrão com dano de parede: bater tira o dano e marca a batida (bumped) só naquele quadro', () => {
+    let target = pushTarget(createTrainingTarget({ x: 1440, y: 500 }), 1, 0, 300, 2)
+    let bumpedFrames = 0
+    for (let time = 0; time < PUSH_MS + 100; time += STEP * 1000) {
+      target = updateTarget(target, STEP, ROOM_WALLS)
+      if (target.bumped) bumpedFrames++
+    }
+    assert.equal(target.health, 28)
+    assert.equal(bumpedFrames, 1)
+  })
+
+  test('longe da parede, o empurrão com dano de parede não machuca', () => {
+    const target = wait(pushTarget(createTrainingTarget(HOME), 1, 0, 120, 2), PUSH_MS + 40)
+    assert.equal(target.health, 30)
   })
 
   test('alvo morto não fica lento, preso nem é empurrado', () => {

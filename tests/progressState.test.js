@@ -26,6 +26,7 @@ describe('normalizeProgressPayload', () => {
       deathCause: null,
       forks: 1,
       items: [],
+      floorHealsUsed: 0,
     })
   })
 
@@ -134,6 +135,7 @@ describe('normalizeProgressPayload com dados estranhos', () => {
         deathCause: null,
         forks: 1,
         items: [],
+        floorHealsUsed: 0,
       })
     }
   })
@@ -162,6 +164,7 @@ describe('createProgressSnapshot', () => {
       deathCause: null,
       forks: 1,
       items: [],
+      floorHealsUsed: 0,
     })
   })
 

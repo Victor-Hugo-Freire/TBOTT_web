@@ -194,6 +194,7 @@ export default function SalaInicial() {
         forks: progress.forks,
         catalog,
         items: progress.items,
+        floorHealsUsed: progress.floorHealsUsed,
       })
       elapsedMs = progress.elapsedMs
       enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)

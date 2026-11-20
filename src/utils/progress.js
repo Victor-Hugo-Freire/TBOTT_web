@@ -16,6 +16,7 @@ const MAX_CAUSE_LENGTH = 32
 const MAX_FORKS = 99 // o HUD mostra 2 dígitos
 const MAX_ITEMS = 50 // bem mais que os itens do catálogo
 const ITEM_ID = /^[a-z0-9-]{1,40}$/ // ids de item são como 'cafe-duplo'
+const MAX_FLOOR_USES = 9 // usos "por andar" de um item (o Caldo cura 1 vez por andar)
 const STARTING_FORKS = 1 // igual a run.js (progress.js não importa run.js para não criar um ciclo)
 
 // Número dentro de [min, max]; valor que não é número vira o mínimo
@@ -111,6 +112,8 @@ export function normalizeProgressPayload(value) {
     forks: Number.isInteger(source.forks) ? clamp(source.forks, 0, MAX_FORKS) : STARTING_FORKS,
     // Itens pegos na run, na ordem (ids do catálogo)
     items: normalizeItems(source.items),
+    // Curas do Caldo da Mamãe já usadas neste andar (o limite por andar vem do catálogo). Save antigo: nenhuma.
+    floorHealsUsed: Number.isInteger(source.floorHealsUsed) ? clamp(source.floorHealsUsed, 0, MAX_FLOOR_USES) : 0,
   }
 }
 
@@ -130,6 +133,7 @@ export function createProgressSnapshot({
   deathCause,
   forks,
   items,
+  floorHealsUsed,
 }) {
   return normalizeProgressPayload({
     roomId,
@@ -146,5 +150,6 @@ export function createProgressSnapshot({
     deathCause,
     forks,
     items,
+    floorHealsUsed,
   })
 }

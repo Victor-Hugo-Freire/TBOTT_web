@@ -249,6 +249,7 @@ describe('createRun', () => {
       deathCause: null,
       forks: 1,
       items: [],
+      floorHealsUsed: 0,
     })
   })
 

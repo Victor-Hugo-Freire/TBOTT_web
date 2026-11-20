@@ -68,10 +68,11 @@ export function stunTarget(target, ms) {
 
 // Empurrão: desliza `distance` na direção (directionX, directionY) em PUSH_MS, parando no que bloqueia.
 // A direção tem tamanho 1: { x: 1, y: 0 } empurra para a direita.
-export function pushTarget(target, directionX, directionY, distance) {
+// wallDamage = dano a mais se ele bater numa parede ou obstáculo no caminho (Rolo de Bronze); 0 = nenhum.
+export function pushTarget(target, directionX, directionY, distance, wallDamage = 0) {
   if (target.dead) return target
   const speed = distance / (PUSH_MS / 1000)
-  return { ...target, push: { x: directionX * speed, y: directionY * speed, ms: PUSH_MS } }
+  return { ...target, push: { x: directionX * speed, y: directionY * speed, ms: PUSH_MS, wallDamage } }
 }
 
 // Os números de dano envelhecem e somem depois de DAMAGE_TEXT_MS
@@ -102,14 +103,16 @@ function respawn(target) {
 
 // Avança o alvo um quadro: os tempos de lento e preso diminuem, o empurrão anda (parando no que bloqueia),
 // os números de dano sobem e o alvo de treino volta TRAINING_RESPAWN_MS depois de morrer.
+// Se o empurrão bate em alguma coisa, bumped fica true neste quadro (e o alvo leva o wallDamage do empurrão).
 // solids: as caixas que bloqueiam o empurrão (as paredes e os obstáculos da sala, veja getRoomSolids).
 export function updateTarget(target, deltaSeconds, solids) {
   const stepMs = deltaSeconds * 1000
-  const next = {
+  let next = {
     ...target,
     slowMs: Math.max(0, target.slowMs - stepMs),
     stunMs: Math.max(0, target.stunMs - stepMs),
     damageTexts: ageDamageTexts(target.damageTexts, stepMs),
+    bumped: false,
   }
   if (next.slowMs === 0) next.slowMultiplier = 1
 
@@ -125,6 +128,10 @@ export function updateTarget(target, deltaSeconds, solids) {
     const blocked = moved.x !== box.x + dx || moved.y !== box.y + dy
     const ms = target.push.ms - stepMs
     next.push = blocked || ms <= 0 ? null : { ...target.push, ms }
+    if (blocked) {
+      next.bumped = true
+      if (target.push.wallDamage > 0) next = damageTarget(next, target.push.wallDamage)
+    }
   }
 
   if (target.dead) {
@@ -140,22 +147,34 @@ export function updateTargets(targets, deltaSeconds, solids) {
   return next
 }
 
-// O golpe (hitbox) acerta os alvos vivos que toca e que ainda não levaram dano DESTE golpe (hitIds).
-// Cada alvo leva `damage` uma vez por golpe, mesmo com a caixa do golpe ativa por vários quadros.
-// Devolve os alvos depois do golpe, a lista de ids já acertados e quantos morreram agora (abates).
-export function swingAtTargets(targets, hitbox, damage, hitIds) {
-  const nextTargets = []
-  const nextHitIds = [...hitIds]
-  let kills = 0
-  for (const target of targets) {
-    if (target.dead || hitIds.includes(target.id) || !overlaps(hitbox, getTargetBox(target))) {
-      nextTargets.push(target)
-      continue
-    }
-    const hit = damageTarget(target, damage)
-    if (hit.dead) kills += 1
-    nextTargets.push(hit)
-    nextHitIds.push(target.id)
+// Posições (na lista) dos alvos vivos que a caixa do golpe (hitbox) toca e que ainda não levaram dano DESTE golpe
+// (hitIds). Assim cada alvo é acertado uma vez por golpe, mesmo com a caixa ativa por vários quadros.
+// Quem chama aplica o dano e os efeitos dos itens (itemEffects.js).
+export function findSwingHits(targets, hitbox, hitIds) {
+  const indexes = []
+  for (let index = 0; index < targets.length; index++) {
+    const target = targets[index]
+    if (!target.dead && !hitIds.includes(target.id) && overlaps(hitbox, getTargetBox(target))) indexes.push(index)
   }
-  return { targets: nextTargets, hitIds: nextHitIds, kills }
+  return indexes
+}
+
+// Alvos vivos a até `range` do ponto (x, y) (medido até a base de cada um)
+export function findTargetsNear(targets, x, y, range) {
+  const indexes = []
+  for (let index = 0; index < targets.length; index++) {
+    const target = targets[index]
+    if (!target.dead && Math.hypot(target.x - x, target.y - y) <= range) indexes.push(index)
+  }
+  return indexes
+}
+
+// Quantos alvos morreram entre `before` e `after` (a mesma lista, um quadro depois): os abates do quadro.
+// O alvo de treino que voltou (estava morto e ficou vivo) não conta.
+export function countNewKills(before, after) {
+  let kills = 0
+  for (let index = 0; index < after.length; index++) {
+    if (before[index] && !before[index].dead && after[index].dead) kills += 1
+  }
+  return kills
 }
