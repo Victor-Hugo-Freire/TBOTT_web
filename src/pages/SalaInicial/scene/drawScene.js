@@ -39,6 +39,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     finMs: run.finMs,
     drumDrop: run.drumDrop, // o tambor caindo do céu na sala do chefe (veja getDrumFall)
     pickup: run.pickup, // o item pego agora, sobre a cabeça do Tung
+    vanishing: run.vanishing, // itens sumindo da sala de escolha (cada um diz de que sala é)
   }
   const { transition } = run
   if (transition?.type !== 'room') {
@@ -99,7 +100,7 @@ export function getFloorFade(run) {
 // depois obstáculos, tambor, pedestais e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
-  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup } = options
+  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -128,7 +129,9 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   // A estátua do Tung Tung God também entra na ordem dos pés: o jogador passa por trás dela
   if (room.type === 'god') sprites.push({ feetY: GOD_STATUE_FEET_Y, draw: () => drawGodStatue(ctx) })
   for (const pedestal of pedestals) {
-    sprites.push({ feetY: pedestal.y, draw: () => drawPedestal(ctx, pedestal, { timeMs, reduceMotion }) })
+    // O item que está sumindo deste pedestal (o que não foi escolhido), se houver
+    const leaving = vanishing.find((item) => item.roomId === room.id && item.pedestalId === pedestal.id) ?? null
+    sprites.push({ feetY: pedestal.y, draw: () => drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) })
   }
   if (player) {
     const drawTung = () => {

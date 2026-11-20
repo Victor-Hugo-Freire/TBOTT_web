@@ -1,6 +1,7 @@
 import { ITEM_SPRITES } from '../../../data/itemSprites.js'
 import { PEDESTAL_SPRITES } from '../../../data/roomSprites.js'
 import { drawPixelText, getTextWidth, SMALL_FONT } from '../../../utils/pixelFont.js'
+import { VANISH_MS } from '../../../utils/run.js'
 import { getTimedFrame, getTotalDuration } from '../../../utils/spriteAnimation.js'
 import { drawHearts } from './drawHearts.js'
 import { PLAYER_SPRITE_SCALE } from './drawSprite.js'
@@ -35,8 +36,10 @@ function drawFrame(ctx, sprite, row, frame, x, y) {
 }
 
 // timeMs = relógio da animação do item flutuando. Com "reduzir movimento", o item fica parado no quadro 0.
-export function drawPedestal(ctx, pedestal, { timeMs, reduceMotion }) {
+// leaving = o item que está sumindo deste pedestal (run.vanishing), ou null.
+export function drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) {
   drawFrame(ctx, PEDESTAL_SPRITES[pedestal.variant], 0, 0, pedestal.x, pedestal.y)
+  if (leaving) drawVanishingItem(ctx, pedestal, leaving)
   if (!pedestal.itemId) return
 
   const sprite = ITEM_SPRITES[pedestal.itemId]
@@ -44,6 +47,30 @@ export function drawPedestal(ctx, pedestal, { timeMs, reduceMotion }) {
   const frame = reduceMotion ? 0 : getTimedFrame(durations, timeMs % getTotalDuration(durations))
   drawFrame(ctx, sprite, row, frame, pedestal.x, pedestal.y)
   if (pedestal.maxHealthCost > 0) drawCost(ctx, pedestal)
+}
+
+// Item que não foi escolhido (sala de escolha) sumindo: ele sobe VANISH_RISE u e apaga, e uma fumacinha
+// se abre em volta. A animação sempre toca: ela mostra que o item foi embora.
+const VANISH_RISE = 40
+const PUFF_COUNT = 8
+
+function drawVanishingItem(ctx, pedestal, leaving) {
+  const progress = Math.min(1, leaving.elapsedMs / VANISH_MS)
+  const sprite = ITEM_SPRITES[leaving.itemId]
+  ctx.save()
+  ctx.globalAlpha = 1 - progress
+  if (sprite) drawFrame(ctx, sprite, sprite.animations.pedestal.row, 0, pedestal.x, pedestal.y - VANISH_RISE * progress)
+
+  // Fumacinha: quadradinhos brancos que se afastam do item e apagam junto com ele
+  const centerY = pedestal.y - 55 - VANISH_RISE * progress
+  const distance = 10 + 45 * progress
+  ctx.fillStyle = '#f4ece4'
+  for (let i = 0; i < PUFF_COUNT; i++) {
+    const angle = (i / PUFF_COUNT) * Math.PI * 2
+    const size = 9 * (1 - progress) + 3
+    ctx.fillRect(pedestal.x + Math.cos(angle) * distance - size / 2, centerY + Math.sin(angle) * distance - size / 2, size, size)
+  }
+  ctx.restore()
 }
 
 // O item pego fica sobre a cabeça do Tung (run.pickup), acompanhando ele: primeiro a animação "coleta" (o item

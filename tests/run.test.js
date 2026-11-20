@@ -39,6 +39,7 @@ import {
   updateRestartHold,
   updateRestartKey,
   updateRun,
+  VANISH_MS,
 } from '../src/utils/run.js'
 import { getBaseStats } from '../src/utils/stats.js'
 import { TRAINING_RESPAWN_MS } from '../src/utils/targets.js'
@@ -1306,9 +1307,9 @@ describe('pedestais: coleta, banner e custo do Pacto', () => {
     return createRun({ seed, floorNumber, roomId, characterId: 'x', catalog: TEST_CATALOG, ...fields })
   }
 
-  // Põe o jogador logo abaixo do pedestal e anda para cima até encostar
-  function walkIntoPedestal(run) {
-    const [pedestal] = getRoomPedestals(run, getCurrentRoom(run))
+  // Põe o jogador logo abaixo do pedestal (o primeiro, ou o de número `index`) e anda para cima até encostar
+  function walkIntoPedestal(run, index = 0) {
+    const pedestal = getRoomPedestals(run, getCurrentRoom(run))[index]
     run.player = createPlayer({ x: pedestal.x, y: pedestal.y + 40 })
     return steps(run, 10, { movement: { x: 0, y: -1 }, attackDirection: null })
   }
@@ -1350,6 +1351,10 @@ describe('pedestais: coleta, banner e custo do Pacto', () => {
     run = walkIntoPedestal(run)
     assert.deepEqual(run.items, [first.itemId])
     assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)).map((pedestal) => pedestal.itemId), [null, null])
+    // o outro item some com uma animação, que acaba em VANISH_MS
+    assert.deepEqual(run.vanishing.map((item) => [item.pedestalId, item.itemId]), [[second.id, second.itemId]])
+    run = steps(run, Math.ceil(VANISH_MS / STEP_MS))
+    assert.deepEqual(run.vanishing, [])
     // o outro item não está em nenhum outro pedestal da run
     const elsewhere = Object.entries(run.pedestalItems).filter(([key, items]) => !key.endsWith(`:${run.roomId}`) && items.includes(second.itemId))
     assert.deepEqual(elsewhere, [])
@@ -1373,6 +1378,26 @@ describe('pedestais: coleta, banner e custo do Pacto', () => {
     // com a vida baixa, ela não muda
     run = walkIntoPedestal(runInRoom(2, 'pacto', { health: 3 }))
     assert.equal(run.health, 3)
+  })
+
+  test('Sala do Pacto com vários itens: cada um tem o seu custo e dá para pegar mais de um', () => {
+    // Catálogo com 2 itens de Pacto (o Caldo vira item de Pacto só neste teste)
+    const pactCatalog = {
+      ...TEST_CATALOG,
+      'caldo-da-mamae': { ...TEST_CATALOG['caldo-da-mamae'], roomTypes: ['pacto'], effect: { maxHealthCost: 2 } },
+    }
+    let run = runInRoom(2, 'pacto', { catalog: pactCatalog }, (room) => getLayoutPoints(room.layoutId).items.length >= 2)
+    const before = getRoomPedestals(run, getCurrentRoom(run))
+    assert.equal(before.filter((pedestal) => pedestal.itemId).length, 2)
+    run = walkIntoPedestal(run, 0)
+    // o outro continua no pedestal, com o custo dele, e nada some
+    const after = getRoomPedestals(run, getCurrentRoom(run))
+    assert.equal(after[0].itemId, null)
+    assert.equal(after[1].itemId, before[1].itemId)
+    assert.deepEqual(run.vanishing, [])
+    run = walkIntoPedestal(steps(run, 25), 1)
+    assert.deepEqual([...run.items].sort(), [before[0].itemId, before[1].itemId].sort())
+    assert.equal(getRunStats(run).maxHealth, MAX_HEALTH - 4, 'pagou os dois custos')
   })
 
   test('Sala do Pacto: não deixa pegar se a vida máxima ficar menor que 1 coração', () => {

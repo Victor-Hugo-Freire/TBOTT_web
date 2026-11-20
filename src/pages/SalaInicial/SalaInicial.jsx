@@ -462,9 +462,11 @@ export default function SalaInicial() {
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
-      // Perto de um pedestal com item: a caixa com o nome e a descrição do item, embaixo do HUD
+      // Perto de um pedestal com item: a caixa com o nome e a descrição do item, embaixo do HUD.
+      // Enquanto a faixa de um item pego aparece, a caixa espera (as duas ficariam uma em cima da outra).
       const room = getCurrentRoom(run)
-      const pedestals = run.transition || run.death ? [] : getRoomPedestals(run, room)
+      const itemBannerOn = Boolean(run.banner?.subtitle)
+      const pedestals = run.transition || run.death || itemBannerOn ? [] : getRoomPedestals(run, room)
       const nearby = findNearbyPedestal(pedestals, run.player)
       if (nearby) {
         drawItemInfo(ctx, {

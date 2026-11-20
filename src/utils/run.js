@@ -13,7 +13,7 @@ import {
 } from './doors.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
-import { assignPedestalItems, findTouchedPedestal, getPedestalSolids, getRoomPedestals } from './pedestals.js'
+import { assignPedestalItems, CHOICE_ROOM_TYPES, findTouchedPedestal, getPedestalSolids, getRoomPedestals } from './pedestals.js'
 import { removeAccents } from './pixelFont.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
 import { createProgressSnapshot } from './progress.js'
@@ -307,6 +307,7 @@ export function createRun({
     items: [...items], // na ordem em que foram pegos
     pedestalItems: assignPedestalItems(seed, catalog), // itens dos pedestais de todos os andares (pedestals.js)
     pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
+    vanishing: [], // itens sumindo da sala de escolha: { roomId, pedestalId, itemId, elapsedMs } (VANISH_MS)
     grains: 0,
     forks,
     health: 0, // vida em meios corações (veja health.js): vem logo abaixo, com a vida máxima dos atributos
@@ -474,14 +475,21 @@ function updateRoom(run, input, deltaSeconds) {
   if (death) return next // morto não atravessa porta nem passa de andar
   if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
 
-  // Pedestal: encostar pega o item, se der para pagar o custo (Sala do Pacto). Todos os pedestais da sala ficam
-  // vazios: numa sala de escolha (2 pedestais), o outro item some e não aparece mais na run.
+  // Pedestal: encostar pega o item, se der para pagar o custo (Sala do Pacto). Esse pedestal fica vazio.
+  // Numa sala de escolha (Tesouro e God), os outros pedestais também esvaziam: os outros itens somem com uma
+  // animação (sobem e apagam) e não aparecem mais na run. No Pacto, os outros continuam lá, cada um com o seu custo.
   const touched = findTouchedPedestal(pedestals, player)
   if (touched && canPayItemCost(next, touched)) {
-    for (const pedestal of pedestals) {
-      if (!room.emptied.includes(pedestal.id)) room.emptied.push(pedestal.id)
+    room.emptied.push(touched.id)
+    const vanishing = []
+    if (CHOICE_ROOM_TYPES.includes(room.type)) {
+      for (const pedestal of pedestals) {
+        if (pedestal === touched || !pedestal.itemId) continue
+        room.emptied.push(pedestal.id)
+        vanishing.push({ roomId: room.id, pedestalId: pedestal.id, itemId: pedestal.itemId, elapsedMs: 0 })
+      }
     }
-    next = giveItem(next, touched.itemId)
+    next = { ...giveItem(next, touched.itemId), vanishing }
   }
 
   // Porta trancada: empurrar com garfo no bolso gasta 1 garfo e abre a sala para o resto da run (target.unlocked).
@@ -632,7 +640,12 @@ export function updateRun(run, input, deltaSeconds) {
   if (run.transition?.type === 'floor') return updateFloorTransition(run, stepMs)
 
   // O item sobre a cabeça continua na troca de sala: ele anda junto com o Tung
-  const current = { ...run, banner: advanceBanner(run.banner, stepMs), pickup: advancePickup(run.pickup, stepMs) }
+  const current = {
+    ...run,
+    banner: advanceBanner(run.banner, stepMs),
+    pickup: advancePickup(run.pickup, stepMs),
+    vanishing: advanceVanishing(run.vanishing, stepMs),
+  }
   if (current.transition) return updateRoomTransition(current, stepMs)
   return updateRoom(current, input, deltaSeconds)
 }
