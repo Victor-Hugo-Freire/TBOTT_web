@@ -59,7 +59,7 @@ describe('roomLayouts.json (formato)', () => {
   test('os ids são únicos e todo tipo de sala tem pelo menos 1 layout', () => {
     const ids = ROOM_LAYOUTS.map((layout) => layout.id)
     assert.equal(new Set(ids).size, ids.length)
-    assert.equal(ids.length, 28)
+    assert.equal(ids.length, 30)
     for (const type of ROOM_TYPES) assert.ok(ROOM_LAYOUTS.some((layout) => layout.type === type), type)
     assert.deepEqual([...new Set(ROOM_LAYOUTS.map((layout) => layout.type))].sort(), [...ROOM_TYPES].sort())
   })
@@ -94,8 +94,17 @@ describe('roomLayouts.json (formato)', () => {
     for (const id of ['tesouro-01', 'tesouro-02']) assert.deepEqual(getLayoutPoints(id).items, [{ col: 6, row: 2 }], id)
   })
 
-  test('salas de escolha (Tesouro, Pacto e God): 2 pedestais bem afastados, com o cenário X da sala no mesmo lugar', () => {
-    const choices = ['tesouro-03', 'tesouro-04', 'tesouro-05', 'pacto-02', 'pacto-03', 'god-02', 'god-03']
+  test('Pacto: de 1 a 3 pedestais, todos na fileira 4 (abaixo do meio), com a poça (X) no mesmo lugar', () => {
+    const pacts = ROOM_LAYOUTS.filter((layout) => layout.type === 'pacto')
+    assert.deepEqual(pacts.map((layout) => getLayoutPoints(layout.id).items.length), [1, 2, 2, 3, 3])
+    for (const layout of pacts) {
+      for (const point of getLayoutPoints(layout.id).items) assert.equal(point.row, 4, layout.id)
+      assert.equal(layout.tiles[1], '.....XXX.....', layout.id)
+    }
+  })
+
+  test('salas de escolha (Tesouro e God): 2 pedestais bem afastados, com o cenário X da sala no mesmo lugar', () => {
+    const choices = ['tesouro-03', 'tesouro-04', 'tesouro-05', 'god-02', 'god-03']
     for (const id of choices) {
       const [first, second] = getLayoutPoints(id).items
       assert.equal(getLayoutPoints(id).items.length, 2, id)
@@ -121,7 +130,7 @@ describe('roomLayouts.json (formato)', () => {
   test('salas especiais: pontos de item nas posições do spawn.md e cenário X', () => {
     const expected = {
       loja: [{ col: 4, row: 2 }, { col: 6, row: 2 }, { col: 8, row: 2 }],
-      pacto: [{ col: 6, row: 5 }], // abaixo da poça do Tralalero (2026-11-20)
+      pacto: [{ col: 6, row: 4 }], // um pouco abaixo do meio, longe da poça do Tralalero (2026-11-20)
       god: [{ col: 6, row: 3 }], // à frente da estátua
       fliperama: [{ col: 6, row: 3 }],
       palco: [{ col: 6, row: 2 }],
@@ -170,7 +179,7 @@ describe('buildRoomObstacles (obstáculos no tema do andar)', () => {
     assert.deepEqual(counter.box, getCellRect(3, 0))
 
     const drum = buildRoomObstacles('chefe', 'porto').find((item) => item.kind === 'tambor')
-    assert.equal(drum.id, '6-3')
+    assert.equal(drum.id, '6-2')
     assert.equal(drum.blocking, true)
   })
 

@@ -6,6 +6,7 @@ import { getEntryPosition, SIDES } from '../src/utils/doors.js'
 import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
 import {
   assignPedestalItems,
+  CHOICE_ROOM_TYPES,
   findNearbyPedestal,
   findTouchedPedestal,
   getPedestalSolids,
@@ -40,11 +41,21 @@ describe('pedestais nos layouts', () => {
     assert.deepEqual(PEDESTAL_VARIANTS, { tesouro: 'base', chefe: 'base', god: 'base', adega: 'adega', pacto: 'pacto' })
   })
 
-  test('todo layout de sala com item tem 1 ou 2 casas de pedestal', () => {
+  test('todo layout de sala com item tem de 1 a 3 casas de pedestal; só o Pacto passa de 2', () => {
     for (const layout of PEDESTAL_LAYOUTS) {
       const count = getLayoutPoints(layout.id).items.length
-      assert.ok(count === 1 || count === 2, `${layout.id}: ${count}`)
+      const max = layout.type === 'pacto' ? 3 : 2
+      assert.ok(count >= 1 && count <= max, `${layout.id}: ${count}`)
     }
+  })
+
+  test('salas de escolha: Tesouro e God (no Pacto, cada item tem o seu custo e dá para pegar mais de um)', () => {
+    assert.deepEqual(CHOICE_ROOM_TYPES, ['tesouro', 'god'])
+  })
+
+  test('o pedestal do Pacto fica na fileira 4: um pouco abaixo do meio da sala (y 525), longe da porta de baixo', () => {
+    const [pedestal] = pedestalsOf('pacto')
+    assert.ok(pedestal.y > 590 && pedestal.y < 640, `y = ${pedestal.y}`)
   })
 
   test('nenhum pedestal tapa a entrada de uma porta', () => {

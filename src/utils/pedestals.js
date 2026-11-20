@@ -5,14 +5,20 @@ import { getCellRect, getLayoutPoints } from './roomLayout.js'
 import { getFeetBox } from './roomMovement.js'
 
 // Pedestais dos itens nas salas especiais. Funções puras (sem React, sem canvas), para testar com node:test.
-// Os pedestais ficam nas casas 't' do layout da sala (src/data/roomLayouts.json). Sala com 2 casas 't' é uma
-// sala de ESCOLHA: pegar um item esvazia os dois pedestais, e o outro item some (não aparece mais na run).
+// Os pedestais ficam nas casas 't' do layout da sala (src/data/roomLayouts.json).
+// - No Tesouro e no God, sala com 2 casas 't' é uma sala de ESCOLHA: pegar um item esvazia os dois pedestais,
+//   e o outro item some (não aparece mais na run).
+// - No Pacto, cada pedestal é como um da Loja, mas pago com coração (vida máxima): dá para pegar todos os itens
+//   que der para pagar, cada um com o seu custo.
 // Cada item vem do catálogo da API: o campo roomTypes diz em que sala ele aparece.
 // A Loja e o Fliperama ganham os pedestais deles depois; o Palco só quando houver inimigos.
 
 // Salas com pedestal de item e a imagem do pedestal de cada uma (PEDESTAL_SPRITES, em roomSprites.js).
 // A sala do God não tem pedestal próprio: usa o comum.
 export const PEDESTAL_VARIANTS = { tesouro: 'base', chefe: 'base', god: 'base', adega: 'adega', pacto: 'pacto' }
+
+// Salas de escolha: pegar um item esvazia todos os pedestais da sala
+export const CHOICE_ROOM_TYPES = ['tesouro', 'god']
 
 // Caixa sólida do pedestal (o desenho tem cerca de 68 x 36 u, com a base em x, y): bloqueia o jogador,
 // que pega o item ao encostar nela
