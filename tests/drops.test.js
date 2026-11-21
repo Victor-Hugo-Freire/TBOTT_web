@@ -9,6 +9,7 @@ import {
   getDropBox,
   healWithHeart,
   placeDrops,
+  rollLuckyGrain,
   rollRoomReward,
 } from '../src/utils/drops.js'
 import { generateFloor } from '../src/utils/floorGenerator.js'
@@ -19,11 +20,11 @@ const ROOM = generateFloor(1, 1).rooms.find((room) => room.type === 'comum')
 
 describe('recompensa da sala limpa (rollRoomReward)', () => {
   test('a mesma seed e a mesma sala dão sempre a mesma coisa; a tentativa da tecla G muda', () => {
-    const first = rollRoomReward(123, 1, ROOM, 0, 0)
-    assert.deepEqual(rollRoomReward(123, 1, ROOM, 0, 0), first)
+    const first = rollRoomReward(123, 1, ROOM)
+    assert.deepEqual(rollRoomReward(123, 1, ROOM), first)
     let differs = false
     for (let attempt = 1; attempt <= 20; attempt++) {
-      if (JSON.stringify(rollRoomReward(123, 1, ROOM, 0, 0, attempt)) !== JSON.stringify(first)) differs = true
+      if (JSON.stringify(rollRoomReward(123, 1, ROOM, attempt)) !== JSON.stringify(first)) differs = true
     }
     assert.ok(differs, 'sortear de novo muda o resultado em algumas tentativas')
   })
@@ -31,7 +32,7 @@ describe('recompensa da sala limpa (rollRoomReward)', () => {
   test('em 1000 sorteios, as chances ficam perto das de economy.js; grão só em grupos de 1, 3 e 5', () => {
     const counts = { nada: 0, graos: 0, coracao: 0, garfo: 0 }
     for (let seed = 1; seed <= 1000; seed++) {
-      const { reward, drops } = rollRoomReward(seed, 1, ROOM, 0, 0)
+      const { reward, drops } = rollRoomReward(seed, 1, ROOM)
       counts[reward]++
       for (const drop of drops) if (drop.kind === 'graos') assert.ok([1, 3, 5].includes(drop.amount))
       assert.equal(drops.length, reward === 'nada' ? 0 : 1)
@@ -41,19 +42,19 @@ describe('recompensa da sala limpa (rollRoomReward)', () => {
     }
   })
 
-  test('Chifre da Sorte: cada abate pode somar 1 grão, mesmo quando a recompensa é "nada"', () => {
-    let seed = 1
-    while (rollRoomReward(seed, 1, ROOM, 0, 0).reward !== 'nada') seed++
-    const { reward, drops } = rollRoomReward(seed, 1, ROOM, 4, 1) // chance 1: todo abate soma
-    assert.equal(reward, 'nada')
-    assert.deepEqual(drops.map((drop) => [drop.kind, drop.amount]), [['graos', 1], ['graos', 1], ['graos', 1], ['graos', 1]])
-    assert.equal(rollRoomReward(seed, 1, ROOM, 4, 0).drops.length, 0, 'sem o Chifre, nada')
+  test('Chifre da Sorte: cada abate tem a sua chance, sempre igual para o mesmo abate', () => {
+    assert.equal(rollLuckyGrain(5, 1, ROOM, 0, 1), true, 'chance 1: todo abate solta')
+    assert.equal(rollLuckyGrain(5, 1, ROOM, 0, 0), false, 'sem o Chifre, nunca')
+    assert.equal(rollLuckyGrain(5, 1, ROOM, 3, 0.1), rollLuckyGrain(5, 1, ROOM, 3, 0.1))
+    let grains = 0
+    for (let kill = 0; kill < 1000; kill++) if (rollLuckyGrain(5, 1, ROOM, kill, 0.1)) grains++
+    assert.ok(grains > 70 && grains < 130, `10% de 1000 abates: ${grains}`)
   })
 
   test('aparece no meio da sala, numa casa livre, com a animação de aparecer', () => {
     let seed = 1
-    while (rollRoomReward(seed, 1, ROOM, 0, 0).reward === 'nada') seed++
-    const [drop] = rollRoomReward(seed, 1, ROOM, 0, 0).drops
+    while (rollRoomReward(seed, 1, ROOM).reward === 'nada') seed++
+    const [drop] = rollRoomReward(seed, 1, ROOM).drops
     assert.equal(drop.appearMs, 0)
     assert.ok(drop.x > 600 && drop.x < 1000, `x ${drop.x}`)
   })

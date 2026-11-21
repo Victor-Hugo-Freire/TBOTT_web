@@ -20,3 +20,38 @@ export const ENEMY_BODIES = {
 // passar por trás dele (a cabeça) não machuca. Largura = esta fração da largura do corpo (sem o contorno e as pontas).
 export const CONTACT_WIDTH_SHARE = 0.7
 export const CONTACT_DEPTH = 36 // u para trás dos pés
+
+// Ao entrar na sala, os inimigos esperam este tempo parados antes de agir (dá para o Tung se situar)
+export const START_WAIT_MS = 700
+
+// Perigos do chão (a chapa quente e os cacos do garrafão): encostar na chapa ou pisar nos cacos tira HAZARD_DAMAGE
+// do inimigo, que só leva esse dano de novo depois de HAZARD_COOLDOWN_MS. Ao escolher o caminho, ele desvia dos
+// cacos e passa a pelo menos HAZARD_AVOID_MARGIN u da chapa (menos que 25 u: a casa de cima da chapa continua livre).
+export const HAZARD_DAMAGE = 1
+export const HAZARD_COOLDOWN_MS = 1000
+export const HAZARD_AVOID_MARGIN = 16
+
+// Inimigos que voam: o piso (esteira, líquido, grudento) e os perigos do chão não os afetam. A Vespina tem rodas
+// de lambreta (anda no chão) e o Fenicottero é um forno num pé só: só a Zanzarina voa.
+export const FLYING_ENEMIES = ['zanzarina-tarantella']
+
+// ---------- inimigos de corpo a corpo (etapa 2). Distâncias em u, tempos em ms, velocidades em u/s. ----------
+// A velocidade de andar de cada um vem do catálogo (speed); aqui ficam as outras.
+
+// Formaggino Saltellino: persegue andando; perto, agacha e salta (nos quadros de acerto) mordendo; descansa ao pousar
+export const FORMAGGINO = { attackRange: 170, jumpDistance: 150, restMs: 450 }
+
+// Cannolo Carica: perto, raspa o pé (preparando) e investe em linha reta; bateu em algo, fica atordoado
+export const CANNOLO = { chargeRange: 520, chargeSpeed: 560, maxChargeMs: 1400, stunnedMs: 1200, restMs: 500 }
+
+// Polpetta Sotterranea: escondida no molho, vai para baixo do Tung; emerge (a janela de bater), morde,
+// fica um pouco na superfície e afunda de novo. Escondida, nada a acerta e encostar não machuca.
+export const POLPETTA = { hiddenMs: 1800, emergeRange: 40, surfacedMs: 700 }
+
+// Peperoncino Kamikaze: corre até o Tung, acende (o aviso) e, aceso, corre litSpeedMultiplier vezes mais rápido atrás
+// dele até explodir, morrendo junto. Morto antes de acender, não explode.
+// blastScale: o desenho da explosão (142 u de largura na escala 1) cresce até mostrar a área do dano (2 x blastRadius).
+export const PEPERONCINO = { fuseRange: 120, fuseMs: 800, litSpeedMultiplier: 1.5, blastRadius: 160, blastScale: 2.25 }
+
+// Pinguino Sorbettino: perto, se joga de barriga e desliza em linha reta, deixando um rastro de gelo escorregadio
+export const PINGUINO = { slideRange: 480, slideSpeed: 460, maxSlideMs: 1300, restMs: 700, trailSpacing: 60, trailMs: 4000 }

@@ -11,7 +11,7 @@ import { normalizeProgressPayload } from '../src/utils/progress.js'
 import { getCellRect } from '../src/utils/roomLayout.js'
 import { PLAYER_FEET_BOX, ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 import { createRun, createRunSnapshot, getCurrentRoom, giveRoomReward, updateRun } from '../src/utils/run.js'
-import { TEST_CATALOG } from './helpers/testCatalog.js'
+import { TEST_CATALOG, TEST_ENEMIES } from './helpers/testCatalog.js'
 
 const STEP = 1 / 20
 const STEP_MS = 50
@@ -112,13 +112,31 @@ describe('recompensa da sala limpa (tecla G e, depois, os inimigos)', () => {
     assert.equal(getCurrentRoom(back).drops.length, 1)
   })
 
-  test('Chifre da Sorte: os abates do alvo de treino na sala somam grãos à recompensa', () => {
+  // Sala comum do andar 1 com os inimigos; o primeiro fica com 1 de vida e o Tung logo abaixo dele, batendo para cima
+  function killFirstEnemy(items, catalog = TEST_CATALOG) {
+    const room = generateFloor(1, 1).rooms.find((one) => one.type === 'comum')
+    let run = createRun({ seed: 1, characterId: 'x', roomId: room.id, catalog, enemyCatalog: TEST_ENEMIES, items })
+    const victim = { ...run.targets[0], health: 1 }
+    run.targets = [victim, ...run.targets.slice(1)]
+    run.player = createPlayer({ x: victim.x, y: victim.y + 45 })
+    run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (!run.targets[0].dead) run = updateRun(run, IDLE, STEP)
+    return { run, victim }
+  }
+
+  test('Chifre da Sorte: o grão cai nos pés do inimigo que morreu, na hora, com o brilho da sorte', () => {
     const catalog = { ...TEST_CATALOG, 'chifre-da-sorte': { ...TEST_CATALOG['chifre-da-sorte'], effect: { extraCoinChance: 1 } } }
-    const run = createRun({ seed: 3, characterId: 'x', catalog, items: ['chifre-da-sorte'] })
-    run.roomKills = 3
-    giveRoomReward(run)
-    const singleGrains = getCurrentRoom(run).drops.filter((drop) => drop.kind === 'graos' && drop.amount === 1)
-    assert.ok(singleGrains.length >= 3, `${singleGrains.length} grãos soltos`)
+    const { run, victim } = killFirstEnemy(['chifre-da-sorte'], catalog)
+    const grains = getCurrentRoom(run).drops
+    assert.equal(grains.length, 1)
+    assert.deepEqual([grains[0].kind, grains[0].amount, grains[0].x, grains[0].y], ['graos', 1, victim.x, victim.y])
+    assert.ok(grains[0].appearMs < DROP_APPEAR_MS, 'aparecendo, com a animação de aparecer')
+    assert.ok(run.flashes.some((flash) => flash.variant === 'brilho-da-sorte'))
+  })
+
+  test('Chifre da Sorte: sem o item, o inimigo morto não solta grão', () => {
+    const { run } = killFirstEnemy([])
+    assert.deepEqual(getCurrentRoom(run).drops, [])
   })
 })
 

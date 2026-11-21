@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
 import {
-  countNewKills,
   createTarget,
   createTrainingTarget,
   damageTarget,
   DAMAGE_TEXT_MS,
+  findNewKills,
   findSwingHits,
   findTargetsNear,
   getTargetBox,
@@ -91,7 +91,7 @@ describe('dano no alvo', () => {
   })
 })
 
-describe('golpe e área (findSwingHits, findTargetsNear) e abates (countNewKills)', () => {
+describe('golpe e área (findSwingHits, findTargetsNear) e abates (findNewKills)', () => {
   test('o golpe acha o alvo que a caixa toca, uma vez por golpe', () => {
     const target = createTrainingTarget(HOME)
     assert.deepEqual(findSwingHits([target], hitboxOn(target), []), [0])
@@ -116,8 +116,8 @@ describe('golpe e área (findSwingHits, findTargetsNear) e abates (countNewKills
   test('conta os alvos que morreram no quadro; o alvo de treino que voltou não conta', () => {
     const alive = createTrainingTarget(HOME)
     const dead = damageTarget(alive, 30)
-    assert.equal(countNewKills([alive, alive], [dead, alive]), 1)
-    assert.equal(countNewKills([dead], [{ ...alive }]), 0)
+    assert.deepEqual(findNewKills([alive, alive], [dead, alive]), [dead])
+    assert.deepEqual(findNewKills([dead], [{ ...alive }]), [])
   })
 })
 

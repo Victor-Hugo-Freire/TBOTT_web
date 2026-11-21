@@ -10,7 +10,10 @@
 //   2 = os dois na metade do tempo);
 // - maxHealth: vida máxima em MEIOS corações (6 = 3 corações);
 // - invincibilityMs: quanto tempo ele fica invencível depois de levar dano;
-// - attackArea: tamanho da caixa do golpe, como multiplicador (1 = ATTACK_HITBOXES de player.js).
+// - attackArea: tamanho da caixa do golpe, como multiplicador (1 = ATTACK_HITBOXES de player.js);
+// - flying: voa. O piso (esteira, líquido, grudento, cacos) e os perigos do chão (chapa quente, cacos) não o afetam,
+//   como os inimigos que voam (FLYING_ENEMIES). O Tung anda; um personagem futuro pode voar.
+//   Não é número, então fica fora de STAT_LIMITS e os itens não mudam.
 export const CHARACTER_STATS = {
   'tung-tung-sahur': {
     damage: 3,
@@ -19,5 +22,6 @@ export const CHARACTER_STATS = {
     maxHealth: 6,
     invincibilityMs: 1000,
     attackArea: 1,
+    flying: false,
   },
 }

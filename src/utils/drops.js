@@ -2,7 +2,7 @@ import { CELLAR_GRAINS, GRAIN_GROUP_CHANCES, HEART_HEAL, MAX_GRAINS, ROOM_REWARD
 import { CONSUMABLE_SPRITES } from '../data/itemSprites.js'
 import { overlaps } from './collision.js'
 import { chance, createRandom, mixSeed } from './random.js'
-import { findFreeCell, getCellRect } from './roomLayout.js'
+import { findFreeCell, getCellPoint } from './roomLayout.js'
 import { getFeetBox } from './roomMovement.js'
 import { getTotalDuration } from './spriteAnimation.js'
 
@@ -22,13 +22,8 @@ export const DROP_COLLECT_MS = getTotalDuration(CONSUMABLE_SPRITES['grao-de-cafe
 const DROP_BOX = { width: 44, height: 26 } // caixa que os pés tocam para pegar (em volta do ponto no chão)
 const DROP_SPACING = 50 // distância entre duas coisas que aparecem juntas, uma do lado da outra
 const REWARD_SEED = 9200 // separa o sorteio da recompensa dos outros sorteios da run
+const LUCKY_SEED = 9300 // separa o sorteio do grão do Chifre da Sorte
 const CENTER_CELL = { col: 6, row: 3 } // casa do meio da sala (a grade tem 13 x 7)
-
-// Ponto no chão de uma casa: o meio, a 3/4 da altura (o mesmo dos pedestais)
-function getCellPoint(col, row) {
-  const rect = getCellRect(col, row)
-  return { x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.75 }
-}
 
 // Coisas lado a lado, centradas no ponto da casa. things = [{ kind, amount }]
 export function placeDrops(things, col, row, appearMs) {
@@ -64,11 +59,9 @@ function rollGrainGroup(random) {
 
 // Recompensa da sala limpa (quando o último inimigo da sala morre): o que aparece no chão, no meio da sala.
 // Sorteio pela seed + andar + sala, então a mesma sala dá sempre a mesma coisa.
-// - kills = abates na sala; extraCoinChance = a chance do Chifre da Sorte (0 sem ele): cada abate pode somar
-//   1 grão, que aparece junto mesmo quando a recompensa sorteada é "nada";
-// - attempt = 0 é a recompensa de verdade. A tecla G (depuração) conta 1, 2, 3... para sortear de novo.
+// attempt = 0 é a recompensa de verdade. A tecla G (depuração) conta 1, 2, 3... para sortear de novo.
 // Devolve a lista de coisas no chão (com a animação de aparecer) e o que foi sorteado ('nada', 'graos'...).
-export function rollRoomReward(seed, floorNumber, room, kills, extraCoinChance, attempt = 0) {
+export function rollRoomReward(seed, floorNumber, room, attempt = 0) {
   const roomSeed = mixSeed(mixSeed(seed, REWARD_SEED + floorNumber), room.col * 16 + room.row)
   const random = createRandom(mixSeed(roomSeed, attempt))
   const reward = pickByChance(random, ROOM_REWARD_CHANCES)
@@ -76,12 +69,20 @@ export function rollRoomReward(seed, floorNumber, room, kills, extraCoinChance, 
   if (reward === 'graos') things.push({ kind: 'graos', amount: rollGrainGroup(random) })
   if (reward === 'coracao') things.push({ kind: 'coracao', amount: 1 })
   if (reward === 'garfo') things.push({ kind: 'garfo', amount: 1 })
-  // Chifre da Sorte: um grão a mais para cada abate que acertar a chance
-  for (let kill = 0; kill < kills; kill++) {
-    if (chance(random, extraCoinChance)) things.push({ kind: 'graos', amount: 1 })
-  }
   const cell = findFreeCell(room.layoutId, CENTER_CELL.col, CENTER_CELL.row) ?? CENTER_CELL
   return { reward, drops: placeDrops(things, cell.col, cell.row, 0) }
+}
+
+// Chifre da Sorte: o abate número `killNumber` da sala (0, 1, 2...) solta 1 grão? Chance = extraCoinChance.
+// Sorteio pela seed + andar + sala + abate: o mesmo abate dá sempre o mesmo resultado.
+export function rollLuckyGrain(seed, floorNumber, room, killNumber, extraCoinChance) {
+  const roomSeed = mixSeed(mixSeed(seed, LUCKY_SEED + floorNumber), room.col * 16 + room.row)
+  return chance(createRandom(mixSeed(roomSeed, killNumber)), extraCoinChance)
+}
+
+// Um grão solto no chão, no ponto (x, y), com a animação de aparecer
+export function createGrainDrop(x, y) {
+  return { kind: 'graos', amount: 1, x, y, appearMs: 0 }
 }
 
 // O chão da Adega: um grupo de grãos à esquerda e um garfo à direita, em casas livres

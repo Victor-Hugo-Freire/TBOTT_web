@@ -17,12 +17,21 @@ import {
   advanceDrops,
   collectDrops,
   createCellarDrops,
+  createGrainDrop,
   DROP_COLLECT_MS,
   healWithHeart,
   placeDrops,
+  rollLuckyGrain,
   rollRoomReward,
 } from './drops.js'
-import { areEnemiesDefeated, createRoomEnemies, findTouchingEnemy, pickRoomEnemies, updateEnemies } from './enemies.js'
+import {
+  areEnemiesDefeated,
+  createRoomEnemies,
+  findTouchingEnemy,
+  pickRoomEnemies,
+  updateEnemies,
+  updateEnemyFloor,
+} from './enemies.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
 import {
@@ -68,6 +77,7 @@ import {
   applyMotherHeal,
   armRoomShield,
   createItemEffects,
+  createLuckyFlash,
   createSwing,
   endSwing,
   getEffect,
@@ -82,7 +92,7 @@ import {
   updateShards,
   spendShield,
 } from './itemEffects.js'
-import { countNewKills, createTrainingTarget, updateTargets } from './targets.js'
+import { createTrainingTarget, findNewKills, updateTargets } from './targets.js'
 
 // Estado da run: o andar, a sala atual, o jogador, as transições, a faixa e os contadores.
 // Funções puras no estilo de player.js (sem React, sem canvas), para testar com node:test.
@@ -156,6 +166,22 @@ function damagePlayer(run, player, health, effects, amount, cause, stats) {
   if (nextHealth === 0) return { player: killPlayer(hurt), health: 0, death: { cause }, effects: hurtEffects }
   const healed = applyMotherHeal(run, nextHealth, stats.maxHealth, hurtEffects)
   return { player: hurt, health: healed.health, death: null, effects: healed.effects }
+}
+
+// Chifre da Sorte: cada abate do quadro (killed, os alvos que acabaram de morrer) tem extraCoinChance de soltar
+// 1 grão nos pés de quem morreu, com o brilho da sorte. O sorteio usa o número do abate na sala (run.roomKills
+// ainda é o de antes deste quadro), então o mesmo abate dá sempre o mesmo resultado.
+function dropLuckyGrains(run, room, killed) {
+  const horn = getEffect(run, 'chifre-da-sorte')
+  if (!horn?.extraCoinChance || killed.length === 0) return run
+  const flashes = [...run.flashes]
+  for (let index = 0; index < killed.length; index++) {
+    if (!rollLuckyGrain(run.seed, run.floor.number, room, run.roomKills + index, horn.extraCoinChance)) continue
+    const { x, y } = killed[index]
+    room.drops.push(createGrainDrop(x, y))
+    flashes.push(createLuckyFlash(x, y))
+  }
+  return { ...run, flashes }
 }
 
 // O item entra na lista (na ordem em que foi pego), fica PICKUP_MS sobre a cabeça do Tung e aparece o banner
@@ -357,6 +383,7 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     // Coisas dos efeitos dos itens que ficam na sala (itemEffects.js): somem ao trocar de sala
     shards: [], // lascas do Parmesão voando
     puddles: [], // poças da Concha
+    enemyFloor: [], // rastros dos inimigos no chão (o gelo do Pinguino): obstáculos de piso que somem com o tempo
     flashes: [], // efeitos visuais que tocam uma vez (estalo, notas, mordida, faísca...)
     effects: { ...run.effects, shieldHits: 0 }, // o escudo do Caldo é de cada sala
     collecting: [], // o que acabou de ser pego, tocando a animação "coleta" (veja advanceCollecting)
@@ -576,8 +603,9 @@ function updateRoom(run, input, deltaSeconds) {
   const room = getCurrentRoom(run)
   const stats = getRunStats(run)
 
-  // Piso: escorregadio (inércia), grudento (mais lento) e esteira (empurra)
-  const effect = getFloorEffect(run.obstacles, run.player)
+  // Piso: escorregadio (inércia), grudento (mais lento) e esteira (empurra). O gelo do Pinguino também escorrega.
+  // Personagem que voa (stats.flying) não sente o piso.
+  const effect = getFloorEffect(stats.flying ? [] : [...run.obstacles, ...run.enemyFloor], run.player)
   const slipping = getSlipMovement(run.slip, effect, input.movement, deltaSeconds)
   const { movement } = slipping
   // Os pedestais são sólidos, como os obstáculos
@@ -599,8 +627,9 @@ function updateRoom(run, input, deltaSeconds) {
   let hazard = null
   let hazardDamage = DAMAGE_LIGHT
   const touchedEnemy = findTouchingEnemy(run.targets, player)
-  if (touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
-  else if (isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
+  // Voando, a chapa e os cacos não o machucam
+  if (!stats.flying && touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
+  else if (!stats.flying && isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
   else if (touchedEnemy) {
     hazard = touchedEnemy.enemyId
     hazardDamage = touchedEnemy.damage
@@ -671,7 +700,17 @@ function updateRoom(run, input, deltaSeconds) {
   const stepMs = deltaSeconds * 1000
   // Os alvos também batem nas portas (as zonas delas avançam sobre o piso): empurrado, ninguém para dentro do vão
   const targetSolids = [...solids, ...Object.values(DOOR_HIT_ZONES)]
-  const targets = updateEnemies(updateTargets(run.targets, deltaSeconds, targetSolids), stepMs)
+  // Os inimigos agem (enemyBehaviors.js) e deixam no "mundo" o que fizeram: dano fora do contato, efeitos e rastros
+  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [] }
+  world.floorObstacles = [...obstacles, ...run.enemyFloor] // o piso vale para os inimigos também
+  const targets = updateEnemies(updateTargets(run.targets, deltaSeconds, targetSolids), world)
+  for (const hit of world.hits) {
+    const result = damagePlayer(run, player, health, effects, hit.damage, hit.cause, stats)
+    player = result.player
+    health = result.health
+    effects = result.effects
+    if (result.death) death = result.death
+  }
   let next = {
     ...run,
     player,
@@ -684,7 +723,8 @@ function updateRoom(run, input, deltaSeconds) {
     drumDrop,
     effects: updateEffectTimers(effects, stepMs),
     targets,
-    flashes: updateFlashes(run.flashes, stepMs, targets), // o efeito em cima de um alvo vai junto com ele
+    flashes: [...updateFlashes(run.flashes, stepMs, targets), ...world.flashes], // o efeito em cima de um alvo vai junto com ele
+    enemyFloor: [...updateEnemyFloor(run.enemyFloor, stepMs), ...world.floor], // o gelo do Pinguino no chão
     // A seta está segurada agora? (a Batuta só conta o golpe de uma seta apertada de novo, e não segurada)
     attackHeld: input.attackDirection !== null,
   }
@@ -694,8 +734,9 @@ function updateRoom(run, input, deltaSeconds) {
   if (hitbox) next = hitWithSwing(next, hitbox, stats)
   next = updateShards(next, deltaSeconds, solids)
   next = updatePuddles(next, stepMs)
-  const kills = countNewKills(run.targets, next.targets)
-  next = onKills({ ...next, roomKills: run.roomKills + kills }, kills)
+  const killed = findNewKills(run.targets, next.targets)
+  next = dropLuckyGrains(next, room, killed)
+  next = onKills({ ...next, roomKills: run.roomKills + killed.length }, killed.length)
 
   // O último inimigo morreu: a sala fica limpa (as portas abrem) e pode soltar a recompensa
   if (!room.cleared && areEnemiesDefeated(next.targets)) {
@@ -911,13 +952,12 @@ export function toggleTrainingTarget(run) {
   return armRoomShield({ ...run, targets: [...run.targets, target] })
 }
 
-// Recompensa da sala limpa na sala atual (drops.js), com os abates da sala para o Chifre da Sorte.
+// Recompensa da sala limpa na sala atual (drops.js).
 // Quem chama: a morte do último inimigo da sala e a tecla G (depuração).
 // room.rewards conta as recompensas já dadas: a 1ª é a de verdade; a tecla G sorteia outra a cada vez.
 export function giveRoomReward(run) {
   const room = getCurrentRoom(run)
-  const horn = getEffect(run, 'chifre-da-sorte')
-  const reward = rollRoomReward(run.seed, run.floor.number, room, run.roomKills, horn?.extraCoinChance ?? 0, room.rewards)
+  const reward = rollRoomReward(run.seed, run.floor.number, room, room.rewards)
   room.rewards += 1
   room.drops = [...room.drops, ...reward.drops]
   return { ...run } // "nada" não tem aviso: a sala simplesmente não solta nada

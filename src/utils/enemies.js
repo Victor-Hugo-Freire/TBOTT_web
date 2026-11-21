@@ -1,8 +1,10 @@
-import { CONTACT_DEPTH, CONTACT_WIDTH_SHARE, ENEMY_BODIES } from '../data/enemyBehavior.js'
+import { CONTACT_DEPTH, CONTACT_WIDTH_SHARE, ENEMY_BODIES, FLYING_ENEMIES, START_WAIT_MS } from '../data/enemyBehavior.js'
 import { ENEMY_SPRITES } from '../data/enemySprites.js'
 import { overlaps } from './collision.js'
+import { ENEMY_BEHAVIORS, explodeIfLit, getIdleAnimation, setAnimation, settleOnFloor } from './enemyBehaviors.js'
+import { createChaseMap, getHazardBoxes } from './enemyPath.js'
 import { createRandom, mixSeed, pick } from './random.js'
-import { getCellRect, getLayoutPoints } from './roomLayout.js'
+import { getCellPoint, getLayoutPoints } from './roomLayout.js'
 import { getFeetBox } from './roomMovement.js'
 import { getTimedFrame, getTotalDuration } from './spriteAnimation.js'
 import { createTarget } from './targets.js'
@@ -26,15 +28,15 @@ export function pickRoomEnemies(seed, floorNumber, room, enemyCatalog) {
   return getLayoutPoints(room.layoutId).enemies.map(({ col, row }) => ({ enemyId: pick(random, ids), col, row }))
 }
 
-// Um inimigo parado na casa (col, row), com a vida cheia. Os pés ficam a 3/4 da altura da casa (como o alvo de
-// treino), para a caixa da base caber nela. O id é a casa: único na sala.
+// Um inimigo parado na casa (col, row), com a vida cheia. Os pés ficam no ponto da casa (a 3/4 da altura, como o
+// alvo de treino), para a caixa da base caber nela. O id é a casa: único na sala.
 export function createEnemy(data, col, row) {
-  const cell = getCellRect(col, row)
+  const point = getCellPoint(col, row)
   const body = ENEMY_BODIES[data.id]
   const target = createTarget({
     id: `${col}-${row}`,
-    x: cell.x + cell.width / 2,
-    y: cell.y + cell.height * 0.75,
+    x: point.x,
+    y: point.y,
     width: body.width,
     height: body.height,
     health: data.health,
@@ -44,9 +46,14 @@ export function createEnemy(data, col, row) {
     enemyId: data.id,
     damage: data.damage,
     speed: data.speed,
-    animation: 'parado', // a animação que está tocando (nome da linha em enemySprites.js)
+    animation: 'parado', // a animação que está tocando (nome da linha em enemySprites.js): é o estado dele
     animationMs: 0, // há quanto tempo ela toca
+    waitMs: START_WAIT_MS, // parado esperando: ao entrar na sala e depois de cada ataque (enemyBehaviors.js)
     facingLeft: false, // a folha é de frente; virado para a esquerda, o desenho é espelhado
+    side: false, // de lado: usa as linhas "-lado" da folha, quando existem
+    hidden: false, // escondido (a Polpetta no molho): nada o acerta e encostar não machuca
+    hazardMs: 0, // ms até poder levar dano de novo da chapa quente ou dos cacos
+    flying: FLYING_ENEMIES.includes(data.id), // voando: o piso e os perigos do chão não o afetam
   }
 }
 
@@ -66,7 +73,7 @@ export function getEnemyContactBox(enemy) {
 // O primeiro inimigo vivo que os pés do Tung (feet = { x, y }) estão tocando, ou null
 export function findTouchingEnemy(targets, feet) {
   const box = getFeetBox(feet)
-  return targets.find((target) => target.enemyId && !target.dead && overlaps(box, getEnemyContactBox(target))) ?? null
+  return targets.find((target) => target.enemyId && !target.dead && !target.hidden && overlaps(box, getEnemyContactBox(target))) ?? null
 }
 
 // A sala tinha inimigos e todos morreram? (o alvo de treino não conta)
@@ -75,9 +82,42 @@ export function areEnemiesDefeated(targets) {
   return enemies.length > 0 && enemies.every((enemy) => enemy.dead)
 }
 
-// Avança a animação dos inimigos um quadro. (Por enquanto eles ficam parados: os comportamentos vêm depois.)
-export function updateEnemies(targets, stepMs) {
-  return targets.map((target) => (target.enemyId ? { ...target, animationMs: target.animationMs + stepMs } : target))
+// Um quadro dos inimigos: a animação anda e cada um age pelo seu comportamento (enemyBehaviors.js).
+// Preso (Muçarela) ou sendo empurrado, ele não age e a animação para; esperando (waitMs), fica parado.
+// Depois, o piso age nele (settleOnFloor): o embalo do líquido e a esteira.
+// world = o que eles enxergam e onde deixam o que fizeram (veja enemyBehaviors.js). O alvo de treino não muda.
+export function updateEnemies(targets, world) {
+  const stepMs = world.deltaSeconds * 1000
+  // O caminho até o Tung desviando dos obstáculos e dos perigos do chão: um mapa só por quadro, para todos
+  world.pathSolids = [...world.solids, ...getHazardBoxes(world.floorObstacles ?? [])]
+  world.chaseMap = createChaseMap(world.pathSolids, world.player)
+  return targets.map((target) => {
+    if (!target.enemyId) return target
+    // Morto com o pavio aceso, o Peperoncino explode
+    if (target.dead) return target.enemyId === 'peperoncino-kamikaze' ? explodeIfLit(target, world) : target
+    if (target.stunMs > 0 || target.push) return target
+    const enemy = { ...target, animationMs: target.animationMs + stepMs }
+    // O piso (esteira, líquido, grudento) vale depois de agir, também para quem está esperando
+    if (enemy.waitMs > 0) return settleOnFloor(setAnimation({ ...enemy, waitMs: Math.max(0, enemy.waitMs - stepMs) }, getIdleAnimation(enemy)), world)
+    const behavior = ENEMY_BEHAVIORS[enemy.enemyId]
+    return settleOnFloor(behavior ? behavior(enemy, world) : enemy, world)
+  })
+}
+
+// Os rastros no chão (o gelo do Pinguino) envelhecem e somem depois de `ms`
+export function updateEnemyFloor(floor, stepMs) {
+  const next = []
+  for (const trail of floor) {
+    const ageMs = trail.ageMs + stepMs
+    if (ageMs < trail.ms) next.push({ ...trail, ageMs })
+  }
+  return next
+}
+
+// A versão de lado da animação ("andando-lado"), se o inimigo está de lado e a folha tem essa linha
+function withSide(enemy, animations, name) {
+  const sideName = `${name}-lado`
+  return enemy.side && animations[sideName] ? sideName : name
 }
 
 // O que desenhar agora: { animation, frame, alpha }, ou null quando o inimigo já sumiu.
@@ -86,17 +126,21 @@ export function updateEnemies(targets, stepMs) {
 // movimento", as que repetem ficam no quadro 0.
 export function getEnemyPose(enemy, reduceMotion = false) {
   const { animations } = ENEMY_SPRITES[enemy.enemyId]
+  if (enemy.vanished) return null // explodiu (Peperoncino): a explosão toma o lugar da morte
   if (enemy.dead) {
-    const { durations } = animations.morte
+    const animation = withSide(enemy, animations, 'morte')
+    const { durations } = animations[animation]
     const deathMs = getTotalDuration(durations)
-    if (enemy.deadMs < deathMs) return { animation: 'morte', frame: getTimedFrame(durations, enemy.deadMs), alpha: 1 }
+    if (enemy.deadMs < deathMs) return { animation, frame: getTimedFrame(durations, enemy.deadMs), alpha: 1 }
     const alpha = 1 - (enemy.deadMs - deathMs) / DEATH_FADE_MS
-    return alpha > 0 ? { animation: 'morte', frame: durations.length - 1, alpha } : null
+    return alpha > 0 ? { animation, frame: durations.length - 1, alpha } : null
   }
-  if (enemy.hurtMs < getTotalDuration(animations.dano.durations)) {
-    return { animation: 'dano', frame: getTimedFrame(animations.dano.durations, enemy.hurtMs), alpha: 1 }
+  const hurt = withSide(enemy, animations, 'dano')
+  if (enemy.hurtMs < getTotalDuration(animations[hurt].durations)) {
+    return { animation: hurt, frame: getTimedFrame(animations[hurt].durations, enemy.hurtMs), alpha: 1 }
   }
-  const { durations } = animations[enemy.animation]
+  const animation = withSide(enemy, animations, enemy.animation)
+  const { durations } = animations[animation]
   const frame = reduceMotion ? 0 : getTimedFrame(durations, enemy.animationMs % getTotalDuration(durations))
-  return { animation: enemy.animation, frame, alpha: 1 }
+  return { animation, frame, alpha: 1 }
 }

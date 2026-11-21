@@ -23,6 +23,13 @@ export function getCellRect(col, row) {
   }
 }
 
+// Ponto no chão de uma casa: o meio, a 3/4 da altura. É onde ficam os pés do que nasce na casa (inimigo, grão,
+// garfo, coração) e por onde o inimigo passa ao desviar dos obstáculos (enemyPath.js).
+export function getCellPoint(col, row) {
+  const rect = getCellRect(col, row)
+  return { x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.75 }
+}
+
 export const ROOM_LAYOUTS = data.layouts
 
 export function getLayout(id) {

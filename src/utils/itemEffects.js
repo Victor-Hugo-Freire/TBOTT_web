@@ -1,7 +1,7 @@
 import { ITEM_SPRITES } from '../data/itemSprites.js'
 import { overlaps } from './collision.js'
 import { ROOM_FLOOR } from './roomMovement.js'
-import { damageTarget, findSwingHits, findTargetsNear, getTargetBox, pushTarget, slowTarget, stunTarget } from './targets.js'
+import { damageTarget, findSwingHits, findTargetsNear, getTargetBox, isTargetable, pushTarget, slowTarget, stunTarget } from './targets.js'
 
 // Efeitos dos itens. Funções puras (sem React, sem canvas), para testar com node:test.
 // Os números de cada efeito vêm do campo effect do catálogo da API (getEffect): nada do seed é copiado para cá.
@@ -18,6 +18,7 @@ const DEFAULT_FLASH_MS = 400 // duração de um efeito visual sem folha (não de
 export const SHIELD_BREAK_MS = 450 // Caldo: duração da animação do escudo estourando ao anular um dano
 const SPARK_SCALE = 1.6 // Elixir: tamanho da faísca no alvo atingido (1 = o tamanho da folha)
 const CHAIN_SPARK_SCALE = 1 // Elixir: tamanho da faísca nos alvos em que o raio salta
+const LUCKY_FLASH_LIFT = 12 // Chifre: o brilho fica um pouco acima do ponto do grão no chão (no meio do desenho dele)
 
 const DIRECTION_VECTORS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
 
@@ -337,7 +338,7 @@ function findChainTargets(targets, fromIndex, count, range) {
     let bestDistance = range
     for (let index = 0; index < targets.length; index++) {
       const target = targets[index]
-      if (index === fromIndex || target.dead || chosen.includes(index)) continue
+      if (index === fromIndex || !isTargetable(target) || chosen.includes(index)) continue
       const distance = Math.hypot(target.x - from.x, target.y - from.y)
       if (distance <= bestDistance) {
         best = index
@@ -382,7 +383,7 @@ export function updateShards(run, deltaSeconds, solids = []) {
     let hit = false
     for (let index = 0; index < targets.length && !hit; index++) {
       const target = targets[index]
-      if (target.dead || !overlaps(box, getTargetBox(target))) continue
+      if (!isTargetable(target) || !overlaps(box, getTargetBox(target))) continue
       targets[index] = damageTarget(target, effect?.shardDamage ?? 0)
       hit = true
     }
@@ -421,6 +422,11 @@ export function updatePuddles(run, stepMs) {
 }
 
 // ---------- abates ----------
+
+// Chifre da Sorte: o brilho em volta do grão que caiu de um inimigo (o grão fica em room.drops, veja run.js)
+export function createLuckyFlash(x, y) {
+  return createFlash('chifre-da-sorte', 'brilho-da-sorte', x, y - LUCKY_FLASH_LIFT)
+}
 
 // Dente de Tubarão: cada abate soma uma carga do frenesi (até maxStacks) e renova o tempo dele
 export function onKills(run, kills) {

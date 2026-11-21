@@ -14,7 +14,7 @@ import {
 } from '../../../utils/run.js'
 import { drawDoors, drawSecretMark } from './drawDoors.js'
 import { drawCollecting, drawDrops, drawNotice } from './drawDrops.js'
-import { drawEnemy } from './drawEnemies.js'
+import { drawEnemy, drawEnemyFloor } from './drawEnemies.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
@@ -53,6 +53,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     flashes: run.flashes,
     effects: run.effects,
     targets: run.targets, // os inimigos da sala atual (o alvo de treino é desenhado pelo F3)
+    enemyFloor: run.enemyFloor, // o gelo do Pinguino no chão
     visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
   }
   const { transition } = run
@@ -82,6 +83,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       collecting: [],
       notice: null,
       targets: [], // os inimigos da sala nova só aparecem quando ela termina de entrar
+      enemyFloor: [],
     })
   const progress = transition.elapsedMs / transition.durationMs
 
@@ -123,7 +125,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
   const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
   const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
-  const { targets } = options // os inimigos
+  const { targets, enemyFloor } = options // os inimigos e os rastros deles no chão
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -132,6 +134,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
   drawPuddles(ctx, puddles) // poças de molho da Concha, no chão
+  drawEnemyFloor(ctx, enemyFloor) // gelo do Pinguino, no chão
   const arcadeSpinMs = arcadeSpin?.roomId === room.id ? arcadeSpin.elapsedMs : null
   drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle, arcadeSpinMs })
   drawDrops(ctx, room.drops, timeMs, reduceMotion) // grãos, garfos e corações no chão (embaixo de quem anda)

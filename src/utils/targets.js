@@ -45,13 +45,20 @@ export function getTargetBox(target) {
   return { x: target.x - target.width / 2, y: target.y - target.height, width: target.width, height: target.height }
 }
 
-function getBaseBox(target) {
+// Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda
+export function getBaseBox(target) {
   return { x: target.x - BASE_BOX.width / 2, y: target.y - BASE_BOX.height, width: BASE_BOX.width, height: BASE_BOX.height }
+}
+
+// Dá para acertar o alvo? Morto não, e escondido também não (a Polpetta debaixo do molho): nenhum golpe, lasca,
+// raio, onda, poça ou empurrão chega nele
+export function isTargetable(target) {
+  return !target.dead && !target.hidden
 }
 
 // Tira `amount` pontos de vida e mostra o número. Com 0 de vida o alvo morre; morto, não leva mais dano.
 export function damageTarget(target, amount) {
-  if (target.dead) return target
+  if (!isTargetable(target)) return target
   const health = Math.max(0, target.health - amount)
   const damageTexts = [...target.damageTexts, { amount, ageMs: 0 }]
   return { ...target, health, dead: health === 0, deadMs: 0, hurtMs: 0, damageTexts }
@@ -59,14 +66,14 @@ export function damageTarget(target, amount) {
 
 // Fica lento por `ms`, andando a `multiplier` da velocidade. Se já estava lento, vale o tempo maior.
 export function slowTarget(target, multiplier, ms) {
-  if (target.dead) return target
+  if (!isTargetable(target)) return target
   return { ...target, slowMultiplier: multiplier, slowMs: Math.max(target.slowMs, ms) }
 }
 
 // Fica preso por `ms`: não anda nem ataca. Se já estava preso, vale o tempo maior.
 // immuneMs: depois de preso, só pode ser preso de novo passado esse tempo (contado agora); até lá, nada muda.
 export function stunTarget(target, ms, immuneMs = 0) {
-  if (target.dead || target.stunImmuneMs > 0) return target
+  if (!isTargetable(target) || target.stunImmuneMs > 0) return target
   return { ...target, stunMs: Math.max(target.stunMs, ms), stunImmuneMs: immuneMs }
 }
 
@@ -74,7 +81,7 @@ export function stunTarget(target, ms, immuneMs = 0) {
 // A direção tem tamanho 1: { x: 1, y: 0 } empurra para a direita.
 // wallDamage = dano a mais se ele bater numa parede ou obstáculo no caminho (Rolo de Bronze); 0 = nenhum.
 export function pushTarget(target, directionX, directionY, distance, wallDamage = 0) {
-  if (target.dead) return target
+  if (!isTargetable(target)) return target
   const speed = distance / (PUSH_MS / 1000)
   return { ...target, push: { x: directionX * speed, y: directionY * speed, ms: PUSH_MS, wallDamage } }
 }
@@ -161,7 +168,7 @@ export function findSwingHits(targets, hitbox, hitIds) {
   const indexes = []
   for (let index = 0; index < targets.length; index++) {
     const target = targets[index]
-    if (!target.dead && !hitIds.includes(target.id) && overlaps(hitbox, getTargetBox(target))) indexes.push(index)
+    if (isTargetable(target) && !hitIds.includes(target.id) && overlaps(hitbox, getTargetBox(target))) indexes.push(index)
   }
   return indexes
 }
@@ -171,17 +178,17 @@ export function findTargetsNear(targets, x, y, range) {
   const indexes = []
   for (let index = 0; index < targets.length; index++) {
     const target = targets[index]
-    if (!target.dead && Math.hypot(target.x - x, target.y - y) <= range) indexes.push(index)
+    if (isTargetable(target) && Math.hypot(target.x - x, target.y - y) <= range) indexes.push(index)
   }
   return indexes
 }
 
-// Quantos alvos morreram entre `before` e `after` (a mesma lista, um quadro depois): os abates do quadro.
+// Os alvos que morreram entre `before` e `after` (a mesma lista, um quadro depois): os abates do quadro.
 // O alvo de treino que voltou (estava morto e ficou vivo) não conta.
-export function countNewKills(before, after) {
-  let kills = 0
+export function findNewKills(before, after) {
+  const killed = []
   for (let index = 0; index < after.length; index++) {
-    if (before[index] && !before[index].dead && after[index].dead) kills += 1
+    if (before[index] && !before[index].dead && after[index].dead) killed.push(after[index])
   }
-  return kills
+  return killed
 }

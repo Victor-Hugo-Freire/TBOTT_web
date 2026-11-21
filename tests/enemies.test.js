@@ -10,7 +10,6 @@ import {
   findTouchingEnemy,
   getEnemyPose,
   pickRoomEnemies,
-  updateEnemies,
 } from '../src/utils/enemies.js'
 import { generateFloor } from '../src/utils/floorGenerator.js'
 import { getDeathCauseLabel } from '../src/utils/health.js'
@@ -166,9 +165,9 @@ describe('animação do inimigo', () => {
   test('parado repete; com "reduzir movimento", fica no quadro 0', () => {
     const loop = getTotalDuration(animations.parado.durations)
     assert.deepEqual(getEnemyPose(enemy), { animation: 'parado', frame: 0, alpha: 1 })
-    const later = updateEnemies([enemy], loop + 1)[0]
+    const later = { ...enemy, animationMs: loop + 1 }
     assert.deepEqual(getEnemyPose(later), { animation: 'parado', frame: 0, alpha: 1 }, 'voltou ao começo')
-    const middle = updateEnemies([enemy], 310)[0]
+    const middle = { ...enemy, animationMs: 310 }
     assert.equal(getEnemyPose(middle).frame, 1)
     assert.equal(getEnemyPose(middle, true).frame, 0)
   })

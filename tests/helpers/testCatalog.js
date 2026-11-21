@@ -115,7 +115,7 @@ const ENEMIES = [
   { id: 'fenicottero-fornarino', name: 'Fenicottero Fornarino', health: 9, damage: 2, speed: 70, behavior: 'atirar', minFloor: 3 },
   { id: 'moka-scudiera', name: 'Moka Scudiera', health: 12, damage: 1, speed: 100, behavior: 'proteger', minFloor: 3 },
   { id: 'vespina-lambrettina', name: 'Vespina Lambrettina', health: 6, damage: 1, speed: 240, behavior: 'investir', minFloor: 3 },
-  { id: 'peperoncino-kamikaze', name: 'Peperoncino Kamikaze', health: 3, damage: 2, speed: 230, behavior: 'explodir', minFloor: 4 },
+  { id: 'peperoncino-kamikaze', name: 'Peperoncino Kamikaze', health: 5, damage: 2, speed: 230, behavior: 'explodir', minFloor: 4 },
 ]
 
 export const TEST_ENEMIES = buildEnemyCatalog(ENEMIES).enemies
