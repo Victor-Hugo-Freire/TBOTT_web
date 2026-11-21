@@ -74,6 +74,15 @@ export const NUMBER_FONT = {
   },
 }
 
+// A fonte não tem acentos: as letras acentuadas viram a letra sem acento (Café Duplo -> CAFE DUPLO na tela)
+const PLAIN_LETTERS = { á: 'a', à: 'a', â: 'a', ã: 'a', é: 'e', ê: 'e', í: 'i', ó: 'o', ô: 'o', õ: 'o', ú: 'u', ç: 'c' }
+
+export function removeAccents(text) {
+  let plain = ''
+  for (const char of text) plain += PLAIN_LETTERS[char.toLowerCase()] ?? char
+  return plain
+}
+
 // Letra que ainda não existe na fonte aparece como '?'
 function getGlyph(font, char) {
   return font.glyphs[char.toUpperCase()] ?? font.glyphs['?']

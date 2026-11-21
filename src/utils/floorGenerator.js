@@ -67,6 +67,11 @@ function createRoom(col, row, type) {
     hits: 0,
     unlocked: false, // sala trancada já aberta com um garfo (fica aberta até o fim da run neste andar)
     slept: false, // Sala de Descanso: ele já dormiu na rede deste andar (não dorme de novo)
+    emptied: [], // ids ('col-row') dos pedestais em que o item já foi pego (o pedestal fica vazio, veja pedestals.js)
+    drops: [], // grãos, garfos e corações no chão (veja drops.js); a Adega começa com os dela (createRun)
+    rewards: 0, // recompensas de sala limpa que a sala já deu (a de verdade é a 1ª; a tecla G sorteia mais)
+    plays: 0, // Fliperama: jogadas já feitas no tambor (o número entra no sorteio do prêmio)
+    prize: null, // Fliperama: o item que saiu no tambor e está no pedestal (null = nenhum)
     drumDropped: false, // Sala do chefe: o tambor já caiu do céu (não vai para o save: ao continuar, ele cai de novo)
   }
 }

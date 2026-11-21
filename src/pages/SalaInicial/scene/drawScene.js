@@ -1,4 +1,6 @@
+import { getVisibleItems } from '../../../utils/appearance.js'
 import { applyUnlocking, getRoomDoors, SIDE_VECTORS } from '../../../utils/doors.js'
+import { getRoomPedestals } from '../../../utils/pedestals.js'
 import { PUDDLE_FALL_CAUSE, TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 import {
@@ -11,8 +13,11 @@ import {
   isSecretMarkVisible,
 } from '../../../utils/run.js'
 import { drawDoors, drawSecretMark } from './drawDoors.js'
+import { drawCollecting, drawDrops, drawNotice } from './drawDrops.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
+import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
+import { drawHeldItem, drawPedestal } from './drawPedestals.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
 import { drawPuddleFall, drawSharkGrab } from './drawShark.js'
@@ -36,21 +41,45 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     death: run.death,
     finMs: run.finMs,
     drumDrop: run.drumDrop, // o tambor caindo do céu na sala do chefe (veja getDrumFall)
+    pickup: run.pickup, // o item pego agora, sobre a cabeça do Tung
+    vanishing: run.vanishing, // itens sumindo da sala de escolha (cada um diz de que sala é)
+    // Efeitos dos itens na sala atual (itemEffects.js): poças, efeitos que tocam uma vez e o que acompanha o Tung
+    puddles: run.puddles,
+    shards: run.shards, // lascas do Parmesão voando
+    collecting: run.collecting, // grão, garfo e coração que acabaram de ser pegos (animação "coleta")
+    notice: run.notice, // aviso curto em cima do Tung ("Faltam grãos"...)
+    arcadeSpin: run.arcadeSpin, // o tambor do Fliperama girando numa jogada
+    flashes: run.flashes,
+    effects: run.effects,
+    visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
   }
   const { transition } = run
   if (transition?.type !== 'room') {
-    drawRoomScene(ctx, run.floor, getCurrentRoom(run), run.obstacles, run.player, isSecretMarkVisible(run), options)
+    const room = getCurrentRoom(run)
+    const pedestals = getRoomPedestals(run, room)
+    drawRoomScene(ctx, run.floor, room, run.obstacles, pedestals, run.player, isSecretMarkVisible(run), options)
     return
   }
 
   // Durante a troca de sala, run.roomId ainda é a sala de origem
   const fromRoom = getCurrentRoom(run)
   const toRoom = run.floor.rooms.find((room) => room.id === transition.toRoomId)
+  const fromPedestals = getRoomPedestals(run, fromRoom)
+  const toPedestals = getRoomPedestals(run, toRoom)
   const drawFrom = () =>
-    drawRoomScene(ctx, run.floor, fromRoom, transition.fromObstacles, transition.fromPlayer, isSecretMarkVisible(run), options)
+    drawRoomScene(ctx, run.floor, fromRoom, transition.fromObstacles, fromPedestals, transition.fromPlayer, isSecretMarkVisible(run), options)
   // A sala nova entra vazia: o jogador aparece nela quando a transição termina
   const drawTo = () =>
-    drawRoomScene(ctx, run.floor, toRoom, getRoomObstacles(run.floor, toRoom), null, false, { ...options, unlocking: null })
+    drawRoomScene(ctx, run.floor, toRoom, getRoomObstacles(run.floor, toRoom), toPedestals, null, false, {
+      ...options,
+      unlocking: null,
+      pickup: null,
+      puddles: [],
+      shards: [],
+      flashes: [],
+      collecting: [],
+      notice: null,
+    })
   const progress = transition.elapsedMs / transition.durationMs
 
   // Reduzir movimento: em vez de deslizar, escurece até a metade e clareia já na sala nova
@@ -85,10 +114,12 @@ export function getFloorFade(run) {
 }
 
 // Uma sala, de baixo para cima: sala, piso, cenário, portas, marca da adega,
-// depois obstáculos, tambor e jogador na ordem dos pés (quem está mais embaixo fica na frente).
-// player = null desenha a sala sem o jogador.
-function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, options) {
-  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop } = options
+// depois obstáculos, tambor, pedestais e jogador na ordem dos pés (quem está mais embaixo fica na frente).
+// pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
+function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
+  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
+  const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
+  const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -96,7 +127,10 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, opti
   const theme = getRoomTheme(floor, room)
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
-  drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle })
+  drawPuddles(ctx, puddles) // poças de molho da Concha, no chão
+  const arcadeSpinMs = arcadeSpin?.roomId === room.id ? arcadeSpin.elapsedMs : null
+  drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle, arcadeSpinMs })
+  drawDrops(ctx, room.drops, timeMs, reduceMotion) // grãos, garfos e corações no chão (embaixo de quem anda)
 
   const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
   drawDoors(ctx, doors, ROOM_THEMES[theme])
@@ -116,12 +150,23 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, opti
   if (drum) sprites.push({ feetY: getFeetY(drum.box), draw: () => drawDrum(ctx, drum.box, drumFall.height) })
   // A estátua do Tung Tung God também entra na ordem dos pés: o jogador passa por trás dela
   if (room.type === 'god') sprites.push({ feetY: GOD_STATUE_FEET_Y, draw: () => drawGodStatue(ctx) })
+  for (const pedestal of pedestals) {
+    // O item que está sumindo deste pedestal (o que não foi escolhido), se houver
+    const leaving = vanishing.find((item) => item.roomId === room.id && item.pedestalId === pedestal.id) ?? null
+    sprites.push({ feetY: pedestal.y, draw: () => drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) })
+  }
   if (player) {
     const drawTung = () => {
       // Na poça, no lugar do personagem caído: a animação dele sendo puxado ou afundando sozinho
       if (pulledByShark) drawSharkGrab(ctx, sheets, player, death.fin, reduceMotion)
       else if (fellInPuddle) drawPuddleFall(ctx, sheets, player, death.fin, reduceMotion)
-      else drawPlayer(ctx, sheets, player, reduceMotion)
+      else {
+        // Efeitos dos itens que acompanham o Tung, na frente dele: a bolha do escudo, o vapor e o cacau
+        drawPlayer(ctx, sheets, player, reduceMotion, visibleItems)
+        if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs)
+      }
+      // Item que ele acabou de pegar, sobre a cabeça (não aparece na morte)
+      if (pickup && !player.dead) drawHeldItem(ctx, player, pickup)
     }
     sprites.push({ feetY: player.y, draw: drawTung })
   }
@@ -132,6 +177,11 @@ function drawRoomScene(ctx, floor, room, obstacles, player, showSecretMark, opti
   drawBreakingObstacles(ctx, obstacles, reduceMotion)
   if (drum) drawDrumDust(ctx, drum.box, drumFall.landedMs)
   if (drum && drumFall.height === 0) drawDrumText(ctx, drum.box, room.hits)
+  // Lascas do Parmesão voando e efeitos dos itens que tocam uma vez (estalo, notas, mordida, faísca...), por cima de tudo
+  drawShards(ctx, shards)
+  drawFlashes(ctx, flashes)
+  drawCollecting(ctx, collecting)
+  if (player && notice && !player.dead) drawNotice(ctx, player, notice)
 }
 
 // Os pés de um obstáculo ficam no meio da borda de baixo da caixa

@@ -1,8 +1,10 @@
 import { noise } from '../../../utils/canvas.js'
 import { forEachTextPixel, getTextWidth, SMALL_FONT } from '../../../utils/pixelFont.js'
+import { DESCRIPTION_FONT } from './fonts.js'
 
 // Faixa com o nome do andar, como a "BASEMENT I" do Isaac: tinta preta atravessando a sala,
 // borda irregular, respingos na ponta esquerda e embaixo, e o nome em branco no centro.
+// A mesma faixa mostra o item pego: o nome em cima e, com subtitle, a frase do item embaixo, em letra fina.
 // Desenha em pixels da tela (o ctx deve estar sem escala), como o drawTimer.
 // Tudo é feito de blocos de pixelSize: a borda e os respingos saem de noise(), então a faixa é sempre igual.
 const ENTER_MS = 300
@@ -14,17 +16,26 @@ const INK = '#0a0606'
 const TEXT_COLOR = '#f4ece4'
 const PADDING_BLOCKS = 3 // tinta acima e abaixo do texto, em blocos
 const TAPER_BLOCKS = 10 // as pontas afinam, como uma pincelada
+const LINE_OFFSET_BLOCKS = 5 // com a frase, o nome sobe e a frase desce esse tanto a partir do meio da faixa
 
 // elapsedMs = tempo desde que a faixa apareceu. Depois de TOTAL_MS (2800 ms) não desenha nada.
-export function drawFloorBanner(ctx, { text, elapsedMs, reduceMotion, left, right, centerY, pixelSize }) {
+export function drawFloorBanner(ctx, { text, subtitle, elapsedMs, reduceMotion, left, right, centerY, pixelSize }) {
   if (elapsedMs < 0 || elapsedMs >= TOTAL_MS) return
   const { alpha, offset } = getBannerMotion(elapsedMs, reduceMotion)
+  const centerX = (left + right) / 2
 
   ctx.save()
   ctx.globalAlpha = alpha
   ctx.translate(0, Math.round(offset * SLIDE_BLOCKS * pixelSize))
-  drawInk(ctx, left, right, centerY, pixelSize)
-  drawText(ctx, text, (left + right) / 2, centerY, pixelSize)
+  if (subtitle) {
+    // Faixa mais alta, com duas linhas: o nome na fonte do jogo e a frase na fonte das descrições
+    drawInk(ctx, left, right, centerY, pixelSize, LINE_OFFSET_BLOCKS)
+    drawText(ctx, text, centerX, centerY - LINE_OFFSET_BLOCKS * pixelSize, pixelSize)
+    drawSubtitle(ctx, subtitle, centerX, centerY + LINE_OFFSET_BLOCKS * pixelSize, pixelSize)
+  } else {
+    drawInk(ctx, left, right, centerY, pixelSize, 0)
+    drawText(ctx, text, centerX, centerY, pixelSize)
+  }
   ctx.restore()
 }
 
@@ -46,10 +57,11 @@ function easeOut(value) {
   return 1 - (1 - value) * (1 - value)
 }
 
-// Corpo da faixa: uma coluna de blocos por vez, com topo e base irregulares
-function drawInk(ctx, left, right, centerY, size) {
+// Corpo da faixa: uma coluna de blocos por vez, com topo e base irregulares.
+// extraBlocks deixa a faixa mais alta (para as duas linhas da faixa de item).
+function drawInk(ctx, left, right, centerY, size, extraBlocks) {
   const columns = Math.floor((right - left) / size)
-  const halfHeight = Math.ceil(7 / 2) + PADDING_BLOCKS // metade da altura, em blocos (texto de 7 linhas + folga)
+  const halfHeight = Math.ceil(7 / 2) + PADDING_BLOCKS + extraBlocks // metade da altura, em blocos (texto de 7 linhas + folga)
   const middle = Math.round(centerY / size) * size
   ctx.fillStyle = INK
 
@@ -114,7 +126,7 @@ function drawDrop(ctx, x, y, size, kind) {
   }
 }
 
-// Nome do andar em branco, centrado na faixa (a fonte tem 7 linhas).
+// Texto em branco, centrado na faixa (a fonte tem 7 linhas).
 // Letras grossas, como as do Isaac: cada pixel da fonte fica com o dobro da largura.
 function drawText(ctx, text, centerX, centerY, size) {
   const pixelWidth = size * 2
@@ -124,4 +136,15 @@ function drawText(ctx, text, centerX, centerY, size) {
   forEachTextPixel(SMALL_FONT, text, (col, row) => {
     ctx.fillRect(textLeft + col * pixelWidth, textTop + row * size, pixelWidth, size)
   })
+}
+
+// Frase do item, embaixo do nome, na fonte das descrições (tem minúsculas e acentos)
+const SUBTITLE_SIZE_BLOCKS = 8 // tamanho da letra, em blocos: as maiúsculas ficam quase da altura das do nome
+
+function drawSubtitle(ctx, text, centerX, centerY, size) {
+  ctx.font = `${Math.round(size * SUBTITLE_SIZE_BLOCKS)}px ${DESCRIPTION_FONT}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = TEXT_COLOR
+  ctx.fillText(text, Math.round(centerX), Math.round(centerY / size) * size)
 }

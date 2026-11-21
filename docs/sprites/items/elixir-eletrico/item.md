@@ -15,5 +15,5 @@
 - peso de sorteio: 1 contra 3 dentro da Adega (o resto é grãos e garfos): cerca de 1 Adega em 4 tem o Elixir
 - condição: só existe em cerca de metade dos andares 2 a 5 e precisa ser achada (3 golpes na parede marcada); regra proposta, NÃO confirmada
 - pedestal: centro da sala (coluna 6, linha 2 da grade 13×7); 1 pedestal com aro dourado
-- repetição: só um por partida; se já foi pego, a Adega dá grãos e garfos
+- repetição: só um por partida; se já foi pego, o pedestal não aparece. A Adega sempre tem um grupo de 3 grãos e 1 garfo no chão, com ou sem o Elixir (regra do Victor, 2026-11-20)
 - preço ou custo: nenhum

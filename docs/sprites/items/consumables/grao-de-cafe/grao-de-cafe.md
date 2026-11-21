@@ -1,7 +1,7 @@
 # Grão de café
 
 - **Para que serve:** é a moeda do jogo. Paga os itens da Loja (preços de 2 a 4 grãos no protótipo; o Tiramisu custa 4) e o sorteio do Fliperama.
-- **Quando aparece:** cai de inimigos e de obstáculos quebráveis (proposta da #18; a regra de drop ainda não existe no jogo). Em grupos de 1, 3 ou 5.
+- **Quando aparece:** Regra do Victor (2026-11-20, etapa 5 da feat/44): só como recompensa ao eliminar todos os inimigos da sala (30%, em grupos de 1, 3 ou 5; o Chifre da Sorte soma 1 grão por abate com 10% de chance), no chão da Adega (grupo de 3) e como prêmio do Fliperama (3, ou 5 depois que o Chifre já saiu). Obstáculos quebrados não soltam nada. Números em src/data/economy.js.
 - **Estado dos sprites:**
 
 | arte | arquivo | quadros | feito |
