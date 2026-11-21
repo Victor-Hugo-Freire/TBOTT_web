@@ -14,6 +14,7 @@ import {
 } from '../../../utils/run.js'
 import { drawDoors, drawSecretMark } from './drawDoors.js'
 import { drawCollecting, drawDrops, drawNotice } from './drawDrops.js'
+import { drawEnemy } from './drawEnemies.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
@@ -51,6 +52,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     arcadeSpin: run.arcadeSpin, // o tambor do Fliperama girando numa jogada
     flashes: run.flashes,
     effects: run.effects,
+    targets: run.targets, // os inimigos da sala atual (o alvo de treino é desenhado pelo F3)
     visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
   }
   const { transition } = run
@@ -79,6 +81,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       flashes: [],
       collecting: [],
       notice: null,
+      targets: [], // os inimigos da sala nova só aparecem quando ela termina de entrar
     })
   const progress = transition.elapsedMs / transition.durationMs
 
@@ -114,12 +117,13 @@ export function getFloorFade(run) {
 }
 
 // Uma sala, de baixo para cima: sala, piso, cenário, portas, marca da adega,
-// depois obstáculos, tambor, pedestais e jogador na ordem dos pés (quem está mais embaixo fica na frente).
+// depois obstáculos, tambor, pedestais, inimigos e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
   const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
   const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
+  const { targets } = options // os inimigos
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -154,6 +158,9 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
     // O item que está sumindo deste pedestal (o que não foi escolhido), se houver
     const leaving = vanishing.find((item) => item.roomId === room.id && item.pedestalId === pedestal.id) ?? null
     sprites.push({ feetY: pedestal.y, draw: () => drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) })
+  }
+  for (const target of targets) {
+    if (target.enemyId) sprites.push({ feetY: target.y, draw: () => drawEnemy(ctx, target, reduceMotion) })
   }
   if (player) {
     const drawTung = () => {

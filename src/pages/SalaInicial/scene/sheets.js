@@ -1,5 +1,6 @@
 import { APPEARANCE_SPRITES } from '../../../data/appearanceSprites.js'
 import { CHARACTER_SPRITES } from '../../../data/characterSprites.js'
+import { ENEMY_SPRITES } from '../../../data/enemySprites.js'
 import { getImage } from './images.js'
 
 // Cada folha tem o seu sprite (grade e pés) e a sua imagem. As chaves são as de getPlayerPose (pose.sheet),
@@ -21,6 +22,11 @@ export function loadSheets() {
     for (const layer of Object.values(item.layers)) {
       if (layer) getImage(layer.path)
     }
+  }
+  // Camadas dos inimigos (@1x, pequenas): pedidas já agora, para o inimigo não aparecer sem desenho na primeira sala
+  for (const enemy of Object.values(ENEMY_SPRITES)) {
+    getImage(enemy.layers.pernas)
+    getImage(enemy.layers.tronco)
   }
   return sheets
 }

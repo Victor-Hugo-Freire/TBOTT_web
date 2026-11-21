@@ -6,6 +6,7 @@ import { getCellRect, getLayoutPoints } from '../../../utils/roomLayout.js'
 import { getRoomSolids } from '../../../utils/roomObstacles.js'
 import { PLAYER_FEET_BOX } from '../../../utils/roomMovement.js'
 import { getCurrentRoom, getRunStats } from '../../../utils/run.js'
+import { getEnemyContactBox } from '../../../utils/enemies.js'
 import { DAMAGE_TEXT_MS, getTargetBox } from '../../../utils/targets.js'
 
 // Camada de depuração (F3), só no `npm run dev`: mostra o que a colisão, as portas e o golpe enxergam,
@@ -82,6 +83,8 @@ export function drawDebug(ctx, run) {
 
   for (const target of run.targets) {
     if (target.training) drawTrainingTarget(ctx, target)
+    // Inimigo vivo: a caixa que o golpe acerta (vermelha) e a área de contato no chão (laranja), com a vida
+    if (target.enemyId && !target.dead) drawEnemyBoxes(ctx, target)
   }
   ctx.restore()
 }
@@ -240,4 +243,15 @@ function strokeBox(ctx, box, fill, stroke) {
   ctx.strokeStyle = stroke
   ctx.fillRect(box.x, box.y, box.width, box.height)
   ctx.strokeRect(box.x, box.y, box.width, box.height)
+}
+
+// Só no F3: as caixas de um inimigo e a vida dele em texto (no jogo, inimigo não tem barra de vida nem número)
+function drawEnemyBoxes(ctx, enemy) {
+  strokeBox(ctx, getTargetBox(enemy), 'rgba(255, 60, 60, 0.12)', '#ff4040')
+  strokeBox(ctx, getEnemyContactBox(enemy), 'rgba(255, 150, 0, 0.25)', 'orange')
+  const box = getTargetBox(enemy)
+  ctx.font = 'bold 16px monospace'
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#ff4040'
+  ctx.fillText(`${enemy.health}/${enemy.maxHealth}`, enemy.x, box.y - 6)
 }
