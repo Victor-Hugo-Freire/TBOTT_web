@@ -209,9 +209,11 @@ export function isSecretMarkVisible(run) {
 // Entra na sala: ela fica visitada e limpa (sem inimigos, toda sala fica limpa ao entrar).
 // O jogador surge parado, sem golpe e sem dano, virado para `direction`.
 // Na primeira entrada na sala do chefe o tambor cai do céu (quando houver luta, ele vai cair quando o chefe morrer).
+// As batidas no tambor recomeçam do zero a cada entrada: sair da sala (ou da run, e continuar depois) perde os "TUNG".
 function enterRoom(run, floor, room, position, direction = 'down') {
   room.visited = true
   room.cleared = true
+  if (room.type === 'chefe') room.hits = 0
   let drumDrop = null
   if (room.type === 'chefe' && !room.drumDropped) {
     room.drumDropped = true
@@ -315,7 +317,8 @@ export function createRun({
     const visited = findRoom(floor, id)
     if (visited) visited.visited = true
   }
-  // O que quebrou continua quebrado, e as batidas na parede da adega e no tambor continuam contadas
+  // O que quebrou continua quebrado, e as batidas na parede da adega continuam contadas
+  // (as do tambor ficam no save, mas o enterRoom lá embaixo zera ao entrar na sala do chefe)
   for (const [id, state] of Object.entries(roomStates)) {
     const saved = findRoom(floor, id)
     if (!saved) continue
@@ -498,6 +501,7 @@ function updateRoom(run, input, deltaSeconds) {
   // empurrão e a volta do alvo de treino), o golpe que acabou, o que começou, os acertos dele, as lascas,
   // as poças e, no fim, os abates do quadro (de qualquer dano: golpe, lascas, onda, raio ou parede).
   const stepMs = deltaSeconds * 1000
+  const targets = updateTargets(run.targets, deltaSeconds, solids)
   let next = {
     ...run,
     player,
@@ -509,8 +513,8 @@ function updateRoom(run, input, deltaSeconds) {
     finMs,
     drumDrop,
     effects: updateEffectTimers(effects, stepMs),
-    targets: updateTargets(run.targets, deltaSeconds, solids),
-    flashes: updateFlashes(run.flashes, stepMs),
+    targets,
+    flashes: updateFlashes(run.flashes, stepMs, targets), // o efeito em cima de um alvo vai junto com ele
     // A seta está segurada agora? (a Batuta só conta o golpe de uma seta apertada de novo, e não segurada)
     attackHeld: input.attackDirection !== null,
   }
@@ -518,7 +522,7 @@ function updateRoom(run, input, deltaSeconds) {
   if (swingEnded) next = endSwing(next)
   if (newSwing) next = startSwing(next, !run.attackHeld, stats)
   if (hitbox) next = hitWithSwing(next, hitbox, stats)
-  next = updateShards(next, deltaSeconds)
+  next = updateShards(next, deltaSeconds, solids)
   next = updatePuddles(next, stepMs)
   const kills = countNewKills(run.targets, next.targets)
   next = onKills({ ...next, roomKills: run.roomKills + kills }, kills)

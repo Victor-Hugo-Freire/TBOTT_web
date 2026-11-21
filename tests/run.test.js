@@ -404,6 +404,31 @@ describe('golpes: tambor e parede secreta', () => {
     assert.equal(updateRun(run, { movement: { x: 1, y: 0 }, attackDirection: 'up' }, STEP), run)
   })
 
+  test('as batidas no tambor recomeçam ao sair da sala e voltar', () => {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    let run = createRun({ seed, roomId, characterId: 'x' })
+    const boss = getCurrentRoom(run)
+    run = hitDrum(hitDrum(run).run).run
+    assert.equal(boss.hits, 2)
+
+    const { side } = getRoomDoors(run.floor, boss)[0]
+    run = goThrough(goThrough(run, side), OPPOSITE_SIDE[side])
+    assert.equal(run.roomId, boss.id)
+    assert.equal(boss.hits, 0)
+    run = hitDrum(run).run
+    assert.equal(boss.hits, 1, 'conta de novo a partir do 1')
+    assert.equal(run.transition, null)
+  })
+
+  test('as batidas no tambor recomeçam ao sair da run e continuar', () => {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    let run = createRun({ seed, roomId, characterId: 'x' })
+    run = hitDrum(hitDrum(run).run).run
+    const back = saveAndContinue(run)
+    assert.equal(back.roomId, roomId)
+    assert.equal(getCurrentRoom(back).hits, 0)
+  })
+
   test('parede secreta: marca de perto, um golpe conta uma vez, 3 golpes abrem', () => {
     const { seed, roomId } = findSeed(2, (room) => room.secret !== null)
     let run = createRun({ seed, floorNumber: 2, roomId, characterId: 'x' })

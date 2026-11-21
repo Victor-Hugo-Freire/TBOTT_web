@@ -1,6 +1,6 @@
 import { ITEM_SPRITES } from '../data/itemSprites.js'
 import { overlaps } from './collision.js'
-import { ATTACK_HITBOXES } from './player.js'
+import { ROOM_FLOOR } from './roomMovement.js'
 import { damageTarget, findSwingHits, findTargetsNear, getTargetBox, pushTarget, slowTarget, stunTarget } from './targets.js'
 
 // Efeitos dos itens. Funções puras (sem React, sem canvas), para testar com node:test.
@@ -9,12 +9,20 @@ import { damageTarget, findSwingHits, findTargetsNear, getTargetBox, pushTarget,
 // Tudo o que os efeitos acertam é um alvo (targets.js): hoje o alvo de treino, depois os inimigos.
 // Os números daqui embaixo não estão no catálogo: são só do jeito de mostrar ou de limitar o efeito. Ajuste aqui.
 
-export const SHARD_FLIGHT_MS = 300 // Parmesão: as lascas voam este tempo (o mesmo da animação "lascas")
+const SHARD_SPEED = 900 // Parmesão: velocidade das lascas (u/s); elas voam até acertar um alvo ou chegar na parede
 const SHARD_SPREAD = 0.35 // Parmesão: ângulo entre uma lasca e a do lado, em radianos (cerca de 20°)
 export const MAX_PUDDLES = 3 // Concha: no máximo 3 poças ao mesmo tempo (a mais velha some)
 const PUDDLE_RADIUS = { x: 45, y: 20 } // Concha: tamanho da poça (o desenho tem cerca de 90 x 40 u)
 const PUDDLE_SLOW_MS = 100 // Concha: a lentidão dura isso depois de sair da poça
 const DEFAULT_FLASH_MS = 400 // duração de um efeito visual sem folha (não deve acontecer: todo item tem a dele)
+// Dente: o frenesi soma no máximo isto na velocidade do golpe, por mais cargas que tenha
+// (+0,15 por carga: a 2ª já chega no teto; golpe de 630 ms fica em ~485 ms, não em ~435)
+export const FRENZY_MAX_ATTACK_SPEED_BONUS = 0.3
+export const SHIELD_BREAK_MS = 450 // Caldo: duração da animação do escudo estourando ao anular um dano
+// Tiramisu: enquanto o açúcar dura, anda 20% mais rápido (pedido do Victor; esse número ainda não está no catálogo da API)
+const SUGAR_MOVE_SPEED_MULTIPLIER = 1.2
+const SPARK_SCALE = 1.6 // Elixir: tamanho da faísca no alvo atingido (1 = o tamanho da folha)
+const CHAIN_SPARK_SCALE = 1 // Elixir: tamanho da faísca nos alvos em que o raio salta
 
 const DIRECTION_VECTORS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
 
@@ -22,7 +30,7 @@ const DIRECTION_VECTORS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x
 export function createItemEffects(floorHealsUsed = 0) {
   return {
     coffeeBoostMs: 0, // Café Duplo: corrida depois do dano
-    sugarMs: 0, // Tiramisu: golpe rápido depois de pegar um grão
+    sugarMs: 0, // Tiramisu: golpe rápido depois de um golpe que acertou
     frenzyStacks: 0, // Dente de Tubarão: cargas do frenesi
     frenzyMs: 0, // Dente de Tubarão: tempo que falta do frenesi (renova a cada abate)
     swingCount: 0, // Palitos de Pão: golpes dados (o 4º, o 8º... são rápidos)
@@ -30,6 +38,7 @@ export function createItemEffects(floorHealsUsed = 0) {
     sinceSwingEndMs: Infinity, // Batuta do Maestro: tempo desde que o golpe anterior acabou
     hitStreak: 0, // Elixir Elétrico: golpes seguidos que acertaram
     shieldHits: 0, // Caldo da Mamãe: danos que o escudo ainda anula nesta sala
+    shieldBreakMs: 0, // Caldo da Mamãe: tempo que falta da animação do escudo estourando (depois de anular um dano)
     floorHealsUsed, // Caldo da Mamãe: curas já usadas neste andar
   }
 }
@@ -58,18 +67,22 @@ export function getItemBonuses(run) {
   const coffee = getEffect(run, 'cafe-duplo')
   if (coffee?.speedMultiplier) bonuses.push({ stat: 'moveSpeed', multiply: coffee.speedMultiplier })
   if (coffee?.boostSpeedMultiplier && effects.coffeeBoostMs > 0) bonuses.push({ stat: 'moveSpeed', multiply: coffee.boostSpeedMultiplier })
-  // Tiramisu: golpe mais rápido depois de pegar um grão
+  // Tiramisu: depois de um golpe que acertou, golpe e passo mais rápidos (o açúcar)
   const sugar = getEffect(run, 'tiramisu')
-  if (sugar?.attackSpeedBonus && effects.sugarMs > 0) bonuses.push({ stat: 'attackSpeed', add: sugar.attackSpeedBonus })
+  if (sugar && effects.sugarMs > 0) {
+    if (sugar.attackSpeedBonus) bonuses.push({ stat: 'attackSpeed', add: sugar.attackSpeedBonus })
+    bonuses.push({ stat: 'moveSpeed', multiply: SUGAR_MOVE_SPEED_MULTIPLIER })
+  }
   // Palitos de Pão: o 4º golpe é mais rápido (só enquanto ele acontece)
   const sticks = getEffect(run, 'palitos-de-pao')
   if (sticks?.attackSpeedBonus && run.swing.fast && run.player.attack) {
     bonuses.push({ stat: 'attackSpeed', add: sticks.attackSpeedBonus })
   }
-  // Dente de Tubarão: cada carga do frenesi deixa o golpe mais rápido
+  // Dente de Tubarão: cada carga do frenesi deixa o golpe mais rápido, até o teto
   const tooth = getEffect(run, 'dente-de-tubarao')
   if (tooth?.attackSpeedBonus && effects.frenzyStacks > 0) {
-    bonuses.push({ stat: 'attackSpeed', add: tooth.attackSpeedBonus * effects.frenzyStacks })
+    const frenzy = Math.min(tooth.attackSpeedBonus * effects.frenzyStacks, FRENZY_MAX_ATTACK_SPEED_BONUS)
+    bonuses.push({ stat: 'attackSpeed', add: frenzy })
   }
   return bonuses
 }
@@ -81,6 +94,7 @@ export function updateEffectTimers(effects, stepMs) {
     coffeeBoostMs: Math.max(0, effects.coffeeBoostMs - stepMs),
     sugarMs: Math.max(0, effects.sugarMs - stepMs),
     frenzyMs: Math.max(0, effects.frenzyMs - stepMs),
+    shieldBreakMs: Math.max(0, effects.shieldBreakMs - stepMs),
     sinceSwingEndMs: effects.sinceSwingEndMs + stepMs,
   }
   if (next.frenzyMs === 0) next.frenzyStacks = 0
@@ -99,12 +113,22 @@ function createFlash(itemId, variant, x, y, scale = 1, angle = 0) {
   return { itemId, variant, x, y, scale, angle, elapsedMs: 0, durationMs }
 }
 
-// Efeitos visuais que acabaram saem da lista
-export function updateFlashes(flashes, stepMs) {
+// Efeito visual em cima de um alvo: guarda o id dele para ir junto quando ele é empurrado (veja updateFlashes)
+function createTargetFlash(itemId, variant, target, scale = 1) {
+  const center = getTargetCenter(target)
+  return { ...createFlash(itemId, variant, center.x, center.y, scale), targetId: target.id }
+}
+
+// Efeitos visuais que acabaram saem da lista. O efeito de um alvo (targetId) acompanha o meio dele:
+// o Rolo empurra o alvo e os fios da Muçarela, a mordida e a faísca vão junto.
+export function updateFlashes(flashes, stepMs, targets = []) {
   const next = []
   for (const flash of flashes) {
     const elapsedMs = flash.elapsedMs + stepMs
-    if (elapsedMs < flash.durationMs) next.push({ ...flash, elapsedMs })
+    if (elapsedMs >= flash.durationMs) continue
+    const target = flash.targetId ? targets.find((one) => one.id === flash.targetId) : null
+    const center = target ? getTargetCenter(target) : flash
+    next.push({ ...flash, elapsedMs, x: center.x, y: center.y })
   }
   return next
 }
@@ -127,7 +151,7 @@ export function onPlayerHurt(run, effects) {
 // Caldo da Mamãe, escudo: o escudo desta sala anula o dano? (gasta um uso)
 export function spendShield(effects) {
   if (effects.shieldHits <= 0) return null
-  return { ...effects, shieldHits: effects.shieldHits - 1 }
+  return { ...effects, shieldHits: effects.shieldHits - 1, shieldBreakMs: SHIELD_BREAK_MS }
 }
 
 // Caldo da Mamãe, colo de mãe: com a vida em healAtHealth ou menos (e viva), cura healAmount, healsPerFloor
@@ -151,13 +175,6 @@ export function armRoomShield(run) {
   return { ...run, effects: { ...run.effects, shieldHits: broth.blockedHitsPerRoom } }
 }
 
-// Tiramisu: pegar um grão de café deixa o golpe mais rápido por bonusDurationMs (renova). Quem pega o grão chama.
-export function onGrainCollected(run) {
-  const sugar = getEffect(run, 'tiramisu')
-  if (!sugar?.bonusDurationMs) return run
-  return { ...run, effects: { ...run.effects, sugarMs: sugar.bonusDurationMs } }
-}
-
 // ---------- golpe ----------
 
 // O golpe acabou. Elixir Elétrico: golpe que acertou soma na sequência; golpe que errou, que já soltou o raio
@@ -175,9 +192,7 @@ export function startSwing(run, freshPress, stats) {
   const swing = createSwing()
   let targets = [...run.targets]
   const flashes = [...run.flashes]
-  let puddles = run.puddles
   const { player } = run
-  const direction = player.attack.direction
 
   // Palitos de Pão: o 4º golpe sai mais rápido e solta um estalo que empurra quem está perto
   const sticks = getEffect(run, 'palitos-de-pao')
@@ -211,20 +226,21 @@ export function startSwing(run, freshPress, stats) {
     }
   }
 
-  // Concha Longa: todo golpe deixa uma poça de molho na frente do Tung (no máximo MAX_PUDDLES)
-  const ladle = getEffect(run, 'concha-longa')
-  if (ladle?.puddleDurationMs) {
-    const box = ATTACK_HITBOXES[direction]
-    const puddle = { x: player.x + box.x + box.width / 2, y: player.y + box.y + box.height * 0.75, ms: ladle.puddleDurationMs, ageMs: 0 }
-    puddles = [...puddles, puddle]
-    if (puddles.length > MAX_PUDDLES) puddles = puddles.slice(puddles.length - MAX_PUDDLES)
-  }
-
   // Elixir Elétrico: depois de 2 golpes seguidos que acertaram, este é o 3º (o raio sai no primeiro acerto dele)
   const elixir = getEffect(run, 'elixir-eletrico')
   if (elixir && effects.hitStreak >= 2) swing.elixirReady = true
 
-  return { ...run, effects, swing, targets, flashes, puddles }
+  return { ...run, effects, swing, targets, flashes }
+}
+
+// Parmesão Curado: todo golpe, acertando ou não, solta as lascas em leque para a frente, uma vez por golpe,
+// no primeiro quadro em que a caixa do golpe aparece (saem do meio dela)
+function fireShards(run, hitbox) {
+  const cheese = getEffect(run, 'parmesao-curado')
+  if (!cheese?.shards || run.swing.shardsFired) return run
+  const origin = { x: hitbox.x + hitbox.width / 2, y: hitbox.y + hitbox.height / 2 }
+  const shards = [...run.shards, ...createShards(origin, run.player.attack.direction, cheese.shards)]
+  return { ...run, shards, swing: { ...run.swing, shardsFired: true } }
 }
 
 // Dano do golpe num alvo: o dano dos atributos, mais o do ritmo (Batuta) e o do raio (Elixir), vezes o do Dente
@@ -243,32 +259,38 @@ function getSwingDamage(run, target, stats, withElixir) {
 // A caixa do golpe (hitbox) acertou os alvos que ela toca agora (cada um uma vez por golpe), com os efeitos
 // dos itens que valem em cada acerto
 export function hitWithSwing(run, hitbox, stats) {
+  run = fireShards(run, hitbox)
   const indexes = findSwingHits(run.targets, hitbox, run.swing.hitIds)
   if (indexes.length === 0) return run
   const targets = [...run.targets]
   const flashes = [...run.flashes]
-  let shards = run.shards
+  let puddles = run.puddles
   const swing = { ...run.swing, hitIds: [...run.swing.hitIds], hitAny: true }
   const direction = run.player.attack.direction
   const vector = DIRECTION_VECTORS[direction]
 
   for (const index of indexes) {
     let target = targets[index]
-    const center = getTargetCenter(target)
     const withElixir = swing.elixirReady && !swing.elixirFired
 
     // Dente de Tubarão: a mordida aparece no alvo ferido
     const tooth = getEffect(run, 'dente-de-tubarao')
     if (tooth?.lowHealthDamageMultiplier && target.health <= target.maxHealth / 2) {
-      flashes.push(createFlash('dente-de-tubarao', 'mordida', center.x, center.y))
+      flashes.push(createTargetFlash('dente-de-tubarao', 'mordida', target))
     }
     target = damageTarget(target, getSwingDamage(run, target, stats, withElixir))
 
-    // Muçarela: fios de queijo prendem o alvo
+    // Muçarela: fios de queijo prendem o alvo (os fios vão junto se o Rolo empurrar)
     const cheese = getEffect(run, 'mucarela')
     if (cheese?.stunDurationMs) {
       target = stunTarget(target, cheese.stunDurationMs)
-      flashes.push(createFlash('mucarela', 'fios-de-queijo', center.x, center.y))
+      flashes.push(createTargetFlash('mucarela', 'fios-de-queijo', target))
+    }
+    // Concha Longa: a poça de molho nasce nos pés do alvo e fica ali (empurrado, ele sai dela); no máximo MAX_PUDDLES
+    const ladle = getEffect(run, 'concha-longa')
+    if (ladle?.puddleDurationMs) {
+      puddles = [...puddles, { x: target.x, y: target.y, ms: ladle.puddleDurationMs, ageMs: 0 }]
+      if (puddles.length > MAX_PUDDLES) puddles = puddles.slice(puddles.length - MAX_PUDDLES)
     }
     // Rolo de Bronze: empurra o alvo na direção do golpe; batendo em parede ou obstáculo, leva dano a mais
     const roller = getEffect(run, 'rolo-de-bronze')
@@ -280,26 +302,21 @@ export function hitWithSwing(run, hitbox, stats) {
     // Elixir Elétrico: o raio salta deste alvo para os mais perto dele
     if (withElixir) {
       swing.elixirFired = true
-      flashes.push(createFlash('elixir-eletrico', 'faisca', center.x, center.y))
+      flashes.push(createTargetFlash('elixir-eletrico', 'faisca', target, SPARK_SCALE))
       const elixir = getEffect(run, 'elixir-eletrico')
       for (const chained of findChainTargets(targets, index, elixir.chainTargets ?? 0, elixir.chainRange ?? 0)) {
         targets[chained] = damageTarget(targets[chained], elixir.chainDamage ?? 0)
-        const chainedCenter = getTargetCenter(targets[chained])
-        flashes.push(createFlash('elixir-eletrico', 'faisca', chainedCenter.x, chainedCenter.y, 0.6))
+        flashes.push(createTargetFlash('elixir-eletrico', 'faisca', targets[chained], CHAIN_SPARK_SCALE))
       }
     }
   }
 
-  // Parmesão Curado: o primeiro acerto do golpe solta as lascas em leque para a frente
-  const cheeseShards = getEffect(run, 'parmesao-curado')
-  if (cheeseShards?.shards && !swing.shardsFired) {
-    swing.shardsFired = true
-    const origin = { x: hitbox.x + hitbox.width / 2, y: hitbox.y + hitbox.height / 2 }
-    shards = [...shards, ...createShards(origin, direction, cheeseShards)]
-    flashes.push(createFlash('parmesao-curado', 'lascas', origin.x, origin.y, 1, Math.atan2(vector.y, vector.x)))
-  }
+  // Tiramisu: acertou, o golpe fica mais rápido por bonusDurationMs (cada acerto renova o tempo)
+  let effects = run.effects
+  const sugar = getEffect(run, 'tiramisu')
+  if (sugar?.bonusDurationMs) effects = { ...effects, sugarMs: sugar.bonusDurationMs }
 
-  return { ...run, targets, flashes, shards, swing }
+  return { ...run, targets, flashes, puddles, swing, effects }
 }
 
 // Elixir Elétrico: os `count` alvos vivos mais perto do alvo `fromIndex`, a até `range` dele (sem ele mesmo)
@@ -326,35 +343,42 @@ function findChainTargets(targets, fromIndex, count, range) {
 
 // ---------- lascas do Parmesão ----------
 
-// As lascas saem do ponto do golpe em leque, na direção dele, e andam shardRange em SHARD_FLIGHT_MS
-function createShards(origin, direction, effect) {
+// As lascas saem do ponto do golpe em leque, na direção dele, a SHARD_SPEED
+function createShards(origin, direction, count) {
   const vector = DIRECTION_VECTORS[direction]
   const baseAngle = Math.atan2(vector.y, vector.x)
-  const speed = (effect.shardRange ?? 0) / (SHARD_FLIGHT_MS / 1000)
   const shards = []
-  for (let i = 0; i < effect.shards; i++) {
-    const angle = baseAngle + (i - (effect.shards - 1) / 2) * SHARD_SPREAD
-    shards.push({ x: origin.x, y: origin.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, ms: SHARD_FLIGHT_MS })
+  for (let i = 0; i < count; i++) {
+    const angle = baseAngle + (i - (count - 1) / 2) * SHARD_SPREAD
+    shards.push({ x: origin.x, y: origin.y, vx: Math.cos(angle) * SHARD_SPEED, vy: Math.sin(angle) * SHARD_SPEED })
   }
   return shards
 }
 
-// As lascas voam; a que entra num alvo vivo dá shardDamage nele e some. As lascas não contam para o Elixir.
-export function updateShards(run, deltaSeconds) {
+// A lasca chegou na parede? (saiu do piso da sala)
+function isOutOfRoom(shard) {
+  return shard.x < ROOM_FLOOR.left || shard.x > ROOM_FLOOR.right || shard.y < ROOM_FLOOR.top || shard.y > ROOM_FLOOR.bottom
+}
+
+// As lascas voam até acertar um alvo vivo (dá shardDamage nele e some), um obstáculo sólido (some) ou a parede (some).
+// solids = paredes, obstáculos que bloqueiam e pedestais (getRoomSolids). As lascas não contam para o Elixir.
+export function updateShards(run, deltaSeconds, solids = []) {
   if (run.shards.length === 0) return run
   const effect = getEffect(run, 'parmesao-curado')
   const targets = [...run.targets]
   const shards = []
   for (const shard of run.shards) {
-    const next = { ...shard, x: shard.x + shard.vx * deltaSeconds, y: shard.y + shard.vy * deltaSeconds, ms: shard.ms - deltaSeconds * 1000 }
+    const next = { ...shard, x: shard.x + shard.vx * deltaSeconds, y: shard.y + shard.vy * deltaSeconds }
+    const box = { x: next.x - 4, y: next.y - 4, width: 8, height: 8 }
     let hit = false
     for (let index = 0; index < targets.length && !hit; index++) {
       const target = targets[index]
-      if (target.dead || !overlaps({ x: next.x - 4, y: next.y - 4, width: 8, height: 8 }, getTargetBox(target))) continue
+      if (target.dead || !overlaps(box, getTargetBox(target))) continue
       targets[index] = damageTarget(target, effect?.shardDamage ?? 0)
       hit = true
     }
-    if (!hit && next.ms > 0) shards.push(next)
+    const blocked = solids.some((solid) => overlaps(box, solid))
+    if (!hit && !blocked && !isOutOfRoom(next)) shards.push(next)
   }
   return { ...run, targets, shards }
 }

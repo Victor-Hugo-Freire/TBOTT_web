@@ -2,15 +2,17 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   createItemEffects,
+  FRENZY_MAX_ATTACK_SPEED_BONUS,
   getItemBonuses,
   isInSaucePuddle,
   MAX_PUDDLES,
-  onGrainCollected,
   onKills,
+  SHIELD_BREAK_MS,
   updatePuddles,
+  updateShards,
 } from '../src/utils/itemEffects.js'
 import { createPlayer } from '../src/utils/player.js'
-import { PLAYER_FEET_BOX } from '../src/utils/roomMovement.js'
+import { PLAYER_FEET_BOX, ROOM_FLOOR } from '../src/utils/roomMovement.js'
 import { createRun, createRunSnapshot, getRunStats, toggleTrainingTarget, updateRun } from '../src/utils/run.js'
 import { createTrainingTarget } from '../src/utils/targets.js'
 import { TEST_CATALOG } from './helpers/testCatalog.js'
@@ -80,27 +82,92 @@ describe('Parmesão Curado', () => {
     assert.deepEqual(run.shards, [], 'as lascas somem depois de acertar')
   })
 
-  test('golpe que não acerta nada não solta lascas', () => {
-    const run = updateRun(runWith(['parmesao-curado']), { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
-    const later = steps(run, 6)
-    assert.deepEqual(later.shards, [])
-    assert.equal(later.swing.shardsFired, false)
+  test('as lascas voam até a parede: um alvo do outro lado da sala, na direção do golpe, também leva o dano', () => {
+    let run = runWithTarget(['parmesao-curado'])
+    const near = run.targets[0]
+    // o alvo de perto leva 1 golpe e fica com pouca vida; a lasca do meio passa direto se ele morrer antes
+    const far = { ...createTrainingTarget({ x: near.x, y: ROOM_FLOOR.top + 140 }), id: 'longe' }
+    run.targets = [{ ...near, health: 3 }, far]
+    run = swing(run)
+    assert.equal(run.targets[0].dead, true)
+    assert.ok(run.targets[1].health < 30, `o alvo longe (${near.y - far.y} u) levou ${30 - run.targets[1].health} de dano`)
+    assert.deepEqual(run.shards, [])
+  })
+
+  test('sem alvo no caminho, a lasca voa e some na parede', () => {
+    // lasca montada à mão no meio da sala, subindo
+    let run = { ...runWith(['parmesao-curado']), shards: [{ x: 800, y: 600, vx: 0, vy: -900 }] }
+    run = updateShards(run, STEP)
+    assert.equal(run.shards.length, 1, 'ainda no ar')
+    assert.ok(run.shards[0].y < 600)
+    for (let i = 0; i < 20; i++) run = updateShards(run, STEP) // 1 s: dá para cruzar a sala
+    assert.deepEqual(run.shards, [], 'sumiu na parede de cima')
+  })
+
+  test('a lasca some ao bater num obstáculo sólido', () => {
+    const shard = { x: 800, y: 600, vx: 0, vy: -900 }
+    const box = { x: 780, y: 520, width: 40, height: 40 } // logo acima da lasca
+    const run = { ...runWith(['parmesao-curado']), shards: [shard] }
+    let blocked = run
+    let free = run
+    for (let i = 0; i < 3; i++) {
+      blocked = updateShards(blocked, STEP, [box])
+      free = updateShards(free, STEP, [])
+    }
+    assert.deepEqual(blocked.shards, [], 'bateu na caixa')
+    assert.equal(free.shards.length, 1, 'sem a caixa, continua voando')
+  })
+
+  test('dentro da run, os obstáculos que bloqueiam param as lascas', () => {
+    const barrel = { id: 'barril', col: 0, row: 0, kind: 'barril', mechanic: 'solido', blocking: true, box: { x: 780, y: 420, width: 40, height: 40 } }
+    const base = { ...runWith(['parmesao-curado']), shards: [{ x: 800, y: 600, vx: 0, vy: -900 }] }
+    const withBarrel = steps({ ...base, obstacles: [barrel] }, 6) // 300 ms: a lasca subiria 270 u
+    const without = steps({ ...base, obstacles: [] }, 6)
+    assert.deepEqual(withBarrel.shards, [])
+    assert.equal(without.shards.length, 1)
+  })
+
+  test('golpe que não acerta nada também solta as 3 lascas, uma vez só por golpe', () => {
+    let run = updateRun(runWith(['parmesao-curado']), { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (!run.swing.shardsFired) run = updateRun(run, IDLE, STEP)
+    assert.equal(run.shards.length, 3)
+    assert.ok(run.shards.every((shard) => shard.vy < 0), 'todas para cima, na direção do golpe')
+    let most = run.shards.length
+    while (run.player.attack) {
+      run = updateRun(run, IDLE, STEP)
+      most = Math.max(most, run.shards.length)
+    }
+    assert.equal(most, 3, 'a caixa fica vários quadros, mas solta uma vez só')
+    assert.equal(swing(runWith([])).shards.length, 0, 'sem o item, nada')
   })
 })
 
 describe('Concha Longa', () => {
-  test('todo golpe deixa uma poça (acertando ou não), que some em puddleDurationMs', () => {
-    let run = swing(runWith(['concha-longa']), 'down')
+  test('o golpe que acerta deixa uma poça nos pés do alvo, que some em puddleDurationMs; golpe no vazio, não', () => {
+    assert.deepEqual(swing(runWithTarget(['concha-longa']), 'down').puddles, [], 'errou: sem poça')
+    let run = runWithTarget(['concha-longa'])
+    const { x, y } = run.targets[0]
+    run = swing(run)
     assert.equal(run.puddles.length, 1)
+    assert.deepEqual([run.puddles[0].x, run.puddles[0].y], [x, y])
     run = steps(run, 2000 / STEP_MS + 1)
     assert.deepEqual(run.puddles, [])
+  })
+
+  test('com o Rolo, a poça fica onde o alvo foi atingido (não vai junto com o empurrão)', () => {
+    let run = runWithTarget(['concha-longa', 'rolo-de-bronze'])
+    const { x, y } = run.targets[0]
+    run = swing(run)
+    assert.ok(run.targets[0].y < y - 100, 'o alvo foi empurrado')
+    assert.deepEqual([run.puddles[0].x, run.puddles[0].y], [x, y])
+    assert.equal(isInSaucePuddle(run.puddles[0], run.targets[0]), false, 'e saiu da poça')
   })
 
   test('no máximo MAX_PUDDLES poças ao mesmo tempo (a mais velha some)', () => {
     // poças de 10 s, para 4 golpes (cerca de 2,6 s) caberem antes de alguma sumir
     const catalog = { ...TEST_CATALOG, 'concha-longa': { ...TEST_CATALOG['concha-longa'], effect: { puddleDurationMs: 10000, enemySpeedMultiplier: 0.5 } } }
-    let run = runWith(['concha-longa'], { catalog })
-    for (let i = 0; i < 4; i++) run = swing(run, 'down')
+    let run = runWithTarget(['concha-longa'], { catalog })
+    for (let i = 0; i < 4; i++) run = swing(run)
     assert.equal(run.puddles.length, MAX_PUDDLES)
   })
 
@@ -145,15 +212,40 @@ describe('Muçarela', () => {
     assert.ok(run.targets[0].stunMs > 700 && run.targets[0].stunMs <= 800)
     assert.ok(run.flashes.some((flash) => flash.variant === 'fios-de-queijo'))
   })
+
+  test('com o Rolo, os fios de queijo vão junto com o alvo empurrado (não ficam onde ele estava)', () => {
+    let run = updateRun(runWithTarget(['mucarela', 'rolo-de-bronze']), { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (!run.swing.hitAny) run = updateRun(run, IDLE, STEP)
+    const startY = run.targets[0].y
+    run = steps(run, 4) // 200 ms: o empurrão (150 ms) acabou e os fios (400 ms) ainda aparecem
+    const target = run.targets[0]
+    const strings = run.flashes.find((flash) => flash.variant === 'fios-de-queijo')
+    assert.ok(target.y < startY - 100, `o alvo foi empurrado para cima (${startY} -> ${target.y})`)
+    assert.ok(target.stunMs > 0, 'e continua preso onde parou')
+    assert.deepEqual([strings.x, strings.y], [target.x, target.y - target.height / 2])
+  })
 })
 
 describe('Tiramisu', () => {
-  test('pegar um grão deixa o golpe attackSpeedBonus mais rápido por bonusDurationMs (renova)', () => {
-    let run = onGrainCollected(runWith(['tiramisu']))
+  test('o golpe que acerta deixa o golpe attackSpeedBonus mais rápido por bonusDurationMs', () => {
+    let run = updateRun(runWithTarget(['tiramisu']), { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (!run.swing.hitAny) run = updateRun(run, IDLE, STEP)
+    assert.equal(run.effects.sugarMs, 2000)
     assert.ok(Math.abs(getRunStats(run).attackSpeed - 1.25) < 1e-9)
+    assert.ok(Math.abs(getRunStats(run).moveSpeed - 1.2) < 1e-9, 'e anda 20% mais rápido')
     run = steps(run, 2000 / STEP_MS + 1)
-    assert.equal(getRunStats(run).attackSpeed, 1)
-    assert.equal(onGrainCollected(runWith([])).effects.sugarMs, 0, 'sem o item, nada')
+    assert.equal(getRunStats(run).attackSpeed, 1, 'sem acertar por 2 s, volta ao normal')
+    assert.equal(getRunStats(run).moveSpeed, 1)
+  })
+
+  test('cada acerto renova os 2 s; golpe no vazio não liga', () => {
+    assert.equal(swing(runWithTarget(['tiramisu']), 'down').effects.sugarMs, 0, 'errou: nada')
+    let run = steps(swing(runWithTarget(['tiramisu'])), 1000 / STEP_MS)
+    assert.ok(run.effects.sugarMs > 0 && run.effects.sugarMs < 1000, `quase acabando: ${run.effects.sugarMs}`)
+    run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (!run.swing.hitAny) run = updateRun(run, IDLE, STEP)
+    assert.equal(run.effects.sugarMs, 2000, 'o 2º acerto renova os 2 s')
+    assert.equal(swing(runWithTarget([])).effects.sugarMs, 0, 'sem o item, nada')
   })
 })
 
@@ -217,9 +309,30 @@ describe('Dente de Tubarão', () => {
     assert.ok(Math.abs(getRunStats(run).attackSpeed - 1.15) < 1e-9)
     run = onKills(run, 5)
     assert.equal(run.effects.frenzyStacks, 3)
-    assert.ok(Math.abs(getRunStats(run).attackSpeed - 1.45) < 1e-9)
     run = steps(run, 4000 / STEP_MS + 1)
     assert.equal(run.effects.frenzyStacks, 0)
+    assert.equal(getRunStats(run).attackSpeed, 1)
+  })
+
+  test('o frenesi tem teto: com 2 ou 3 cargas o golpe fica no máximo FRENZY_MAX_ATTACK_SPEED_BONUS mais rápido', () => {
+    const base = runWith(['dente-de-tubarao'])
+    for (const [stacks, expected] of [[1, 1.15], [2, 1.3], [3, 1.3]]) {
+      const run = { ...base, effects: { ...base.effects, frenzyStacks: stacks, frenzyMs: 4000 } }
+      assert.ok(Math.abs(getRunStats(run).attackSpeed - expected) < 1e-9, `${stacks} cargas: ${getRunStats(run).attackSpeed}`)
+    }
+    assert.ok(1 + FRENZY_MAX_ATTACK_SPEED_BONUS < 1 + 0.15 * 3, 'o teto fica abaixo das 3 cargas somadas')
+  })
+
+  test('com 3 cargas, o golpe de 630 ms dura uns 485 ms (sem o teto seriam uns 435)', () => {
+    let run = runWith(['dente-de-tubarao'])
+    run.effects = { ...run.effects, frenzyStacks: 3, frenzyMs: 10000 }
+    run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    let ms = STEP_MS
+    while (run.player.attack) {
+      run = updateRun(run, IDLE, STEP)
+      ms += STEP_MS
+    }
+    assert.ok(ms >= 630 / 1.3 && ms <= 630 / 1.3 + 2 * STEP_MS, `golpe de ${ms} ms`)
   })
 
   test('o golpe que mata o alvo de treino liga o frenesi', () => {
@@ -241,6 +354,10 @@ describe('Caldo da Mamãe', () => {
     assert.equal(run.player.hurt, null)
     assert.ok(run.player.invincibleMs > 0)
     assert.equal(run.effects.coffeeBoostMs, 0)
+    // o escudo estoura (no mesmo quadro o relógio já andou um passo)
+    assert.equal(run.effects.shieldBreakMs, SHIELD_BREAK_MS - STEP_MS)
+    run = steps(run, SHIELD_BREAK_MS / STEP_MS)
+    assert.equal(run.effects.shieldBreakMs, 0, 'a animação acaba')
     // depois da invencibilidade, o próximo dano vale
     run = steps(run, 1000 / STEP_MS + 1)
     assert.equal(run.health, 5)
@@ -284,6 +401,21 @@ describe('Elixir Elétrico', () => {
     assert.equal(run.effects.hitStreak, 0, 'depois do raio, a contagem recomeça')
   })
 
+  test('a faísca é maior no alvo atingido (1,6) que nos alvos em que o raio salta (1), e fica em cima de cada um', () => {
+    let run = withExtraTargets(runWithTarget(['elixir-eletrico']), [100])
+    run = swing(swing(run))
+    run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (!run.swing.elixirFired) run = updateRun(run, IDLE, STEP)
+    const sparks = run.flashes.filter((flash) => flash.variant === 'faisca')
+    assert.deepEqual(
+      sparks.map((spark) => [spark.targetId, spark.scale]),
+      [
+        [run.targets[0].id, 1.6],
+        ['extra-0', 1],
+      ],
+    )
+  })
+
   test('errar um golpe no meio zera a sequência', () => {
     let run = swing(swing(runWithTarget(['elixir-eletrico'])))
     run = swing(run, 'down') // golpe para baixo: não acerta o alvo
@@ -292,13 +424,13 @@ describe('Elixir Elétrico', () => {
 })
 
 describe('bônus de velocidade do golpe de itens diferentes', () => {
-  test('somam (Tiramisu + Palitos + Dente com 3 cargas) e respeitam o limite', () => {
+  test('somam (Tiramisu + Palitos + Dente com 3 cargas), com o teto do frenesi', () => {
     const run = runWith(['tiramisu', 'palitos-de-pao', 'dente-de-tubarao'])
     run.effects = { ...createItemEffects(), sugarMs: 1000, frenzyStacks: 3, frenzyMs: 1000 }
     run.swing = { ...run.swing, fast: true }
     run.player = { ...run.player, attack: { direction: 'up', elapsed: 0 } }
     const bonuses = getItemBonuses(run).filter((bonus) => bonus.stat === 'attackSpeed')
     assert.equal(bonuses.length, 3)
-    assert.equal(getRunStats(run).attackSpeed, 2, '1 + 0,25 + 0,4 + 0,45 = 2,1, mas o limite é 2')
+    assert.ok(Math.abs(getRunStats(run).attackSpeed - 1.95) < 1e-9, '1 + 0,25 + 0,4 + 0,3 (teto do frenesi)')
   })
 })
