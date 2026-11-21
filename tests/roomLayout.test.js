@@ -129,10 +129,10 @@ describe('roomLayouts.json (formato)', () => {
 
   test('salas especiais: pontos de item nas posições do spawn.md e cenário X', () => {
     const expected = {
-      loja: [{ col: 4, row: 2 }, { col: 6, row: 2 }, { col: 8, row: 2 }],
+      loja: [{ col: 4, row: 3 }, { col: 6, row: 3 }, { col: 8, row: 3 }], // uma fileira livre embaixo do balcão (2026-11-21)
       pacto: [{ col: 6, row: 4 }], // um pouco abaixo do meio, longe da poça do Tralalero (2026-11-20)
       god: [{ col: 6, row: 3 }], // à frente da estátua
-      fliperama: [{ col: 6, row: 3 }],
+      fliperama: [{ col: 6, row: 4 }], // na frente da máquina, sem encostar no tambor (2026-11-21)
       palco: [{ col: 6, row: 2 }],
       adega: [{ col: 6, row: 2 }],
       descanso: [],
