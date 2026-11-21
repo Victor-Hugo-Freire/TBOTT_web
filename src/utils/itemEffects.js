@@ -15,12 +15,7 @@ export const MAX_PUDDLES = 3 // Concha: no máximo 3 poças ao mesmo tempo (a ma
 const PUDDLE_RADIUS = { x: 45, y: 20 } // Concha: tamanho da poça (o desenho tem cerca de 90 x 40 u)
 const PUDDLE_SLOW_MS = 100 // Concha: a lentidão dura isso depois de sair da poça
 const DEFAULT_FLASH_MS = 400 // duração de um efeito visual sem folha (não deve acontecer: todo item tem a dele)
-// Dente: o frenesi soma no máximo isto na velocidade do golpe, por mais cargas que tenha
-// (+0,15 por carga: a 2ª já chega no teto; golpe de 630 ms fica em ~485 ms, não em ~435)
-export const FRENZY_MAX_ATTACK_SPEED_BONUS = 0.3
 export const SHIELD_BREAK_MS = 450 // Caldo: duração da animação do escudo estourando ao anular um dano
-// Tiramisu: enquanto o açúcar dura, anda 20% mais rápido (pedido do Victor; esse número ainda não está no catálogo da API)
-const SUGAR_MOVE_SPEED_MULTIPLIER = 1.2
 const SPARK_SCALE = 1.6 // Elixir: tamanho da faísca no alvo atingido (1 = o tamanho da folha)
 const CHAIN_SPARK_SCALE = 1 // Elixir: tamanho da faísca nos alvos em que o raio salta
 
@@ -71,17 +66,18 @@ export function getItemBonuses(run) {
   const sugar = getEffect(run, 'tiramisu')
   if (sugar && effects.sugarMs > 0) {
     if (sugar.attackSpeedBonus) bonuses.push({ stat: 'attackSpeed', add: sugar.attackSpeedBonus })
-    bonuses.push({ stat: 'moveSpeed', multiply: SUGAR_MOVE_SPEED_MULTIPLIER })
+    if (sugar.moveSpeedMultiplier) bonuses.push({ stat: 'moveSpeed', multiply: sugar.moveSpeedMultiplier })
   }
   // Palitos de Pão: o 4º golpe é mais rápido (só enquanto ele acontece)
   const sticks = getEffect(run, 'palitos-de-pao')
   if (sticks?.attackSpeedBonus && run.swing.fast && run.player.attack) {
     bonuses.push({ stat: 'attackSpeed', add: sticks.attackSpeedBonus })
   }
-  // Dente de Tubarão: cada carga do frenesi deixa o golpe mais rápido, até o teto
+  // Dente de Tubarão: cada carga do frenesi deixa o golpe mais rápido, até o teto maxAttackSpeedBonus
+  // (+0,15 por carga e teto 0,3: a 2ª carga já chega no teto; golpe de 630 ms fica em ~485 ms, não em ~435)
   const tooth = getEffect(run, 'dente-de-tubarao')
   if (tooth?.attackSpeedBonus && effects.frenzyStacks > 0) {
-    const frenzy = Math.min(tooth.attackSpeedBonus * effects.frenzyStacks, FRENZY_MAX_ATTACK_SPEED_BONUS)
+    const frenzy = Math.min(tooth.attackSpeedBonus * effects.frenzyStacks, tooth.maxAttackSpeedBonus ?? Infinity)
     bonuses.push({ stat: 'attackSpeed', add: frenzy })
   }
   return bonuses

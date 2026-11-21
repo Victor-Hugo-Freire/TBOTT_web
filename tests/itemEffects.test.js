@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   createItemEffects,
-  FRENZY_MAX_ATTACK_SPEED_BONUS,
   getItemBonuses,
   isInSaucePuddle,
   MAX_PUDDLES,
@@ -314,13 +313,14 @@ describe('Dente de Tubarão', () => {
     assert.equal(getRunStats(run).attackSpeed, 1)
   })
 
-  test('o frenesi tem teto: com 2 ou 3 cargas o golpe fica no máximo FRENZY_MAX_ATTACK_SPEED_BONUS mais rápido', () => {
+  test('o frenesi tem teto: com 2 ou 3 cargas o golpe fica no máximo maxAttackSpeedBonus mais rápido', () => {
     const base = runWith(['dente-de-tubarao'])
     for (const [stacks, expected] of [[1, 1.15], [2, 1.3], [3, 1.3]]) {
       const run = { ...base, effects: { ...base.effects, frenzyStacks: stacks, frenzyMs: 4000 } }
       assert.ok(Math.abs(getRunStats(run).attackSpeed - expected) < 1e-9, `${stacks} cargas: ${getRunStats(run).attackSpeed}`)
     }
-    assert.ok(1 + FRENZY_MAX_ATTACK_SPEED_BONUS < 1 + 0.15 * 3, 'o teto fica abaixo das 3 cargas somadas')
+    const { maxAttackSpeedBonus } = TEST_CATALOG['dente-de-tubarao'].effect
+    assert.ok(maxAttackSpeedBonus < 0.15 * 3, 'o teto fica abaixo das 3 cargas somadas')
   })
 
   test('com 3 cargas, o golpe de 630 ms dura uns 485 ms (sem o teto seriam uns 435)', () => {

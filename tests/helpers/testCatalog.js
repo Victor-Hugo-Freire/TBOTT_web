@@ -30,7 +30,7 @@ const ITEMS = [
     name: 'Concha Longa',
     rarity: 'comum',
     roomTypes: ['tesouro'],
-    effect: { trigger: 'golpe', puddleDurationMs: 2000, enemySpeedMultiplier: 0.5 },
+    effect: { trigger: 'golpe-acerta', puddleDurationMs: 2000, enemySpeedMultiplier: 0.5 },
   },
   {
     id: 'dente-de-tubarao',
@@ -40,6 +40,7 @@ const ITEMS = [
     effect: {
       trigger: 'abate',
       attackSpeedBonus: 0.15,
+      maxAttackSpeedBonus: 0.3,
       bonusDurationMs: 4000,
       maxStacks: 3,
       lowHealthDamageMultiplier: 2,
@@ -66,7 +67,7 @@ const ITEMS = [
     name: 'Parmesão Curado',
     rarity: 'comum',
     roomTypes: ['tesouro'],
-    effect: { trigger: 'golpe-acerta', shards: 3, shardRange: 90, shardDamage: 1 },
+    effect: { trigger: 'golpe', shards: 3, shardDamage: 1 },
   },
   {
     id: 'rolo-de-bronze',
@@ -80,8 +81,8 @@ const ITEMS = [
     name: 'Tiramisu',
     rarity: 'incomum',
     roomTypes: ['loja'],
-    price: 4,
-    effect: { trigger: 'pegar-grao', attackSpeedBonus: 0.25, bonusDurationMs: 2000 },
+    price: 15,
+    effect: { trigger: 'golpe-acerta', attackSpeedBonus: 0.25, moveSpeedMultiplier: 1.2, bonusDurationMs: 2000 },
   },
 ]
 
