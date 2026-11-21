@@ -287,11 +287,13 @@ export function hitWithSwing(run, hitbox, stats) {
     }
     target = damageTarget(target, getSwingDamage(run, target, stats, withElixir))
 
-    // Muçarela: fios de queijo prendem o alvo (os fios vão junto se o Rolo empurrar)
+    // Muçarela: fios de queijo prendem o alvo (os fios vão junto se o Rolo empurrar). O mesmo alvo só é preso de
+    // novo depois de restunDelayMs; até lá, o golpe não prende e os fios não aparecem.
     const cheese = getEffect(run, 'mucarela')
     if (cheese?.stunDurationMs) {
-      target = stunTarget(target, cheese.stunDurationMs)
-      flashes.push(createTargetFlash('mucarela', 'fios-de-queijo', target))
+      const stunned = stunTarget(target, cheese.stunDurationMs, cheese.restunDelayMs ?? 0)
+      if (stunned !== target) flashes.push(createTargetFlash('mucarela', 'fios-de-queijo', stunned))
+      target = stunned
     }
     // Concha Longa: a poça de molho nasce nos pés do alvo e fica ali (empurrado, ele sai dela); no máximo MAX_PUDDLES
     const ladle = getEffect(run, 'concha-longa')

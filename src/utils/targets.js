@@ -26,6 +26,8 @@ export function createTarget({ id, x, y, width, height, health }) {
     slowMs: 0, // lento: ms que faltam
     slowMultiplier: 1, // velocidade enquanto está lento (0,5 = metade)
     stunMs: 0, // preso: ms que faltam (não anda nem ataca)
+    stunImmuneMs: 0, // ms até poder ser preso de novo (Muçarela)
+    hurtMs: Infinity, // ms desde o último dano (a animação "dano" dos inimigos toca no começo)
     push: null, // empurrão: { x, y } em u/s e os ms que faltam
     damageTexts: [], // { amount, ageMs }: números de dano subindo
   }
@@ -51,7 +53,8 @@ function getBaseBox(target) {
 export function damageTarget(target, amount) {
   if (target.dead) return target
   const health = Math.max(0, target.health - amount)
-  return { ...target, health, dead: health === 0, deadMs: 0, damageTexts: [...target.damageTexts, { amount, ageMs: 0 }] }
+  const damageTexts = [...target.damageTexts, { amount, ageMs: 0 }]
+  return { ...target, health, dead: health === 0, deadMs: 0, hurtMs: 0, damageTexts }
 }
 
 // Fica lento por `ms`, andando a `multiplier` da velocidade. Se já estava lento, vale o tempo maior.
@@ -61,9 +64,10 @@ export function slowTarget(target, multiplier, ms) {
 }
 
 // Fica preso por `ms`: não anda nem ataca. Se já estava preso, vale o tempo maior.
-export function stunTarget(target, ms) {
-  if (target.dead) return target
-  return { ...target, stunMs: Math.max(target.stunMs, ms) }
+// immuneMs: depois de preso, só pode ser preso de novo passado esse tempo (contado agora); até lá, nada muda.
+export function stunTarget(target, ms, immuneMs = 0) {
+  if (target.dead || target.stunImmuneMs > 0) return target
+  return { ...target, stunMs: Math.max(target.stunMs, ms), stunImmuneMs: immuneMs }
 }
 
 // Empurrão: desliza `distance` na direção (directionX, directionY) em PUSH_MS, parando no que bloqueia.
@@ -97,6 +101,7 @@ function respawn(target) {
     slowMs: 0,
     slowMultiplier: 1,
     stunMs: 0,
+    stunImmuneMs: 0,
     push: null,
   }
 }
@@ -111,6 +116,8 @@ export function updateTarget(target, deltaSeconds, solids) {
     ...target,
     slowMs: Math.max(0, target.slowMs - stepMs),
     stunMs: Math.max(0, target.stunMs - stepMs),
+    stunImmuneMs: Math.max(0, target.stunImmuneMs - stepMs),
+    hurtMs: target.hurtMs + stepMs,
     damageTexts: ageDamageTexts(target.damageTexts, stepMs),
     bumped: false,
   }
