@@ -62,7 +62,7 @@ export class AudioManager {
   }
 
   get musicVolume() {
-    return this._effectsVolume === undefined ? DEFAULT_MUSIC_VOLUME : this._musicVolume
+    return this._musicVolume === undefined ? DEFAULT_MUSIC_VOLUME : this._musicVolume
   }
 
   get effectsVolume() {

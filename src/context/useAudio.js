@@ -1,9 +1,9 @@
 import { createContext, useContext } from 'react'
 
-export const AudioContext = createContext(null)
+export const AudioManagerContext = createContext(null)
 
 export function useAudio() {
-  const context = useContext(AudioContext)
+  const context = useContext(AudioManagerContext)
   if (!context) {
     throw new Error('useAudio deve ser usado dentro de AudioProvider.')
   }

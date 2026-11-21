@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createAudioManager } from '../audio/AudioManager.js'
 import { readOptions } from '../utils/options.js'
-import { AudioContext as AudioContextProvider } from './useAudio.js'
+import { AudioManagerContext } from './useAudio.js'
+import { installAudioUnlock } from './audioUnlock.js'
+import { createAudioLifecycleCleanup } from './audioLifecycle.js'
 
 export function AudioProvider({ children }) {
   const [initialOptions] = useState(readOptions)
@@ -11,12 +13,28 @@ export function AudioProvider({ children }) {
   const [activeMusicName, setActiveMusicName] = useState(null)
   const [musicVolume, setMusicVolumeState] = useState(initialOptions.options.musicVolume)
   const [effectsVolume, setEffectsVolumeState] = useState(initialOptions.options.effectsVolume)
+  const mountedRef = useRef(true)
+  const [lifecycle] = useState(() => createAudioLifecycleCleanup(() => {
+    manager.destroy()
+  }))
 
   const unlock = useCallback(async () => {
     const result = await manager.unlock()
-    setState(manager.state)
+    if (mountedRef.current) setState(manager.state)
     return result
   }, [manager])
+
+  useEffect(() => {
+    mountedRef.current = true
+    lifecycle.activate()
+    const cleanupUnlock = installAudioUnlock(window, unlock)
+
+    return () => {
+      mountedRef.current = false
+      cleanupUnlock()
+      lifecycle.deactivate()
+    }
+  }, [unlock, lifecycle])
 
   const setEffectsVolume = useCallback((value) => {
     manager.setEffectsVolume(value)
@@ -72,5 +90,5 @@ export function AudioProvider({ children }) {
     toggleMute,
   }), [state, muted, activeMusicName, musicVolume, effectsVolume, unlock, playMusic, stopMusic, setEffectsVolume, setMusicVolume, setMuted, toggleMute, manager])
 
-  return <AudioContextProvider.Provider value={value}>{children}</AudioContextProvider.Provider>
+  return <AudioManagerContext.Provider value={value}>{children}</AudioManagerContext.Provider>
 }

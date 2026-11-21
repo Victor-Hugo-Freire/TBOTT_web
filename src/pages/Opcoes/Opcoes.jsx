@@ -161,8 +161,6 @@ export default function Opcoes() {
                       value={options[name]}
                       onChange={(event) => {
                         updateOption(name, Number(event.target.value))
-                        if (name === 'musicVolume') setMusicVolume(Number(event.target.value))
-                        if (name === 'effectsVolume') setEffectsVolume(Number(event.target.value))
                       }}
                     />
                     <output htmlFor={id}>{options[name]}%</output>

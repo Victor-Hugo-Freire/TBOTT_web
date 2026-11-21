@@ -185,6 +185,10 @@ describe('AudioManager', () => {
     assert.equal(manager.effectsVolume, 25)
     assert.equal(manager.musicVolume, 0)
 
+    manager.setMusicVolume(63)
+    manager._effectsVolume = undefined
+    assert.equal(manager.musicVolume, 63)
+
     assert.equal(manager.toggleMute(), true)
     assert.equal(manager.muted, true)
     assert.equal(manager.toggleMute(), false)

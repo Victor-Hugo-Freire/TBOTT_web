@@ -136,7 +136,7 @@ Os volumes ficam salvos localmente e são aplicados ao sistema central de áudio
 
 ## Sistema de áudio
 
-A implementação central fica em `src/audio/AudioManager.js`, com o provedor React em `src/context/AudioContext.jsx` e o hook público em `src/context/useAudio.js`. O gerenciador mantém um único `AudioContext`, controla volumes independentes, mute, registro por nome e interrupção de fontes. A tela inicial desbloqueia o contexto no primeiro gesto válido do jogador; o sistema não reproduz automaticamente nenhuma música ou efeito.
+A implementação central fica em `src/audio/AudioManager.js`, com o provedor React em `src/context/AudioManagerContext.jsx` e o hook público em `src/context/useAudio.js`. O gerenciador mantém um único `AudioContext`, controla volumes independentes, mute, registro por nome e interrupção de fontes. O provedor desbloqueia o contexto na primeira interação válida do jogador, por teclado ou ponteiro, em qualquer rota; o sistema não reproduz automaticamente nenhuma música ou efeito.
 
 Não há música da sala inicial restaurada. Sons de inimigos, chefes, personagens, andares e interface devem ser registrados pelas issues responsáveis, sem acoplar o gameplay ao `AudioContext`.
 
@@ -227,7 +227,7 @@ As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/dr
 
 Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala; o garrafão volta como cacos. A fumaça do fogão (chapa) e do café (mesa) sobe e balança (`drawSteam` em `scene/drawObstacles.js`); com "reduzir movimento", fica parada.
 
-**Portas e transição** (`src/utils/doors.js` e scene/drawDoors.js`)
+**Portas e transição** (`src/utils/doors.js` e `scene/drawDoors.js`)
 
 - Uma porta em cada lado que tem sala vizinha. O desenho segue o tipo da sala especial do outro lado (ou da própria sala especial). Entre o chefe e o pacto (ou a sala do Tung Tung God), a porta é a do pacto (ou a do Tung Tung God) dos dois lados. A porta abre quando a sala está limpa; como ainda não há inimigos, toda sala fica limpa ao entrar.
 - Para atravessar, os pés encostam na parede dentro do vão e o jogador continua apertando para aquele lado.
