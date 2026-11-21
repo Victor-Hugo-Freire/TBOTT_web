@@ -8,7 +8,7 @@ const ITEMS = [
     name: 'Batuta do Maestro',
     rarity: 'incomum',
     roomTypes: ['palco'],
-    effect: { trigger: 'golpe-no-ritmo', rhythmWindowMs: 150, extraDamage: 1, comboHits: 4, waveRange: 80 },
+    effect: { trigger: 'golpe-no-ritmo', rhythmWindowMs: 150, extraDamage: 1, comboHits: 4, waveRange: 80, invincibilityBonusMs: 200 },
   },
   {
     id: 'cafe-duplo',
@@ -30,7 +30,7 @@ const ITEMS = [
     name: 'Concha Longa',
     rarity: 'comum',
     roomTypes: ['tesouro'],
-    effect: { trigger: 'golpe-acerta', puddleDurationMs: 2000, enemySpeedMultiplier: 0.5 },
+    effect: { trigger: 'golpe-acerta', puddleDurationMs: 2000, enemySpeedMultiplier: 0.5, attackAreaMultiplier: 1.3 },
   },
   {
     id: 'dente-de-tubarao',
@@ -52,9 +52,23 @@ const ITEMS = [
     name: 'Elixir Elétrico',
     rarity: 'raro',
     roomTypes: ['adega'],
-    effect: { trigger: 'terceiro-golpe-seguido', extraDamage: 2, chainTargets: 2, chainRange: 120, chainDamage: 1 },
+    effect: {
+      trigger: 'terceiro-golpe-seguido',
+      extraDamage: 2,
+      chainTargets: 2,
+      chainRange: 120,
+      chainDamage: 1,
+      speedMultiplier: 1.1,
+      attackSpeedBonus: 0.11,
+    },
   },
-  { id: 'mucarela', name: 'Muçarela', rarity: 'incomum', roomTypes: ['tesouro'], effect: { trigger: 'golpe-acerta', stunDurationMs: 800 } },
+  {
+    id: 'mucarela',
+    name: 'Muçarela',
+    rarity: 'incomum',
+    roomTypes: ['tesouro'],
+    effect: { trigger: 'golpe-acerta', stunDurationMs: 800, maxHealthBonus: 2 },
+  },
   {
     id: 'palitos-de-pao',
     name: 'Palitos de Pão',

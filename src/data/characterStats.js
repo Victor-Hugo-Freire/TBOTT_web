@@ -9,7 +9,8 @@
 // - attackSpeed: velocidade do golpe, como multiplicador (1 = golpe de 630 ms e espera de 430 ms;
 //   2 = os dois na metade do tempo);
 // - maxHealth: vida máxima em MEIOS corações (6 = 3 corações);
-// - invincibilityMs: quanto tempo ele fica invencível depois de levar dano.
+// - invincibilityMs: quanto tempo ele fica invencível depois de levar dano;
+// - attackArea: tamanho da caixa do golpe, como multiplicador (1 = ATTACK_HITBOXES de player.js).
 export const CHARACTER_STATS = {
   'tung-tung-sahur': {
     damage: 3,
@@ -17,5 +18,6 @@ export const CHARACTER_STATS = {
     attackSpeed: 1,
     maxHealth: 6,
     invincibilityMs: 1000,
+    attackArea: 1,
   },
 }

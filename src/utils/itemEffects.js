@@ -58,6 +58,17 @@ export function getItemBonuses(run) {
     if (cost) bonuses.push({ stat: 'maxHealth', add: -cost })
   }
   const effects = run.effects
+  // Efeitos secundários, sempre ativos: Muçarela +vida máxima, Batuta +invencibilidade, Elixir passo e golpe
+  // mais rápidos e Concha golpe maior
+  const cheese = getEffect(run, 'mucarela')
+  if (cheese?.maxHealthBonus) bonuses.push({ stat: 'maxHealth', add: cheese.maxHealthBonus })
+  const baton = getEffect(run, 'batuta-do-maestro')
+  if (baton?.invincibilityBonusMs) bonuses.push({ stat: 'invincibilityMs', add: baton.invincibilityBonusMs })
+  const elixir = getEffect(run, 'elixir-eletrico')
+  if (elixir?.speedMultiplier) bonuses.push({ stat: 'moveSpeed', multiply: elixir.speedMultiplier })
+  if (elixir?.attackSpeedBonus) bonuses.push({ stat: 'attackSpeed', add: elixir.attackSpeedBonus })
+  const ladle = getEffect(run, 'concha-longa')
+  if (ladle?.attackAreaMultiplier) bonuses.push({ stat: 'attackArea', multiply: ladle.attackAreaMultiplier })
   // Café Duplo: sempre um pouco mais rápido; depois de levar dano, bem mais rápido por um tempo
   const coffee = getEffect(run, 'cafe-duplo')
   if (coffee?.speedMultiplier) bonuses.push({ stat: 'moveSpeed', multiply: coffee.speedMultiplier })

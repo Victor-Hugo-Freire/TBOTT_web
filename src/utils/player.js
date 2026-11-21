@@ -96,11 +96,12 @@ export function killPlayer(player) {
 
 // Começa um golpe se não há golpe nem dano em andamento e o cooldown já acabou.
 // attackSpeed (atributo): com o golpe mais rápido, o cooldown encurta na mesma proporção.
-export function startAttack(player, direction, attackSpeed = 1) {
+// area (atributo attackArea): tamanho da caixa do golpe; fica guardado no golpe (veja getAttackBox).
+export function startAttack(player, direction, attackSpeed = 1, area = 1) {
   const cooldownMs = ATTACK_COOLDOWN_MS / attackSpeed
   if (!direction || player.dead || player.attack || player.hurt || player.sinceAttackStart < cooldownMs) return player
   // walkDistance não zera: as pernas continuam o ciclo do andar durante o golpe
-  return { ...player, direction, attack: { direction, elapsed: 0 }, sinceAttackStart: 0 }
+  return { ...player, direction, attack: { direction, elapsed: 0, area }, sinceAttackStart: 0 }
 }
 
 // Parado (depois de TURN_FRONT_DELAY_MS), o personagem fica de frente (para baixo)
@@ -140,7 +141,7 @@ export function updatePlayer(player, input, deltaSeconds, options = {}) {
     next.hurt = elapsed >= HURT_DURATION_MS ? null : { ...next.hurt, elapsed }
   }
 
-  next = startAttack(next, input.attackDirection, stats.attackSpeed)
+  next = startAttack(next, input.attackDirection, stats.attackSpeed, stats.attackArea)
 
   // Durante o dano o personagem não anda
   if (next.hurt) return { ...next, walkDistance: 0 }
@@ -167,16 +168,32 @@ export function isAttackHitActive(attack) {
   return Boolean(attack) && ATTACK.hitFrames.includes(getTimedFrame(ATTACK.durations, attack.elapsed))
 }
 
+// Caixa do golpe no mundo. Com a área maior (attack.area, por exemplo 1,3 da Concha Longa), a caixa cresce
+// para a frente (o lado do Tung fica parado: todo o ganho vira alcance) e abre igual para os dois lados.
+function getAttackBox(player) {
+  const { direction } = player.attack
+  const box = ATTACK_HITBOXES[direction]
+  const area = player.attack.area ?? 1
+  const width = box.width * area
+  const height = box.height * area
+  let x = player.x + box.x
+  let y = player.y + box.y
+  if (direction === 'left') x -= width - box.width // cresce para a esquerda
+  if (direction === 'up') y -= height - box.height // cresce para cima
+  if (direction === 'up' || direction === 'down') x -= (width - box.width) / 2 // abre igual dos dois lados
+  if (direction === 'left' || direction === 'right') y -= (height - box.height) / 2
+  return { x, y, width, height }
+}
+
 // Caixa do golpe no mundo, ou null se o golpe não está acertando agora.
 export function getAttackHitbox(player) {
   if (!isAttackHitActive(player.attack)) return null
-  const box = ATTACK_HITBOXES[player.attack.direction]
-  return { x: player.x + box.x, y: player.y + box.y, width: box.width, height: box.height }
+  return getAttackBox(player)
 }
 
 // Arco branco do golpe (efeito desenhado pelo jogo, fora da folha do personagem).
 // Aparece em 160 ms (início da janela de acerto), fica cheio de 200 a 350 ms e some até 450 ms.
-// Usa a mesma caixa do golpe (ATTACK_HITBOXES), então o visual e o acerto combinam.
+// Usa a mesma caixa do golpe (getAttackBox, com a área), então o visual e o acerto combinam.
 const ARC_START_MS = 160
 const ARC_FULL_MS = 200
 const ARC_HOLD_END_MS = 350
@@ -192,8 +209,7 @@ export function getAttackArc(player) {
   if (elapsed < ARC_FULL_MS) opacity = (elapsed - ARC_START_MS) / (ARC_FULL_MS - ARC_START_MS)
   else if (elapsed > ARC_HOLD_END_MS) opacity = (ARC_END_MS - elapsed) / (ARC_END_MS - ARC_HOLD_END_MS)
 
-  const box = ATTACK_HITBOXES[direction]
-  return { x: player.x + box.x, y: player.y + box.y, width: box.width, height: box.height, direction, opacity }
+  return { ...getAttackBox(player), direction, opacity }
 }
 
 // Qual folha, direção e quadro desenhar. reduceMotion deixa o andar parado no quadro 0 e a morte já deitada;

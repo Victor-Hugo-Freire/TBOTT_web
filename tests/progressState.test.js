@@ -98,10 +98,11 @@ describe('normalizeProgressPayload', () => {
     assert.equal({}.hits, undefined)
   })
 
-  test('guarda a vida de 0 a 6 e a causa da morte; valor inválido vira vida cheia e sem causa', () => {
+  test('guarda a vida de 0 a 12 (a Muçarela aumenta a vida máxima) e a causa da morte; valor inválido vira vida cheia da ficha e sem causa', () => {
     assert.equal(normalizeProgressPayload({ health: 0 }).health, 0)
     assert.equal(normalizeProgressPayload({ health: 3 }).health, 3)
-    for (const health of [-1, 7, 2.5, '3', null]) assert.equal(normalizeProgressPayload({ health }).health, 6, String(health))
+    assert.equal(normalizeProgressPayload({ health: 8 }).health, 8)
+    for (const health of [-1, 13, 2.5, '3', null]) assert.equal(normalizeProgressPayload({ health }).health, 6, String(health))
     assert.equal(normalizeProgressPayload({ deathCause: 'chapa' }).deathCause, 'chapa')
     for (const deathCause of ['', 'x'.repeat(33), 5, {}, undefined]) {
       assert.equal(normalizeProgressPayload({ deathCause }).deathCause, null, String(deathCause))

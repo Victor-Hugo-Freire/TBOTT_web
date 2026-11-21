@@ -161,7 +161,9 @@ function damagePlayer(run, player, health, effects, amount, cause, stats) {
 // com o nome dele e a frase do item.md. Se o item tira vida máxima (Pacto), a vida que passar do novo máximo cai junto.
 function giveItem(run, itemId) {
   const next = { ...run, items: [...run.items, itemId] }
-  next.health = Math.min(next.health, getRunStats(next).maxHealth)
+  // A vida máxima que o item dá (Muçarela) já vem cheia; a que ele tira (Pacto) leva a vida junto
+  const gained = run.catalog[itemId]?.effect?.maxHealthBonus ?? 0
+  next.health = Math.min(next.health + gained, getRunStats(next).maxHealth)
   const name = run.catalog[itemId]?.name ?? itemId
   next.banner = { text: removeAccents(name), subtitle: ITEM_BANNERS[itemId] ?? '', elapsedMs: 0 }
   next.pickup = { itemId, elapsedMs: 0 }

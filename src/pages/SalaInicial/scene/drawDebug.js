@@ -172,7 +172,7 @@ export function drawDebugPanel(ctx, run, { right, top, fontSize }) {
     `sala ${room.id} ${room.type} (${room.layoutId})`,
     `tentativas ${floor.attempts}`,
     `dano ${stats.damage}  velocidade ${stats.moveSpeed.toFixed(2)}  golpe ${stats.attackSpeed.toFixed(2)}`,
-    `vida ${run.health}/${stats.maxHealth}  invencível ${stats.invincibilityMs} ms`,
+    `vida ${run.health}/${stats.maxHealth}  invencível ${stats.invincibilityMs} ms  área do golpe ${stats.attackArea.toFixed(2)}`,
     `abates na sala ${run.roomKills}`,
     // Contagens dos efeitos dos itens (itemEffects.js)
     `golpes ${run.effects.swingCount}  ritmo ${run.effects.rhythmCombo}  acertos seguidos ${run.effects.hitStreak}`,

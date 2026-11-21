@@ -10,9 +10,9 @@ import {
   updatePuddles,
   updateShards,
 } from '../src/utils/itemEffects.js'
-import { createPlayer } from '../src/utils/player.js'
+import { ATTACK_HITBOXES, createPlayer, getAttackArc, getAttackHitbox } from '../src/utils/player.js'
 import { PLAYER_FEET_BOX, ROOM_FLOOR } from '../src/utils/roomMovement.js'
-import { createRun, createRunSnapshot, getRunStats, toggleTrainingTarget, updateRun } from '../src/utils/run.js'
+import { createRun, createRunSnapshot, getRunStats, giveNextItem, toggleTrainingTarget, updateRun } from '../src/utils/run.js'
 import { createTrainingTarget } from '../src/utils/targets.js'
 import { TEST_CATALOG } from './helpers/testCatalog.js'
 
@@ -432,5 +432,81 @@ describe('bônus de velocidade do golpe de itens diferentes', () => {
     const bonuses = getItemBonuses(run).filter((bonus) => bonus.stat === 'attackSpeed')
     assert.equal(bonuses.length, 3)
     assert.ok(Math.abs(getRunStats(run).attackSpeed - 1.95) < 1e-9, '1 + 0,25 + 0,4 + 0,3 (teto do frenesi)')
+  })
+})
+
+describe('efeitos secundários (valem sempre, enquanto o jogador tem o item)', () => {
+  test('Muçarela: +maxHealthBonus de vida máxima, que já vem cheia ao pegar e continua ao continuar a run', () => {
+    let run = runWith([], { catalog: { mucarela: TEST_CATALOG.mucarela }, health: 4 })
+    assert.equal(getRunStats(run).maxHealth, 6)
+    run = giveNextItem(run)
+    assert.deepEqual(run.items, ['mucarela'])
+    assert.equal(getRunStats(run).maxHealth, 8, '4 corações')
+    assert.equal(run.health, 6, 'tinha 2 corações de 3; ganhou o 4º cheio')
+    assert.equal(runWith(['mucarela'], { health: 8 }).health, 8, 'o save com 4 corações abre com 4')
+  })
+
+  test('Muçarela e Dente juntos: um tira 1 coração, o outro dá 1', () => {
+    assert.equal(getRunStats(runWith(['mucarela', 'dente-de-tubarao'])).maxHealth, 6)
+  })
+
+  test('Batuta: depois de levar dano, fica invencível invincibilityBonusMs a mais', () => {
+    assert.equal(getRunStats(runWith(['batuta-do-maestro'])).invincibilityMs, 1200)
+    const run = updateRun(onHotPlate(runWith(['batuta-do-maestro'])), IDLE, STEP)
+    assert.ok(run.player.hurt)
+    assert.ok(run.player.invincibleMs > 1000, `invencível por ${run.player.invincibleMs} ms`)
+  })
+
+  test('Elixir: anda speedMultiplier mais rápido e o golpe fica attackSpeedBonus mais rápido (630 -> ~567 ms)', () => {
+    const stats = getRunStats(runWith(['elixir-eletrico']))
+    assert.ok(Math.abs(stats.moveSpeed - 1.1) < 1e-9)
+    assert.ok(Math.abs(stats.attackSpeed - 1.11) < 1e-9)
+    // Em 250 ms de jogo, o golpe anda 250 x 1,11 ms: ele inteiro (630 ms) dura uns 567 ms
+    const run = steps(updateRun(runWith(['elixir-eletrico']), { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP), 5)
+    assert.ok(Math.abs(run.player.attack.elapsed - 250 * 1.11) < 1e-6, `golpe em ${run.player.attack.elapsed} ms`)
+  })
+
+  test('Concha: a caixa e o arco do golpe crescem attackAreaMultiplier para a frente, com o lado do Tung parado', () => {
+    const at = (direction, area) => ({ ...createPlayer({ x: 800, y: 500 }), attack: { direction, elapsed: 250, area } })
+    const close = (a, b) => Math.abs(a - b) < 1e-9
+
+    // Para a direita: a borda da esquerda (a do Tung) não mexe, a da direita vai mais longe; abre igual em cima e embaixo
+    let normal = getAttackHitbox(at('right', 1))
+    let big = getAttackHitbox(at('right', 1.15))
+    assert.ok(close(big.width, normal.width * 1.15) && close(big.height, normal.height * 1.15))
+    assert.ok(close(big.x, normal.x), 'o lado do Tung fica parado')
+    assert.ok(close(big.y + big.height / 2, normal.y + normal.height / 2), 'mesmo meio na vertical')
+
+    // Para cima: a borda de baixo (a do Tung) não mexe, a de cima sobe; abre igual dos dois lados
+    normal = getAttackHitbox(at('up', 1))
+    big = getAttackHitbox(at('up', 1.15))
+    assert.ok(close(big.y + big.height, normal.y + normal.height), 'o lado do Tung fica parado')
+    assert.ok(big.y < normal.y)
+    assert.ok(close(big.x + big.width / 2, normal.x + normal.width / 2), 'mesmo meio na horizontal')
+
+    // Para a esquerda e para baixo, o mesmo, espelhado
+    normal = getAttackHitbox(at('left', 1))
+    big = getAttackHitbox(at('left', 1.15))
+    assert.ok(close(big.x + big.width, normal.x + normal.width) && big.x < normal.x)
+    normal = getAttackHitbox(at('down', 1))
+    big = getAttackHitbox(at('down', 1.15))
+    assert.ok(close(big.y, normal.y) && big.y + big.height > normal.y + normal.height)
+
+    const arc = getAttackArc(at('up', 1.15))
+    big = getAttackHitbox(at('up', 1.15))
+    assert.deepEqual([arc.x, arc.y, arc.width, arc.height], [big.x, big.y, big.width, big.height], 'o arco desenha a mesma caixa')
+  })
+
+  test('Concha: o golpe alcança um alvo que fica 5 u além do golpe normal', () => {
+    // O Tung abaixo do alvo, com o topo da caixa do golpe normal 5 u abaixo do pé do alvo
+    function belowTarget(items) {
+      const run = toggleTrainingTarget(runWith(items))
+      const target = run.targets[0]
+      run.player = createPlayer({ x: target.x, y: target.y + 5 - ATTACK_HITBOXES.up.y })
+      return run
+    }
+    assert.equal(getRunStats(runWith(['concha-longa'])).attackArea, 1.3)
+    assert.equal(swing(belowTarget([])).targets[0].health, 30, 'sem a Concha, não acerta')
+    assert.ok(swing(belowTarget(['concha-longa'])).targets[0].health < 30, 'com a Concha, acerta')
   })
 })

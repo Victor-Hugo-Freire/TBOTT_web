@@ -4,7 +4,7 @@ Tudo aqui é proposta para o Victor avaliar. Vida, dano, sorte, moeda, lentidão
 
 - **Gatilho:** Cada golpe que acerta (decisão do Victor, 2026-11-20).
 - **Efeito principal:** Respingo de molho: a poça de molho nasce nos pés do inimigo atingido e fica 2 s ali (se ele for empurrado, ela não vai junto); inimigos dentro dela andam 50% mais devagar.
-- **Efeito secundário ou custo:** Área do golpe ×1,15. Sem custo.
+- **Efeito secundário ou custo:** Área do golpe ×1,3 (`attackAreaMultiplier`): a caixa e o arco crescem para a frente, com o lado do Tung parado. Era ×1,15, mas quase não aparecia (decisão do Victor, 2026-11-21). Sem custo.
 - **Duração:** Cada poça dura 2 s (no máximo 3 ao mesmo tempo).
 - **Efeito visual:** `poca-de-molho`: poça vermelha que cresce, com bolhas e manjericão (4 quadros, 480 ms).
 - **Sinergias:** Muçarela: inimigo lento na poça e preso pelos fios fica parado mais tempo. Batuta do Maestro: com o inimigo lento, fica mais fácil manter o ritmo.

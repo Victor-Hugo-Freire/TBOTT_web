@@ -10,6 +10,7 @@ export const STAT_LIMITS = {
   attackSpeed: { min: 0.5, max: 2 }, // 2 = golpe de 315 ms
   maxHealth: { min: 2, max: 12 }, // de 1 a 6 corações
   invincibilityMs: { min: 500, max: 2000 },
+  attackArea: { min: 1, max: 1.5 }, // 1,5 = caixa do golpe 50% maior
 }
 
 // Ficha do personagem. Um id sem ficha (save antigo ou personagem que ainda não existe) usa a do Tung Tung.

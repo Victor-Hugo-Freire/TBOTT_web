@@ -59,7 +59,7 @@ describe('ataque: começo e direção', () => {
     assert.equal(ATTACK_COOLDOWN_MS, 430)
     const base = createPlayer(START)
     assert.equal(startAttack({ ...base, sinceAttackStart: 429 }, 'up').attack, null)
-    assert.deepEqual(startAttack({ ...base, sinceAttackStart: 430 }, 'up').attack, { direction: 'up', elapsed: 0 })
+    assert.deepEqual(startAttack({ ...base, sinceAttackStart: 430 }, 'up').attack, { direction: 'up', elapsed: 0, area: 1 })
   })
 })
 

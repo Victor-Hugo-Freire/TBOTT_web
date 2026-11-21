@@ -6,8 +6,8 @@ import { getBaseStats, getPlayerStats, STAT_LIMITS } from '../src/utils/stats.js
 const TUNG = getBaseStats('tung-tung-sahur')
 
 describe('ficha do personagem', () => {
-  test('o Tung Tung: golpe de 3, velocidades normais, 3 corações e 1 s de invencibilidade', () => {
-    assert.deepEqual(TUNG, { damage: 3, moveSpeed: 1, attackSpeed: 1, maxHealth: 6, invincibilityMs: 1000 })
+  test('o Tung Tung: golpe de 3, velocidades normais, 3 corações, 1 s de invencibilidade e golpe de tamanho normal', () => {
+    assert.deepEqual(TUNG, { damage: 3, moveSpeed: 1, attackSpeed: 1, maxHealth: 6, invincibilityMs: 1000, attackArea: 1 })
   })
 
   test('id sem ficha (save antigo ou personagem que ainda não existe) usa a do Tung Tung', () => {
@@ -62,6 +62,7 @@ describe('getPlayerStats (atributos com bônus)', () => {
       { stat: 'attackSpeed', add: 5 },
       { stat: 'maxHealth', add: 40 },
       { stat: 'invincibilityMs', multiply: 10 },
+      { stat: 'attackArea', multiply: 10 },
     ])
     const low = getPlayerStats(TUNG, [
       { stat: 'damage', add: -100 },
@@ -69,6 +70,7 @@ describe('getPlayerStats (atributos com bônus)', () => {
       { stat: 'attackSpeed', add: -5 },
       { stat: 'maxHealth', add: -40 },
       { stat: 'invincibilityMs', multiply: 0.01 },
+      { stat: 'attackArea', multiply: 0.01 },
     ])
     for (const [name, { min, max }] of Object.entries(STAT_LIMITS)) {
       assert.equal(high[name], max, `${name} no máximo`)

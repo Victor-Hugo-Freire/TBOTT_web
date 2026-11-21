@@ -2,9 +2,8 @@ import { MAX_GRAINS } from '../data/economy.js'
 import { HITS_TO_OPEN } from './doors.js'
 import { DROP_KINDS } from './drops.js'
 import { LAST_FLOOR } from './floorGenerator.js'
-import { normalizeHealth } from './health.js'
 import { ROOM_FLOOR, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
-import { getBaseStats } from './stats.js'
+import { getBaseStats, STAT_LIMITS } from './stats.js'
 
 // Valor antigo do roomId. A run (run.js) trata qualquer id que não existe no andar como a sala inicial.
 export const DEFAULT_ROOM_ID = 'sala-inicial'
@@ -29,6 +28,11 @@ function clamp(value, min, max) {
   const numeric = Number(value)
   if (!Number.isFinite(numeric)) return min
   return Math.min(Math.max(numeric, min), max)
+}
+
+// Vida salva válida: inteiro de 0 até a maior vida máxima possível (STAT_LIMITS)
+function isValidHealth(value) {
+  return Number.isInteger(value) && value >= 0 && value <= STAT_LIMITS.maxHealth.max
 }
 
 // Seed salva: inteiro de 0 a 4294967295. Qualquer outra coisa vira null (a sala cria uma seed nova).
@@ -135,11 +139,11 @@ export function normalizeProgressPayload(value) {
     visitedRoomIds: normalizeIds(source.visitedRoomIds, MAX_ROOMS),
     // Obstáculos quebrados e batidas de cada sala: o que quebrou não volta ao continuar a run
     roomStates: normalizeRoomStates(source.roomStates),
-    // Vida em meios corações (6 = 3 corações), até a vida máxima da ficha do personagem; o createRun corta de novo
-    // pela vida máxima com os itens. E o que matou o personagem, se a run acabou em derrota.
-    // shortcut: se um item aumentar a vida máxima, a vida acima da ficha volta como vida cheia da ficha ao continuar;
-    // quando existir um item assim, validar aqui com STAT_LIMITS.maxHealth.max.
-    health: normalizeHealth(source.health, getBaseStats(characterId).maxHealth),
+    // Vida em meios corações (6 = 3 corações), até o teto de STAT_LIMITS: a Muçarela aumenta a vida máxima, então
+    // um save pode ter mais vida que a ficha. O createRun corta de novo pela vida máxima com os itens.
+    // Vida inválida (ou save antigo, sem vida) começa com a vida cheia da ficha. E o que matou o personagem, se a run
+    // acabou em derrota.
+    health: isValidHealth(source.health) ? source.health : getBaseStats(characterId).maxHealth,
     deathCause: normalizeDeathCause(source.deathCause),
     // Garfos que sobraram (inteiro de 0 a 99). Save antigo, sem o campo, começa com o garfo do início da run.
     forks: Number.isInteger(source.forks) ? clamp(source.forks, 0, MAX_FORKS) : STARTING_FORKS,
