@@ -68,15 +68,19 @@ export function getMinimapConnections(floor, currentRoomId) {
       const fromVisited = from.visited || from.id === currentRoomId
       const toVisited = to.visited || to.id === currentRoomId
       if (!fromVisited && !toVisited) continue
-      const locked = [from, to].some((source) =>
-        getRoomDoors(floor, source).some((door) => door.targetId === (source === from ? to.id : from.id) && door.state === 'locked'),
-      )
+      // Porta trancada entre as duas salas: lock diz o que abre ('garfo' ou 'grao', o Fliperama), ou null
+      let lock = null
+      for (const source of [from, to]) {
+        const otherId = source === from ? to.id : from.id
+        const door = getRoomDoors(floor, source).find((item) => item.targetId === otherId && item.state === 'locked')
+        if (door) lock = door.lock
+      }
 
       connections.push({
         from,
         to,
         visited: fromVisited && toVisited,
-        locked,
+        lock,
       })
     }
   }
@@ -167,14 +171,15 @@ export function drawMinimap(ctx, floor, currentRoom, { top, right, scale = 1, ex
     if (icon) drawBitmap(ctx, ICONS[icon], iconPixel, x + Math.round((roomWidth - iconSize) / 2), y + Math.round((roomHeight - iconSize) / 2))
   }
 
-  const forkPixel = Math.max(1, Math.round(roomHeight / 16))
+  // Tranca no meio da ligação: o garfo, ou o grão na porta do Fliperama
+  const lockPixel = Math.max(1, Math.round(roomHeight / 16))
   for (const connection of connections) {
-    if (!connection.locked) continue
+    if (!connection.lock) continue
     const from = position(connection.from)
     const to = position(connection.to)
-    const x = Math.round((from.x + to.x + roomWidth) / 2 - 4 * forkPixel)
-    const y = Math.round((from.y + to.y + roomHeight) / 2 - 4 * forkPixel)
-    drawBitmap(ctx, ICONS.garfo, forkPixel, x, y, true)
+    const x = Math.round((from.x + to.x + roomWidth) / 2 - 4 * lockPixel)
+    const y = Math.round((from.y + to.y + roomHeight) / 2 - 4 * lockPixel)
+    drawBitmap(ctx, ICONS[connection.lock], lockPixel, x, y, true)
   }
 
   ctx.restore()

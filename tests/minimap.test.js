@@ -61,11 +61,21 @@ describe('minimapa do andar', () => {
     const [connection] = getMinimapConnections(floor, common.id)
 
     assert.equal(connection.visited, false)
-    assert.equal(connection.locked, true)
+    assert.equal(connection.lock, 'garfo')
 
     treasure.visited = true
     const [visitedConnection] = getMinimapConnections(floor, common.id)
     assert.equal(visitedConnection.visited, true)
+  })
+
+  test('a porta trancada do Fliperama aparece com o grão, e some depois de aberta', () => {
+    const common = makeRoom('4-3', 4, 3, 'inicial', true, { down: '4-4' })
+    const arcade = makeRoom('4-4', 4, 4, 'fliperama', false, { up: common.id })
+    const floor = { number: 1, rooms: [common, arcade] }
+
+    assert.equal(getMinimapConnections(floor, common.id)[0].lock, 'grao')
+    arcade.unlocked = true
+    assert.equal(getMinimapConnections(floor, common.id)[0].lock, null)
   })
 
   test('a caixa do painel cobre as salas dadas, sem sobra', () => {
