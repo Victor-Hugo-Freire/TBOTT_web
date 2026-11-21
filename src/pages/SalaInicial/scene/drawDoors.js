@@ -94,7 +94,7 @@ export function drawSecretMark(ctx, side) {
   ctx.restore()
 }
 
-function drawDoor(ctx, { side, kind, state, unlockMs = 0 }, palette) {
+function drawDoor(ctx, { side, kind, state, lock, unlockMs = 0 }, palette) {
   // A adega escondida não tem porta: de perto aparece só a marca (drawSecretMark)
   if (kind === 'adega' && state === 'hidden') return
   const style = DOOR_STYLES[kind] || DOOR_STYLES.comum
@@ -106,9 +106,68 @@ function drawDoor(ctx, { side, kind, state, unlockMs = 0 }, palette) {
   else drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs)
   ctx.restore()
   if (style.icon) drawDoorIcon(ctx, side, ICONS[style.icon])
-  // A chapa do garfo fica fora da rotação, sempre em pé; some quando as folhas começam a abrir
+  // A tranca fica fora da rotação, sempre em pé, e some quando as folhas começam a abrir: a chapa do garfo ou, no
+  // Fliperama (lock 'grao'), o cofrinho do grão
+  if (lock === 'grao') {
+    if (state === 'locked') drawGrainLock(ctx, side, null)
+    if (state === 'unlocking' && unlockMs < FORK_KNOT_MS) drawGrainLock(ctx, side, unlockMs)
+    return
+  }
   if (state === 'locked') drawForkLock(ctx, side, FORK_LOCK.idleFrame)
   if (state === 'unlocking' && unlockMs < FORK_KNOT_MS) drawForkLock(ctx, side, getTimedFrame(FORK_LOCK_DURATIONS, unlockMs))
+}
+
+// Meio do vão da porta, da borda da sala para dentro (onde fica a tranca)
+function getLockPoint(side) {
+  const { center, edge, depth } = DOOR_GEOMETRY[side]
+  const v = LINTEL + (depth - LINTEL) / 2
+  return { up: [center, edge + v], down: [center, edge - v], left: [edge + v, center], right: [edge - v, center] }[side]
+}
+
+// Tranca de grão do Fliperama, desenhada por código (não existe arte dela): um cofrinho de madeira com borda de latão,
+// a fenda em cima, um grão de café na frente e uma luz vermelha. Abrindo (unlockMs, até FORK_KNOT_MS), em 3 partes:
+// o grão cai na fenda; o cofrinho treme com o clique e a luz fica verde; ele sobe para dentro da verga e apaga.
+// Parada e trancada: unlockMs = null.
+const GRAIN_LOCK_SIZE = { up: 1, left: 1, right: 1, down: 0.65 } // na porta de baixo só aparece o rodapé
+const GRAIN_FALL_END = 0.35 // fração da animação em que o grão termina de cair
+const GRAIN_CLICK_END = 0.7 // fração em que o clique acaba e o cofrinho começa a subir
+
+function drawGrainLock(ctx, side, unlockMs) {
+  const [x, y] = getLockPoint(side)
+  const progress = unlockMs === null ? 0 : unlockMs / FORK_KNOT_MS
+  const paid = progress >= GRAIN_FALL_END
+  const clicking = paid && progress < GRAIN_CLICK_END
+  const rise = Math.max(0, (progress - GRAIN_CLICK_END) / (1 - GRAIN_CLICK_END))
+  const shake = clicking ? Math.sin(unlockMs / 18) * 2.5 : 0
+
+  ctx.save()
+  ctx.translate(x + shake, y - rise * 34)
+  ctx.scale(GRAIN_LOCK_SIZE[side], GRAIN_LOCK_SIZE[side])
+  ctx.globalAlpha = 1 - rise
+  // Caixa de madeira com borda de latão e a fenda em cima
+  paintRect(ctx, OUTLINE, -28, -24, 56, 48)
+  paintRect(ctx, '#e8c040', -25, -21, 50, 42)
+  paintRect(ctx, '#7a4a24', -21, -17, 42, 34)
+  paintRect(ctx, '#5a3418', -21, 10, 42, 7)
+  paintRect(ctx, OUTLINE, -12, -21, 24, 5)
+  // Grão de café na frente (o que a porta pede) e a luz: vermelha trancada, verde depois do clique
+  paintEllipse(ctx, OUTLINE, -5, -1, 9, 11)
+  paintEllipse(ctx, '#8a4a22', -5, -1, 7, 9)
+  paintRect(ctx, '#3a1c0c', -6, -8, 2, 14)
+  paintEllipse(ctx, OUTLINE, 12, -9, 5, 5)
+  paintEllipse(ctx, paid ? '#60e070' : '#e04040', 12, -9, 3.5, 3.5)
+  ctx.restore()
+
+  // O grão caindo na fenda, de cima para baixo, antes do clique
+  if (unlockMs !== null && !paid) {
+    const fall = progress / GRAIN_FALL_END
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(GRAIN_LOCK_SIZE[side], GRAIN_LOCK_SIZE[side])
+    paintEllipse(ctx, OUTLINE, 0, -64 + 44 * fall, 7, 9)
+    paintEllipse(ctx, '#8a4a22', 0, -64 + 44 * fall, 5, 7)
+    ctx.restore()
+  }
 }
 
 // Chapa do garfo no meio do vão (quadro `frame` da folha)
@@ -118,9 +177,7 @@ function drawForkLock(ctx, side, frame) {
     forkLockImage.src = FORK_LOCK.path
   }
   if (!forkLockImage.complete || !forkLockImage.naturalWidth || frame < 0) return
-  const { center, edge, depth } = DOOR_GEOMETRY[side]
-  const v = LINTEL + (depth - LINTEL) / 2 // meio do vão, da borda da sala para dentro
-  const [x, y] = { up: [center, edge + v], down: [center, edge - v], left: [edge + v, center], right: [edge - v, center] }[side]
+  const [x, y] = getLockPoint(side)
   const scale = FORK_LOCK_SCALE[side]
   const { frameWidth: width, frameHeight: height } = FORK_LOCK
   ctx.save()

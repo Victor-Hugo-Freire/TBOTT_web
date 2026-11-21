@@ -181,7 +181,7 @@ export function drawDebugPanel(ctx, run, { right, top, fontSize }) {
   ]
   // Os itens, três por linha (a lista inteira numa linha só deixaria o painel largo demais)
   for (let i = 0; i < run.items.length; i += 3) lines.push(`  ${run.items.slice(i, i + 3).join(', ')}`)
-  lines.push('T alvo de treino   I próximo item')
+  lines.push('T alvo de treino   I próximo item   G recompensa da sala')
 
   ctx.save()
   ctx.font = `${fontSize}px monospace`

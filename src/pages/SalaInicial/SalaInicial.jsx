@@ -4,6 +4,8 @@ import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
+import { CONSUMABLE_INFO } from '../../data/economy.js'
+import { CONSUMABLE_SPRITES } from '../../data/itemSprites.js'
 import { buildItemCatalog } from '../../utils/itemCatalog.js'
 import { findNearbyPedestal, getRoomPedestals } from '../../utils/pedestals.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
@@ -26,6 +28,7 @@ import {
   getRestartFade,
   getRunStats,
   giveNextItem,
+  giveRoomReward,
   removeTrainingTarget,
   RESTART_HOLD_MS,
   toggleTrainingTarget,
@@ -192,6 +195,7 @@ export default function SalaInicial() {
         roomStates: progress.roomStates,
         health: progress.health,
         forks: progress.forks,
+        grains: progress.grains,
         catalog,
         items: progress.items,
         floorHealsUsed: progress.floorHealsUsed,
@@ -323,12 +327,15 @@ export default function SalaInicial() {
         return
       }
 
-      // Ferramentas de teste do F3: T põe ou tira o alvo de treino e I dá o próximo item que ele ainda não tem.
-      // Segurar a tecla não repete.
-      if (import.meta.env.DEV && showDebug && run && (event.code === 'KeyT' || event.code === 'KeyI')) {
+      // Ferramentas de teste do F3: T põe ou tira o alvo de treino, I dá o próximo item que ele ainda não tem e G
+      // dá a recompensa de sala limpa nesta sala (contando os abates do alvo de treino). Segurar a tecla não repete.
+      const testKeys = ['KeyT', 'KeyI', 'KeyG']
+      if (import.meta.env.DEV && showDebug && run && testKeys.includes(event.code)) {
         event.preventDefault()
         if (event.repeat) return
-        run = event.code === 'KeyT' ? toggleTrainingTarget(run) : giveNextItem(run)
+        if (event.code === 'KeyT') run = toggleTrainingTarget(run)
+        if (event.code === 'KeyI') run = giveNextItem(run)
+        if (event.code === 'KeyG') run = giveRoomReward(run)
         return
       }
 
@@ -471,7 +478,7 @@ export default function SalaInicial() {
       const nearby = findNearbyPedestal(pedestals, run.player)
       if (nearby) {
         drawItemInfo(ctx, {
-          item: run.catalog[nearby.itemId],
+          item: getPedestalInfo(run, nearby),
           left: toScreenX(screen.left + 20),
           top: getHudBottom(hudTop, pixelSize) + pixelSize * 4,
           maxWidth: Math.round(Math.min(canvas.width * 0.34, 460 * pixelRatio)),
@@ -655,4 +662,11 @@ export default function SalaInicial() {
       )}
     </main>
   )
+}
+
+// O que a caixa de descrição mostra para o pedestal: o item do catálogo, ou o garfo e o coração da Loja.
+// O preço não entra: ele já aparece na etiqueta embaixo do pedestal.
+function getPedestalInfo(run, pedestal) {
+  if (pedestal.itemId) return run.catalog[pedestal.itemId]
+  return { ...CONSUMABLE_INFO[pedestal.consumable], icon: CONSUMABLE_SPRITES[pedestal.consumable]?.icon }
 }

@@ -1,3 +1,4 @@
+import { ARCADE_SPIN_MS } from '../../../data/economy.js'
 import { ellipse, polygon, rect } from '../../../utils/canvas.js'
 import { getCellRect } from '../../../utils/roomLayout.js'
 import { getSharkFinPosition, PUDDLE } from '../../../utils/roomInteractions.js'
@@ -11,8 +12,8 @@ import { drawSharkFin } from './drawShark.js'
 // - Nada é desenhado nas casas de porta (6,0), (6,6), (0,3) e (12,3), além do piso.
 // - Peças de parede ficam na faixa de parede (y 134..226) e nos painéis de cima, longe da porta de cima
 //   (x 690..910) e do contador de tempo (alto do meio, y < 70).
-// - Sem pedestal, item, preço ou texto aqui: os pedestais com os itens (Tesouro, Chefe, Adega, Pacto e God) são
-//   desenhados por drawPedestals.js, na ordem dos pés; os da Loja e do Fliperama vêm quando essas salas funcionarem.
+// - Sem pedestal, item, preço ou texto aqui: os pedestais (Tesouro, Chefe, Adega, Pacto, God, Loja e Fliperama) são
+//   desenhados por drawPedestals.js, na ordem dos pés. O tambor do Fliperama gira durante a jogada (arcadeSpinMs).
 
 const OUTLINE = '#140806'
 const OUTLINE_WIDTH = 5 // contorno dos móveis (é traçado em cima da peça: metade para dentro, metade para fora)
@@ -38,8 +39,9 @@ const SCENERY = {
 
 // Desenha o cenário da sala especial, por cima do piso e por baixo das portas e do jogador.
 // type = tipo da sala ('chefe', 'loja'...). Sala inicial e comum não têm cenário.
-// options = { finMs, hideFin }: o relógio da barbatana do pacto (run.finMs, o mesmo da lógica do perigo) e se a
-// barbatana parada some (quando o Tralalero está puxando o Tung, drawSharkGrab desenha a dele).
+// options = { finMs, hideFin, arcadeSpinMs }: o relógio da barbatana do pacto (run.finMs, o mesmo da lógica do perigo),
+// se a barbatana parada some (quando o Tralalero está puxando o Tung, drawSharkGrab desenha a dele) e há quanto
+// tempo o tambor do Fliperama gira (null = parado).
 export function drawRoomScenery(ctx, type, options = {}) {
   const draw = SCENERY[type]
   if (!draw) return
@@ -610,7 +612,8 @@ const BALL_COLORS = ['#e04848', '#f0c040', '#4a8ad0', '#4aa860']
 const LIGHT_COLORS = ['#ffd860', '#ff6080']
 const LIGHT_RGB = ['255, 216, 96', '255, 96, 128']
 
-function drawArcade(ctx) {
+// arcadeSpinMs = há quanto tempo o tambor gira numa jogada (null = parado). Ele gira rápido e vai parando.
+function drawArcade(ctx, { arcadeSpinMs = null }) {
   drawPartyLights(ctx, 130, 680)
   drawPartyLights(ctx, 920, 1470)
 
@@ -627,7 +630,14 @@ function drawArcade(ctx) {
   rect(ctx, '#e8c040', leftTower.x + 52, centerY - 4, rightTower.x - leftTower.x, 8)
   ellipse(ctx, '#e8c040', rightTower.x + 52, centerY, 11, 11)
   drawFunnel(ctx, centerX, middle.y + middle.height)
-  drawBingoWheel(ctx, centerX, centerY, 70)
+  drawBingoWheel(ctx, centerX, centerY, 70, getWheelTurn(arcadeSpinMs))
+}
+
+// Giro do tambor, em radianos: 2,5 voltas que vão freando até ARCADE_SPIN_MS (parado: 0)
+function getWheelTurn(spinMs) {
+  if (spinMs === null) return 0
+  const progress = Math.min(1, spinMs / ARCADE_SPIN_MS)
+  return Math.PI * 5 * (1 - (1 - progress) * (1 - progress))
 }
 
 // Fio com lâmpadas coloridas nos painéis de cima (abaixo do contador de tempo)
@@ -676,13 +686,13 @@ function drawFunnel(ctx, centerX, top) {
   outlinePolygon(ctx, [[centerX - 30, top - 6], [centerX + 30, top - 6], [centerX + 12, top + 22], [centerX - 12, top + 22]])
 }
 
-// Tambor de bingo: roda escura com aro dourado, raios e bolinhas coloridas dentro
-function drawBingoWheel(ctx, x, y, radius) {
+// Tambor de bingo: roda escura com aro dourado, raios e bolinhas coloridas dentro. turn = giro, em radianos
+function drawBingoWheel(ctx, x, y, radius, turn) {
   ellipse(ctx, 'rgba(26, 18, 32, 0.92)', x, y, radius, radius)
   ctx.strokeStyle = 'rgba(232, 192, 64, 0.55)'
   ctx.lineWidth = 2
   for (let k = 0; k < 8; k++) {
-    const angle = (k * Math.PI) / 4
+    const angle = (k * Math.PI) / 4 + turn
     ctx.beginPath()
     ctx.moveTo(x, y)
     ctx.lineTo(x + Math.cos(angle) * radius * 0.95, y + Math.sin(angle) * radius * 0.95)
@@ -691,8 +701,8 @@ function drawBingoWheel(ctx, x, y, radius) {
   // Posições fixas (ângulo, distância do centro em fração do raio), para o desenho não mudar a cada quadro
   const balls = [[0.3, 0.2], [1.2, 0.55], [2.0, 0.35], [2.7, 0.6], [3.4, 0.25], [4.1, 0.58], [4.8, 0.4], [5.5, 0.62], [6.0, 0.1], [0.8, 0.62], [3.9, 0.05]]
   balls.forEach(([angle, distance], index) => {
-    const ballX = x + Math.cos(angle) * distance * radius
-    const ballY = y + Math.sin(angle) * distance * radius
+    const ballX = x + Math.cos(angle + turn) * distance * radius
+    const ballY = y + Math.sin(angle + turn) * distance * radius
     ellipse(ctx, BALL_COLORS[index % BALL_COLORS.length], ballX, ballY, 10, 10)
     ellipse(ctx, '#f4f0e8', ballX, ballY, 3.5, 3.5)
   })

@@ -1,45 +1,31 @@
 import { ITEM_SPRITES } from '../../../data/itemSprites.js'
 import { PEDESTAL_SPRITES } from '../../../data/roomSprites.js'
+import { PEDESTAL_TOP_HEIGHT } from '../../../utils/pedestals.js'
 import { drawPixelText, getTextWidth, SMALL_FONT } from '../../../utils/pixelFont.js'
 import { VANISH_MS } from '../../../utils/run.js'
 import { getTimedFrame, getTotalDuration } from '../../../utils/spriteAnimation.js'
+import { drawFloorThing } from './drawDrops.js'
 import { drawHearts } from './drawHearts.js'
-import { PLAYER_SPRITE_SCALE } from './drawSprite.js'
-import { getImage, isImageReady } from './images.js'
+import { drawFrame } from './drawSprite.js'
 
 // Pedestal com o item em cima (pedestals.js) e o item pego sobre a cabeça do Tung, em unidades da sala.
 // O pedestal e o item usam a mesma célula de 300 x 384 px da arte, com os pés no mesmo ponto: basta desenhar os
 // dois com os pés na base do pedestal. A escala é a do Tung Tung (PLAYER_SPRITE_SCALE): a arte dos itens e dos
 // pedestais usa a mesma grade de pixels.
 
-// Um quadro da folha (linha = animação, coluna = quadro), com os pés em (x, y).
-// Folha @1x (scale 3) é desenhada 3x maior, para ficar do mesmo tamanho da arte grande.
-function drawFrame(ctx, sprite, row, frame, x, y) {
-  const image = getImage(sprite.path)
-  if (!isImageReady(image)) return
-  const size = sprite.scale * PLAYER_SPRITE_SCALE
-  const pivotX = sprite.feetX
-  const pivotY = sprite.frameHeight - sprite.feetPadding
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(
-    image,
-    frame * sprite.frameWidth,
-    row * sprite.frameHeight,
-    sprite.frameWidth,
-    sprite.frameHeight,
-    x - pivotX * size,
-    y - pivotY * size,
-    sprite.frameWidth * size,
-    sprite.frameHeight * size,
-  )
-}
-
 // timeMs = relógio da animação do item flutuando. Com "reduzir movimento", o item fica parado no quadro 0.
 // leaving = o item que está sumindo deste pedestal (run.vanishing), ou null.
 export function drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) {
   drawFrame(ctx, PEDESTAL_SPRITES[pedestal.variant], 0, 0, pedestal.x, pedestal.y)
   if (leaving) drawVanishingItem(ctx, pedestal, leaving)
+  // Loja: o garfo e o coração ficam em cima do tampo (o garfo na animação "chao", o coração é o do HUD)
+  if (pedestal.consumable) {
+    const top = { x: pedestal.x, y: pedestal.y - PEDESTAL_TOP_HEIGHT }
+    if (pedestal.consumable === 'garfo') drawFloorThing(ctx, { kind: 'garfo', amount: 1, ...top }, timeMs, reduceMotion)
+    else drawFloorThing(ctx, { kind: 'coracao', amount: 1, ...top }, timeMs, reduceMotion)
+    drawPrice(ctx, pedestal)
+    return
+  }
   if (!pedestal.itemId) return
 
   const sprite = ITEM_SPRITES[pedestal.itemId]
@@ -47,6 +33,33 @@ export function drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) {
   const frame = reduceMotion ? 0 : getTimedFrame(durations, timeMs % getTotalDuration(durations))
   drawFrame(ctx, sprite, row, frame, pedestal.x, pedestal.y)
   if (pedestal.maxHealthCost > 0) drawCost(ctx, pedestal)
+  if (pedestal.price > 0) drawPrice(ctx, pedestal)
+}
+
+// Etiqueta do preço em grãos, embaixo da plaquinha do grão do pedestal da Loja: placa clara com contorno e o número
+// na fonte do jogo. Desenhada por código, no estilo da folha grao-de-cafe-preco, porque essa folha só vai até 9.
+// O pedestal sem plaquinha (o comum) tem a etiqueta logo embaixo dele.
+const PRICE_PIXEL = 3 // tamanho de cada pixel da fonte, em u
+const FONT_HEIGHT = 7 // as letras de SMALL_FONT têm 7 pixels de altura
+const PRICE_TOP = { loja: 18, base: 8 } // u abaixo da base do pedestal (o da Loja tem a plaquinha do grão embaixo)
+
+function drawPrice(ctx, pedestal) {
+  const text = String(pedestal.price)
+  const padding = 2 * PRICE_PIXEL
+  const width = padding + getTextWidth(SMALL_FONT, text) * PRICE_PIXEL + padding
+  const height = FONT_HEIGHT * PRICE_PIXEL + padding * 2
+  const left = Math.round(pedestal.x - width / 2)
+  const top = Math.round(pedestal.y + (PRICE_TOP[pedestal.variant] ?? 8))
+  ctx.save()
+  ctx.fillStyle = '#140806' // contorno
+  ctx.fillRect(left - 3, top - 3, width + 6, height + 6)
+  ctx.fillStyle = '#e8dcc0' // placa
+  ctx.fillRect(left, top, width, height)
+  // Número (o grão está na plaquinha do pedestal, logo acima)
+  ctx.translate(left + padding, top + padding)
+  ctx.scale(PRICE_PIXEL, PRICE_PIXEL)
+  drawPixelText(ctx, SMALL_FONT, text, 0, 0, '#2a1a10')
+  ctx.restore()
 }
 
 // Item que não foi escolhido (sala de escolha) sumindo: ele sobe VANISH_RISE u e apaga, e uma fumacinha

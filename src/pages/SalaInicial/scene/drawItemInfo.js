@@ -10,7 +10,8 @@ const BORDER_COLOR = '#5a4636'
 const NAME_COLOR = '#f4d27a'
 const TEXT_COLOR = '#f4ece4'
 
-// item = { id, name, description } do catálogo.
+// item = { id, name, description } do catálogo, ou { name, description, icon } do garfo e do coração da Loja
+// (icon = o caminho do ícone; o coração não tem ícone e aparece sem).
 // left e top = canto de cima à esquerda; maxWidth = largura máxima; fontSize = tamanho da letra da descrição.
 export function drawItemInfo(ctx, { item, left, top, maxWidth, fontSize }) {
   const padding = Math.round(fontSize * 0.8)
@@ -31,8 +32,9 @@ export function drawItemInfo(ctx, { item, left, top, maxWidth, fontSize }) {
   ctx.strokeRect(left, top, maxWidth, height)
 
   // Ícone do item e o nome ao lado dele
-  const icon = getImage(ITEM_SPRITES[item.id].icon)
-  if (isImageReady(icon)) {
+  const iconPath = item.icon ?? ITEM_SPRITES[item.id]?.icon
+  const icon = iconPath ? getImage(iconPath) : null
+  if (icon && isImageReady(icon)) {
     const fit = iconSize / Math.max(icon.naturalWidth, icon.naturalHeight)
     const width = icon.naturalWidth * fit
     const iconHeight = icon.naturalHeight * fit

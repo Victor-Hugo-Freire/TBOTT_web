@@ -13,6 +13,7 @@ import {
   isSecretMarkVisible,
 } from '../../../utils/run.js'
 import { drawDoors, drawSecretMark } from './drawDoors.js'
+import { drawCollecting, drawDrops, drawNotice } from './drawDrops.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
@@ -45,6 +46,9 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     // Efeitos dos itens na sala atual (itemEffects.js): poças, efeitos que tocam uma vez e o que acompanha o Tung
     puddles: run.puddles,
     shards: run.shards, // lascas do Parmesão voando
+    collecting: run.collecting, // grão, garfo e coração que acabaram de ser pegos (animação "coleta")
+    notice: run.notice, // aviso curto em cima do Tung ("Faltam grãos"...)
+    arcadeSpin: run.arcadeSpin, // o tambor do Fliperama girando numa jogada
     flashes: run.flashes,
     effects: run.effects,
     visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
@@ -73,6 +77,8 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       puddles: [],
       shards: [],
       flashes: [],
+      collecting: [],
+      notice: null,
     })
   const progress = transition.elapsedMs / transition.durationMs
 
@@ -113,6 +119,7 @@ export function getFloorFade(run) {
 function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
   const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
+  const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -121,7 +128,9 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
   drawPuddles(ctx, puddles) // poças de molho da Concha, no chão
-  drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle })
+  const arcadeSpinMs = arcadeSpin?.roomId === room.id ? arcadeSpin.elapsedMs : null
+  drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle, arcadeSpinMs })
+  drawDrops(ctx, room.drops, timeMs, reduceMotion) // grãos, garfos e corações no chão (embaixo de quem anda)
 
   const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
   drawDoors(ctx, doors, ROOM_THEMES[theme])
@@ -171,6 +180,8 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   // Lascas do Parmesão voando e efeitos dos itens que tocam uma vez (estalo, notas, mordida, faísca...), por cima de tudo
   drawShards(ctx, shards)
   drawFlashes(ctx, flashes)
+  drawCollecting(ctx, collecting)
+  if (player && notice && !player.dead) drawNotice(ctx, player, notice)
 }
 
 // Os pés de um obstáculo ficam no meio da borda de baixo da caixa
