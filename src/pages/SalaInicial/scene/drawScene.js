@@ -1,3 +1,4 @@
+import { getVisibleItems } from '../../../utils/appearance.js'
 import { applyUnlocking, getRoomDoors, SIDE_VECTORS } from '../../../utils/doors.js'
 import { getRoomPedestals } from '../../../utils/pedestals.js'
 import { PUDDLE_FALL_CAUSE, TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
@@ -14,7 +15,7 @@ import {
 import { drawDoors, drawSecretMark } from './drawDoors.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
-import { drawFlashes, drawPlayerAuras, drawPuddles } from './drawItemEffects.js'
+import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
 import { drawHeldItem, drawPedestal } from './drawPedestals.js'
 import { drawPlayer } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
@@ -43,8 +44,10 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     vanishing: run.vanishing, // itens sumindo da sala de escolha (cada um diz de que sala é)
     // Efeitos dos itens na sala atual (itemEffects.js): poças, efeitos que tocam uma vez e o que acompanha o Tung
     puddles: run.puddles,
+    shards: run.shards, // lascas do Parmesão voando
     flashes: run.flashes,
     effects: run.effects,
+    visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
   }
   const { transition } = run
   if (transition?.type !== 'room') {
@@ -68,6 +71,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       unlocking: null,
       pickup: null,
       puddles: [],
+      shards: [],
       flashes: [],
     })
   const progress = transition.elapsedMs / transition.durationMs
@@ -107,7 +111,8 @@ export function getFloorFade(run) {
 // depois obstáculos, tambor, pedestais e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
-  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing, puddles, flashes, effects } = options
+  const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
+  const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -147,10 +152,9 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
       if (pulledByShark) drawSharkGrab(ctx, sheets, player, death.fin, reduceMotion)
       else if (fellInPuddle) drawPuddleFall(ctx, sheets, player, death.fin, reduceMotion)
       else {
-        // Efeitos dos itens que acompanham os pés dele: o escudo atrás, o vapor e o cacau na frente
-        if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs, true)
-        drawPlayer(ctx, sheets, player, reduceMotion)
-        if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs, false)
+        // Efeitos dos itens que acompanham o Tung, na frente dele: a bolha do escudo, o vapor e o cacau
+        drawPlayer(ctx, sheets, player, reduceMotion, visibleItems)
+        if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs)
       }
       // Item que ele acabou de pegar, sobre a cabeça (não aparece na morte)
       if (pickup && !player.dead) drawHeldItem(ctx, player, pickup)
@@ -164,7 +168,8 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawBreakingObstacles(ctx, obstacles, reduceMotion)
   if (drum) drawDrumDust(ctx, drum.box, drumFall.landedMs)
   if (drum && drumFall.height === 0) drawDrumText(ctx, drum.box, room.hits)
-  // Efeitos dos itens que tocam uma vez (estalo, notas, mordida, faísca...), por cima de tudo
+  // Lascas do Parmesão voando e efeitos dos itens que tocam uma vez (estalo, notas, mordida, faísca...), por cima de tudo
+  drawShards(ctx, shards)
   drawFlashes(ctx, flashes)
 }
 

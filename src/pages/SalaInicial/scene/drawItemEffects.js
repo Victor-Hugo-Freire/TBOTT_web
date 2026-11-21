@@ -1,4 +1,5 @@
 import { ITEM_SPRITES } from '../../../data/itemSprites.js'
+import { SHIELD_BREAK_MS } from '../../../utils/itemEffects.js'
 import { getTimedFrame, getTotalDuration } from '../../../utils/spriteAnimation.js'
 import { PLAYER_SPRITE_SCALE } from './drawSprite.js'
 import { getImage, isImageReady } from './images.js'
@@ -56,15 +57,38 @@ export function drawFlashes(ctx, flashes) {
   }
 }
 
-// Efeitos que acompanham os pés do Tung enquanto duram (em laço). timeMs = relógio da animação.
-// behind = true desenha o que fica atrás dele (o escudo de vapor no chão); false, o que fica na frente.
-export function drawPlayerAuras(ctx, player, effects, timeMs, behind) {
-  if (behind) {
-    // Caldo da Mamãe: anel de vapor no chão enquanto o escudo da sala está ativo
-    if (effects.shieldHits > 0) {
-      drawEffectFrame(ctx, 'caldo-da-mamae', 'escudo-de-vapor', getEffectFrame('caldo-da-mamae', 'escudo-de-vapor', timeMs, true), player.x, player.y - 8)
-    }
-    return
+// Lascas do Parmesão voando: uma lasca recortada do quadro 2 da folha "lascas" (a de cima, com a ponta
+// para a direita), virada para onde ela voa
+const SHARD_CHIP = { x: 137, y: 10, width: 9, height: 8 } // px de parmesao-curado-lascas.png
+
+export function drawShards(ctx, shards) {
+  if (shards.length === 0) return
+  const sprite = ITEM_SPRITES['parmesao-curado'].variants.lascas
+  const image = getImage(sprite.path)
+  if (!isImageReady(image)) return
+  const size = sprite.scale * PLAYER_SPRITE_SCALE
+  const width = SHARD_CHIP.width * size
+  const height = SHARD_CHIP.height * size
+  for (const shard of shards) {
+    ctx.save()
+    ctx.translate(shard.x, shard.y)
+    ctx.rotate(Math.atan2(shard.vy, shard.vx))
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(image, SHARD_CHIP.x, SHARD_CHIP.y, SHARD_CHIP.width, SHARD_CHIP.height, -width / 2, -height / 2, width, height)
+    ctx.restore()
+  }
+}
+
+// Efeitos que acompanham o Tung enquanto duram (em laço), desenhados na frente dele. timeMs = relógio da animação.
+export function drawPlayerAuras(ctx, player, effects, timeMs) {
+  // Caldo da Mamãe: bolha de caldo enquanto o escudo da sala está pronto (pulsa de leve);
+  // ao anular um dano, ela estoura: cresce, apaga e solta gotas
+  if (effects.shieldHits > 0) drawShieldBubble(ctx, player, 1 + 0.03 * Math.sin(timeMs / 250), 1)
+  if (effects.shieldBreakMs > 0) {
+    const progress = 1 - effects.shieldBreakMs / SHIELD_BREAK_MS
+    drawShieldBubble(ctx, player, 1 + 0.35 * progress, 1 - progress)
+    drawShieldDrops(ctx, player, progress)
   }
   // Café Duplo: vapor saindo dos pés durante a corrida
   if (effects.coffeeBoostMs > 0) {
@@ -74,4 +98,46 @@ export function drawPlayerAuras(ctx, player, effects, timeMs, behind) {
   if (effects.sugarMs > 0) {
     drawEffectFrame(ctx, 'tiramisu', 'po-de-cacau', getEffectFrame('tiramisu', 'po-de-cacau', timeMs, true), player.x, player.y - 25)
   }
+}
+
+// Escudo do Caldo: uma bolha dourada e meio transparente em volta do Tung, desenhada por código (como o arco
+// do golpe). É dourada e lisa de propósito, para não parecer o vapor do Café.
+const SHIELD = { up: 52, radiusX: 64, radiusY: 70 } // u: o meio da bolha fica `up` acima dos pés
+const SHIELD_COLOR = '255, 196, 92' // dourado de caldo (r, g, b)
+
+// scale = tamanho (1 = normal); alpha = 1 (inteira) a 0 (sumiu)
+function drawShieldBubble(ctx, player, scale, alpha) {
+  const centerY = player.y - SHIELD.up
+  const radiusX = SHIELD.radiusX * scale
+  const radiusY = SHIELD.radiusY * scale
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.beginPath()
+  ctx.ellipse(player.x, centerY, radiusX, radiusY, 0, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(${SHIELD_COLOR}, 0.16)`
+  ctx.fill()
+  ctx.lineWidth = 3
+  ctx.strokeStyle = `rgba(${SHIELD_COLOR}, 0.85)`
+  ctx.stroke()
+  // brilho no alto à esquerda, como numa bolha
+  ctx.beginPath()
+  ctx.ellipse(player.x - radiusX * 0.45, centerY - radiusY * 0.55, 11 * scale, 5 * scale, -0.6, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
+  ctx.fill()
+  ctx.restore()
+}
+
+// Gotas de caldo voando para fora quando a bolha estoura. progress = 0 (começo) a 1 (fim)
+function drawShieldDrops(ctx, player, progress) {
+  const centerY = player.y - SHIELD.up
+  const spread = 1 + 0.7 * progress
+  ctx.save()
+  ctx.fillStyle = `rgba(${SHIELD_COLOR}, ${1 - progress})`
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4
+    ctx.beginPath()
+    ctx.arc(player.x + Math.cos(angle) * SHIELD.radiusX * spread, centerY + Math.sin(angle) * SHIELD.radiusY * spread, 5 * (1 - progress) + 1, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
 }
