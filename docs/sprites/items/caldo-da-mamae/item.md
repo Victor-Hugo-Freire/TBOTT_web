@@ -15,5 +15,5 @@
 - peso de sorteio: único item da sala
 - condição: só se o chefe do andar foi vencido SEM levar dano (no lugar da Sala do Pacto); proposta NÃO confirmada
 - pedestal: à direita da mesa (coluna 10, linha 2); 1 pedestal
-- repetição: só um por partida; se já foi pego, a sala dá só o prato quente (cura toda a vida)
+- repetição: só um por partida; se já foi pego, o pedestal não aparece (regra do Victor, 2026-11-20: grão, garfo e coração só vêm da sala limpa e da Adega)
 - preço ou custo: nenhum
