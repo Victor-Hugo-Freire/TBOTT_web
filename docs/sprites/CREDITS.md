@@ -6,13 +6,28 @@ Não há. Nenhuma imagem, fonte ou som de terceiros foi usado nos sprites de `pu
 
 ## Sistema de áudio
 
-O sistema central implementado na Issue #35 utiliza apenas a Web Audio API nativa dos navegadores.
+O sistema central implementado na Issue #35 utiliza a Web Audio API nativa dos navegadores.
 
-ZzFX e ZzFXM foram considerados, mas não há registro neste projeto de uma avaliação prática com testes comparativos, benchmark ou protótipo sonoro. Portanto, não foram atribuídos resultados que não tenham sido realizados. Como bibliotecas de síntese e padrões prontos, ZzFX/ZzFXM poderiam reduzir código para certos efeitos e oferecer conveniência; em contrapartida, adicionariam dependências ou integrações adicionais e abstrações próprias sobre o áudio.
+### Avaliação prática de ZzFX/ZzFXM
 
-A Web Audio API nativa foi escolhida por permitir controle direto de nós, grupos de ganho, volumes de música e efeitos, mute, interrupção de fontes e desbloqueio pelo navegador sem novas dependências. Sua principal desvantagem é exigir mais infraestrutura no gerenciador. Neste projeto essa infraestrutura permaneceu concentrada em uma única implementação e o requisito não pediu músicas ou efeitos específicos, por isso os ganhos esperados das bibliotecas não justificaram sua inclusão sem uma avaliação prática registrada.
+Em 21/11/2026 foi realizada uma avaliação técnica e prática do ZzFX/ZzFXM sem incorporá-los ao projeto:
 
-ZzFX e ZzFXM não foram incorporados nem utilizados como código ou dependência. Portanto, não há atribuição ou licença adicional a registrar para essas bibliotecas.
+- foi consultado o pacote público `zzfx@1.4.0` no npm e foi feito `npm pack` em ambiente temporário para verificar arquivos, metadados e licença;
+- foi registrada a licença MIT do ZzFX, com copyright de Frank Force (2019), em `../../THIRD_PARTY_LICENSES.md`;
+- foi consultada a implementação pública do ZzFXM v2.0.4, cujo repositório declara licença MIT e copyright de Keith Clark (2020), também registrada em `../../THIRD_PARTY_LICENSES.md`;
+- foram executados os testes específicos da implementação atual: `tests/audioManager.test.js` e `tests/audioUnlock.test.js`, com 20 testes aprovados e nenhuma falha;
+- a avaliação verificou integração, limitações e licenças, mas não realizou uma sessão auditiva comparativa nem um benchmark perceptual no navegador.
+
+ZzFX oferece síntese compacta de efeitos por parâmetros e ZzFXM adiciona uma faixa de música baseada nesses instrumentos. Porém, os testes práticos disponíveis neste projeto confirmaram que a Web Audio API já atende a criação de um contexto único, desbloqueio por interação, volumes separados, mute, cooldown, limite de vozes e troca/fade de música. A adoção das bibliotecas exigiria integrar APIs próprias e dependências adicionais sem efeitos específicos ou faixas atuais que justifiquem essa camada.
+
+A Web Audio API nativa foi escolhida por permitir controle direto dos nós e grupos de ganho, volumes independentes, mute, interrupção de fontes e desbloqueio pelo navegador. ZzFX/ZzFXM não foram incorporados nem utilizados como código ou dependência no projeto; o registro acima apenas documenta a avaliação e suas licenças MIT.
+
+Fontes consultadas:
+
+- ZzFX: https://github.com/KilledByAPixel/ZzFX
+- ZzFXM: https://github.com/KilledByAPixel/ZzFXM
+- Licença do ZzFX: https://raw.githubusercontent.com/KilledByAPixel/ZzFX/master/LICENSE
+- Licença do ZzFXM: https://raw.githubusercontent.com/KilledByAPixel/ZzFXM/master/LICENSE
 
 ## Personagens inspirados em memes
 
