@@ -222,11 +222,11 @@ describe('portas trancadas com garfo', () => {
     assert.equal(getExitSide(edge, { x: 0, y: -1 }, doors, 'locked'), 'up', 'mas dá para saber que ele está empurrando ela')
   })
 
-  test('a porta que está abrindo vira "unlocking", com o tempo da animação', () => {
+  test('a porta que está abrindo vira "unlocking", com o tempo da animação e o que abriu (garfo ou grão)', () => {
     const doors = [{ side: 'up', state: 'open' }, { side: 'left', state: 'open' }]
     assert.equal(applyUnlocking(doors, null), doors)
-    assert.deepEqual(applyUnlocking(doors, { side: 'up', elapsedMs: 300 }), [
-      { side: 'up', state: 'unlocking', unlockMs: 300 },
+    assert.deepEqual(applyUnlocking(doors, { side: 'up', elapsedMs: 300, lock: 'grao' }), [
+      { side: 'up', state: 'unlocking', unlockMs: 300, lock: 'grao' },
       { side: 'left', state: 'open' },
     ])
     assert.ok(FORK_UNLOCK_MS > FORK_KNOT_MS, 'o nó e depois as folhas abrindo')

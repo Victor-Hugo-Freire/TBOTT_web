@@ -130,9 +130,14 @@ export const HITS_TO_OPEN = 3
 
 // Salas trancadas com o nó de espaguete: abrir gasta 1 garfo (regra de itens/spawn.md, issue #18).
 // A Sala do Tesouro só tranca do andar 2 em diante; a Sala de Descanso tranca sempre. A Loja fica sempre aberta.
-// As outras condições (vida cheia no Palco, grão no Fliperama) ainda não fecham a porta.
+// A vida cheia no Palco ainda não fecha a porta.
 export function needsFork(floor, room) {
   return (room.type === 'tesouro' && floor.number >= 2) || room.type === 'descanso'
+}
+
+// O Fliperama tranca pedindo grão de café: empurrar a porta paga o preço (ARCADE_DOOR_PRICE, em economy.js)
+export function needsGrain(room) {
+  return room.type === 'fliperama'
 }
 
 // A animação de abrir: o garfo enrola o nó e tira (folha garfo-porta-trancada, 990 ms) e depois as folhas da
@@ -141,11 +146,14 @@ export const FORK_KNOT_MS = 990
 export const FORK_LEAVES_MS = 260
 export const FORK_UNLOCK_MS = FORK_KNOT_MS + FORK_LEAVES_MS
 
-// A porta que está abrindo agora (unlocking = { side, elapsedMs } da run, ou null) vira 'unlocking', com o tempo
-// da animação. Quem chama: a run (para não deixar passar) e o desenho (para animar).
+// A porta que está abrindo agora (unlocking = { side, elapsedMs, lock } da run, ou null) vira 'unlocking', com o tempo
+// da animação e o que abriu (garfo ou grão: a sala já ficou aberta, então a porta não diz mais). Quem chama: a run
+// (para não deixar passar) e o desenho (para animar).
 export function applyUnlocking(doors, unlocking) {
   if (!unlocking) return doors
-  return doors.map((door) => (door.side === unlocking.side ? { ...door, state: 'unlocking', unlockMs: unlocking.elapsedMs } : door))
+  return doors.map((door) =>
+    door.side === unlocking.side ? { ...door, state: 'unlocking', unlockMs: unlocking.elapsedMs, lock: unlocking.lock } : door,
+  )
 }
 
 // Parede da adega: escondida até o 1º golpe, trincada no 1º e no 2º, aberta a partir do 3º
@@ -156,8 +164,8 @@ function getSecretState(hits) {
 }
 
 // Portas da sala: { side, kind, targetId, state }, com state 'open', 'closed', 'locked', 'hidden' ou 'cracked'.
-// 'locked' = a porta para uma sala trancada (needsFork) que ainda não foi aberta com um garfo. De dentro dela, a porta
-// de volta fica sempre aberta. As outras condições (grão, vida cheia) ficam abertas nesta entrega.
+// 'locked' = a porta para uma sala trancada que ainda não foi aberta. A porta trancada diz também o que abre:
+// lock = 'garfo' (needsFork) ou 'grao' (needsGrain, o Fliperama). De dentro da sala, a porta de volta fica sempre aberta.
 export function getRoomDoors(floor, room) {
   const doors = []
 
@@ -174,8 +182,12 @@ export function getRoomDoors(floor, room) {
     } else if (room.type === 'chefe' && target && BOSS_BRANCH_TYPES.includes(target.type)) {
       // A porta do pacto ou do God só aparece depois que a sala do chefe fica limpa
       if (!room.cleared) continue
+    } else if (target && needsGrain(target) && !target.unlocked) {
+      doors.push({ side, kind, targetId, state: 'locked', lock: 'grao' })
+      continue
     } else if (target && needsFork(floor, target) && !target.unlocked) {
-      state = 'locked'
+      doors.push({ side, kind, targetId, state: 'locked', lock: 'garfo' })
+      continue
     }
 
     doors.push({ side, kind, targetId, state })

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { SHOP_PRICES } from '../src/data/economy.js'
 import { PEDESTAL_SPRITES } from '../src/data/roomSprites.js'
 import { overlaps } from '../src/utils/collision.js'
 import { getEntryPosition, SIDES } from '../src/utils/doors.js'
@@ -11,6 +12,8 @@ import {
   findTouchedPedestal,
   getPedestalSolids,
   getRoomPedestals,
+  getRoomTypeItem,
+  hasGoods,
   INFO_DISTANCE,
   PEDESTAL_VARIANTS,
 } from '../src/utils/pedestals.js'
@@ -149,8 +152,8 @@ describe('pedestais da sala (getRoomPedestals)', () => {
     assert.equal(pedestals[0].box.y + pedestals[0].box.height, pedestals[0].y)
   })
 
-  test('salas sem pedestal de item: comum, Loja, Fliperama, Palco e Descanso (por enquanto)', () => {
-    for (const type of ['inicial', 'comum', 'loja', 'fliperama', 'palco', 'descanso']) {
+  test('salas sem pedestal de item: comum, Palco e Descanso (por enquanto)', () => {
+    for (const type of ['inicial', 'comum', 'palco', 'descanso']) {
       assert.deepEqual(getRoomPedestals(fakeRun({ id: '4-4' }, ['tiramisu']), { id: '4-4', type, layoutId: type === 'comum' ? 'comum-01' : type, cleared: true, emptied: [] }), [], type)
     }
   })
@@ -162,10 +165,19 @@ describe('pedestais da sala (getRoomPedestals)', () => {
     assert.equal(getRoomPedestals(fakeRun(clean, ['rolo-de-bronze']), clean).length, 1)
   })
 
-  test('item pego nesta sala: o pedestal fica vazio', () => {
+  test('item pego nesta visita: o pedestal fica vazio enquanto ele está na sala', () => {
     const room = fakeRoom('adega', { emptied: ['6-2'] })
-    const [pedestal] = getRoomPedestals(fakeRun(room, ['elixir-eletrico'], { items: ['elixir-eletrico'] }), room)
+    const here = { items: ['elixir-eletrico'], roomId: room.id, emptiedHere: ['6-2'] }
+    const [pedestal] = getRoomPedestals(fakeRun(room, ['elixir-eletrico'], here), room)
     assert.equal(pedestal.itemId, null)
+  })
+
+  test('pedestal vazio de outra visita (saiu e voltou, ou continuou a run): não aparece mais', () => {
+    const room = fakeRoom('adega', { emptied: ['6-2'] })
+    assert.deepEqual(getRoomPedestals(fakeRun(room, ['elixir-eletrico'], { items: ['elixir-eletrico'], roomId: room.id }), room), [])
+    // e na sala que entra deslizando (ainda não é a sala atual) ele também não aparece
+    const sliding = { items: ['elixir-eletrico'], roomId: 'outra', emptiedHere: ['6-2'] }
+    assert.deepEqual(getRoomPedestals(fakeRun(room, ['elixir-eletrico'], sliding), room), [])
   })
 
   test('item que já saiu na run por outro caminho: o pedestal dele não aparece', () => {
@@ -204,5 +216,65 @@ describe('perto do pedestal: encostar e ler a descrição', () => {
     assert.equal(findNearbyPedestal([left, right], { x: right.x, y: right.y + INFO_DISTANCE - 1 }), right)
     assert.equal(findNearbyPedestal([left, right], { x: 800, y: right.y + INFO_DISTANCE + 50 }), null)
     assert.equal(findNearbyPedestal([{ ...left, itemId: null }], { x: left.x, y: left.y + 30 }), null)
+  })
+})
+
+describe('Loja: o balcão vende garfo, o item da Loja e coração, por grãos', () => {
+  test('da esquerda para a direita: garfo (7), Tiramisu (preço do catálogo, 15) e coração (5), no pedestal da Loja (a plaquinha da arte só tem o grão)', () => {
+    const shop = fakeRoom('loja')
+    const pedestals = getRoomPedestals(fakeRun(shop, []), shop)
+    assert.deepEqual(
+      pedestals.map((pedestal) => [pedestal.id, pedestal.consumable, pedestal.itemId, pedestal.price, pedestal.variant]),
+      [
+        ['4-3', 'garfo', null, SHOP_PRICES.garfo, 'loja'],
+        ['6-3', null, 'tiramisu', TEST_CATALOG.tiramisu.price, 'loja'],
+        ['8-3', 'coracao', null, SHOP_PRICES.coracao, 'loja'],
+      ],
+    )
+  })
+
+  test('com o Tiramisu já pego, o pedestal do meio vende um coração', () => {
+    const shop = fakeRoom('loja')
+    const middle = getRoomPedestals(fakeRun(shop, [], { items: ['tiramisu'] }), shop)[1]
+    assert.deepEqual([middle.consumable, middle.itemId, middle.price], ['coracao', null, SHOP_PRICES.coracao])
+  })
+
+  test('cada pedestal vende uma vez: o vendido fica vazio (e some ao sair da sala), os outros continuam', () => {
+    const shop = fakeRoom('loja', { emptied: ['4-3'] })
+    assert.equal(getRoomPedestals(fakeRun(shop, []), shop).length, 2, 'de outra visita, o vendido sumiu')
+    const pedestals = getRoomPedestals(fakeRun(shop, [], { roomId: shop.id, emptiedHere: ['4-3'] }), shop)
+    assert.equal(hasGoods(pedestals[0]), false)
+    assert.equal(pedestals[0].price, 0)
+    assert.equal(hasGoods(pedestals[1]), true)
+    assert.equal(findTouchedPedestal([pedestals[0]], { x: pedestals[0].x, y: pedestals[0].y + 21 }), null)
+    assert.equal(findTouchedPedestal([pedestals[2]], { x: pedestals[2].x, y: pedestals[2].y + 21 }), pedestals[2], 'garfo e coração contam ao encostar')
+  })
+})
+
+describe('Fliperama: o pedestal à frente do tambor', () => {
+  test('sem prêmio, não tem pedestal', () => {
+    const arcade = fakeRoom('fliperama', { prize: null })
+    assert.deepEqual(getRoomPedestals(fakeRun(arcade, []), arcade), [])
+  })
+
+  test('com o prêmio, o pedestal aparece na frente da máquina; enquanto o tambor gira, ainda não', () => {
+    const arcade = fakeRoom('fliperama', { prize: 'chifre-da-sorte' })
+    const [pedestal] = getRoomPedestals(fakeRun(arcade, []), arcade)
+    assert.deepEqual([pedestal.id, pedestal.itemId], ['6-4', 'chifre-da-sorte'])
+    const spinning = fakeRun(arcade, [], { arcadeSpin: { roomId: arcade.id, elapsedMs: 300 } })
+    assert.deepEqual(getRoomPedestals(spinning, arcade), [])
+  })
+
+  test('pego o item, o pedestal fica vazio enquanto ele está na sala e some depois', () => {
+    const taken = fakeRoom('fliperama', { prize: 'chifre-da-sorte', emptied: ['6-4'] })
+    const here = fakeRun(taken, [], { roomId: taken.id, emptiedHere: ['6-4'] })
+    assert.equal(getRoomPedestals(here, taken)[0].itemId, null)
+    assert.deepEqual(getRoomPedestals(fakeRun(taken, [], { roomId: taken.id }), taken), [])
+  })
+
+  test('o item do tipo da sala: o primeiro do catálogo que o jogador ainda não tem', () => {
+    assert.equal(getRoomTypeItem({ catalog: TEST_CATALOG, items: [] }, 'fliperama'), 'chifre-da-sorte')
+    assert.equal(getRoomTypeItem({ catalog: TEST_CATALOG, items: ['chifre-da-sorte'] }, 'fliperama'), null)
+    assert.equal(getRoomTypeItem({ catalog: TEST_CATALOG, items: [] }, 'loja'), 'tiramisu')
   })
 })

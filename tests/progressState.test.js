@@ -25,6 +25,7 @@ describe('normalizeProgressPayload', () => {
       health: 6,
       deathCause: null,
       forks: 1,
+      grains: 0,
       items: [],
       floorHealsUsed: 0,
     })
@@ -82,9 +83,9 @@ describe('normalizeProgressPayload', () => {
       },
     })
     assert.deepEqual(payload.roomStates, {
-      '3-3': { removed: ['2-1', '9-4'], hits: 0, unlocked: false, slept: false, emptied: [] },
-      '4-2': { removed: [], hits: 3, unlocked: false, slept: false, emptied: [] },
-      '6-1': { removed: ['1-1'], hits: 3, unlocked: false, slept: false, emptied: [] },
+      '3-3': { removed: ['2-1', '9-4'], hits: 0, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null },
+      '4-2': { removed: [], hits: 3, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null },
+      '6-1': { removed: ['1-1'], hits: 3, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null },
     })
   })
 
@@ -134,6 +135,7 @@ describe('normalizeProgressPayload com dados estranhos', () => {
         health: 6,
         deathCause: null,
         forks: 1,
+        grains: 0,
         items: [],
         floorHealsUsed: 0,
       })
@@ -163,6 +165,7 @@ describe('createProgressSnapshot', () => {
       health: 6,
       deathCause: null,
       forks: 1,
+      grains: 0,
       items: [],
       floorHealsUsed: 0,
     })
@@ -177,7 +180,7 @@ describe('createProgressSnapshot', () => {
     })
     assert.equal(snapshot.health, 3)
     assert.equal(snapshot.deathCause, 'chapa')
-    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0, unlocked: false, slept: false, emptied: [] } })
+    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null } })
   })
 
   test('inclui as salas visitadas', () => {
@@ -220,7 +223,7 @@ describe('garfos e salas trancadas no progresso', () => {
     const { roomStates } = normalizeProgressPayload({
       roomStates: { '4-2': { removed: [], hits: 0, unlocked: true }, '5-3': { removed: [], hits: 0, unlocked: 'sim' } },
     })
-    assert.deepEqual(roomStates, { '4-2': { removed: [], hits: 0, unlocked: true, slept: false, emptied: [] } })
+    assert.deepEqual(roomStates, { '4-2': { removed: [], hits: 0, unlocked: true, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null } })
   })
 })
 
@@ -229,7 +232,7 @@ describe('rede no progresso', () => {
     const { roomStates } = normalizeProgressPayload({
       roomStates: { '3-2': { removed: [], hits: 0, slept: true }, '4-4': { removed: [], hits: 0, slept: 'sim' } },
     })
-    assert.deepEqual(roomStates, { '3-2': { removed: [], hits: 0, unlocked: false, slept: true, emptied: [] } })
+    assert.deepEqual(roomStates, { '3-2': { removed: [], hits: 0, unlocked: false, slept: true, emptied: [], drops: null, rewards: 0, plays: 0, prize: null } })
   })
 
   test('save antigo, sem o campo, não marca nenhuma sala como "já dormiu"', () => {
@@ -249,8 +252,8 @@ describe('itens e pedestais no progresso', () => {
   })
 
   test('o pedestal vazio vai para o save, mesmo sem mais nada na sala', () => {
-    const { roomStates } = normalizeProgressPayload({ roomStates: { '5-2': { emptied: ['6-2', 'lixo'] } } })
-    assert.deepEqual(roomStates, { '5-2': { removed: [], hits: 0, unlocked: false, slept: false, emptied: ['6-2'] } })
+    const { roomStates } = normalizeProgressPayload({ roomStates: { '5-2': { emptied: ['6-2', 'lixo'], drops: null, rewards: 0, plays: 0, prize: null } } })
+    assert.deepEqual(roomStates, { '5-2': { removed: [], hits: 0, unlocked: false, slept: false, emptied: ['6-2'], drops: null, rewards: 0, plays: 0, prize: null } })
   })
 
   test('createProgressSnapshot guarda os itens', () => {

@@ -248,6 +248,7 @@ describe('createRun', () => {
       health: MAX_HEALTH,
       deathCause: null,
       forks: 1,
+      grains: 0,
       items: [],
       floorHealsUsed: 0,
     })
@@ -796,7 +797,7 @@ describe('estado das salas no progresso: o que quebrou não volta', () => {
     const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
     run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height + 30 })
     run = swing(run, 'up').run
-    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0, unlocked: false, slept: false, emptied: [] } })
+    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0, unlocked: false, slept: false, emptied: [], drops: [], rewards: 0, plays: 0, prize: null } })
 
     const back = saveAndContinue(run)
     assert.equal(back.roomId, room.id)
@@ -999,11 +1000,11 @@ describe('salas visitadas no progresso', () => {
 })
 
 describe('ponta a ponta', () => {
-  test('300 seeds: todas as salas dos 5 andares pelas portas, adega aberta, trancadas abertas com garfo, tambor até o fim', () => {
+  test('300 seeds: todas as salas dos 5 andares pelas portas, adega aberta, trancadas abertas com garfo ou grão, tambor até o fim', () => {
     let cellars = 0
     for (let seed = 1; seed <= 300; seed++) {
-      // garfos de sobra: o teste abre toda sala trancada (no máximo 2 por andar)
-      let run = createRun({ seed, characterId: 'x', forks: 99 })
+      // garfos e grãos de sobra: o teste abre toda sala trancada (o Fliperama abre com grão)
+      let run = createRun({ seed, characterId: 'x', forks: 99, grains: 99 })
       for (let number = 1; number <= LAST_FLOOR; number++) {
         const { floor } = run
         assert.equal(floor.number, number)
@@ -1050,7 +1051,7 @@ describe('portas trancadas: gastar o garfo', () => {
     let { run, side, treasureId } = nextToTreasure()
     run = push(run, side)
     assert.equal(run.forks, 0)
-    assert.deepEqual(run.unlocking, { side, elapsedMs: 0 })
+    assert.deepEqual(run.unlocking, { side, elapsedMs: 0, lock: 'garfo' })
     assert.equal(run.transition, null, 'durante a animação a porta não deixa passar')
     // continua empurrando: a animação anda e ele não atravessa, nem gasta outro garfo
     for (let ms = 0; ms < FORK_UNLOCK_MS - 2 * STEP_MS; ms += STEP_MS) {
@@ -1384,16 +1385,28 @@ describe('pedestais: coleta, banner e custo do Pacto', () => {
     // o outro item não está em nenhum outro pedestal da run
     const elsewhere = Object.entries(run.pedestalItems).filter(([key, items]) => !key.endsWith(`:${run.roomId}`) && items.includes(second.itemId))
     assert.deepEqual(elsewhere, [])
-    // salvar e continuar: os dois continuam vazios
+    // salvar e continuar: os pedestais vazios não estão mais lá, e o item continua com ele
     run = saveAndContinue(run)
-    assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)).map((pedestal) => pedestal.itemId), [null, null])
+    assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)), [])
     assert.deepEqual(run.items, [first.itemId])
   })
 
-  test('salvar e continuar: os itens e o pedestal vazio continuam', () => {
+  test('salvar e continuar: o item continua com ele e o pedestal vazio some', () => {
     const run = saveAndContinue(walkIntoPedestal(runInRoom(1, 'tesouro')))
     assert.equal(run.items.length, 1)
-    assert.equal(getRoomPedestals(run, getCurrentRoom(run))[0].itemId, null)
+    assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)), [])
+  })
+
+  test('o pedestal vazio fica enquanto ele está na sala; saindo e voltando, não está mais lá', () => {
+    // Tesouro com um pedestal só (a sala de escolha tem dois)
+    let run = walkIntoPedestal(runInRoom(1, 'tesouro', {}, (room) => getLayoutPoints(room.layoutId).items.length === 1))
+    const room = getCurrentRoom(run)
+    assert.equal(getRoomPedestals(run, room).length, 1, 'ainda na sala: o pedestal vazio continua')
+    assert.equal(getRoomPedestals(run, room)[0].itemId, null)
+    const { side } = getRoomDoors(run.floor, room).find((door) => door.state === 'open')
+    run = goThrough(goThrough(run, side), OPPOSITE_SIDE[side])
+    assert.equal(run.roomId, room.id)
+    assert.deepEqual(getRoomPedestals(run, room), [])
   })
 
   test('Sala do Pacto: o Dente custa 1 coração de vida máxima, e a vida acima do novo máximo cai junto', () => {
