@@ -314,6 +314,17 @@ function isStageFightPending(room) {
   return room.type === 'palco' && room.emptied.length > 0 && !room.cleared
 }
 
+// Palco com a Batuta no pedestal: a porta que leva a ele fica fechada enquanto a vida não está cheia
+// (needsFullHealth: empurrar mostra o aviso). Vale para a run (não deixa passar) e para o desenho (fechada).
+export function applyStageDoor(doors, floor, fullHealth) {
+  if (fullHealth) return doors
+  return doors.map((door) => {
+    const target = findRoom(floor, door.targetId)
+    if (door.state !== 'open' || target?.type !== 'palco' || target.emptied.length > 0) return door
+    return { ...door, state: 'closed', needsFullHealth: true }
+  })
+}
+
 // Um quadro da luta: a cortina anda e, acabada a pausa, a onda entra (uma nuvem onde cada inimigo nasce); sem
 // inimigo vivo, vem a próxima. Vencida a última, a sala fica limpa (as portas abrem), sai a recompensa e a cortina
 // abre; quando ela termina de abrir, a luta acaba (stage = null).
@@ -850,16 +861,15 @@ function updateRoom(run, input, deltaSeconds) {
     }
   }
 
-  const doors = applyUnlocking(roomDoors, next.unlocking)
+  const doors = applyStageDoor(applyUnlocking(roomDoors, next.unlocking), run.floor, next.health >= stats.maxHealth)
+  // Empurrar a porta do Palco fechada por falta de vida mostra o aviso (ele só sai de novo depois de sumir)
+  const stageDoors = doors.filter((door) => door.needsFullHealth)
+  if (!next.notice && getExitSide(player, input.movement, stageDoors, 'closed')) next = showNotice(next, 'Só com a vida cheia')
   // A porta vale só com a tecla apertada para ela: o deslize sozinho nunca troca de sala
   const side = getExitSide(player, input.movement, doors)
   if (side) {
     const toRoomId = doors.find((door) => door.side === side).targetId
     const target = findRoom(run.floor, toRoomId)
-    // Palco com a Batuta no pedestal: só entra com a vida cheia. O aviso só sai de novo depois de sumir.
-    if (target.type === 'palco' && target.emptied.length === 0 && next.health < stats.maxHealth) {
-      return next.notice ? next : showNotice(next, 'Só com a vida cheia')
-    }
     // A sala nova sem inimigos já fica limpa: assim as portas dela aparecem abertas enquanto ela desliza para
     // dentro. Com inimigos, elas aparecem fechadas (o enterRoom cria os inimigos no fim da transição).
     target.visited = true

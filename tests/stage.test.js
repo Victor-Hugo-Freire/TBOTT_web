@@ -9,7 +9,7 @@ import { createPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
 import { getLayoutPoints } from '../src/utils/roomLayout.js'
 import { ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
-import { createRun, createRunSnapshot, getCurrentRoom, getStageCurtain, updateRun } from '../src/utils/run.js'
+import { applyStageDoor, createRun, createRunSnapshot, getCurrentRoom, getStageCurtain, updateRun } from '../src/utils/run.js'
 import { getBaseStats } from '../src/utils/stats.js'
 import { damageTarget } from '../src/utils/targets.js'
 import { TEST_CATALOG, TEST_ENEMIES } from './helpers/testCatalog.js'
@@ -91,17 +91,30 @@ function saveAndContinue(run) {
   })
 }
 
+// A porta da sala vizinha que leva ao Palco, com a regra da vida cheia aplicada
+function doorToStage(run, fullHealth) {
+  const doors = applyStageDoor(getRoomDoors(run.floor, getCurrentRoom(run)), run.floor, fullHealth)
+  return doors.find((door) => door.targetId === STAGE_ID)
+}
+
 describe('Palco: a porta', () => {
-  test('sem a vida cheia, não deixa entrar e mostra o aviso', () => {
+  test('sem a vida cheia, a porta fica fechada; empurrar não entra e mostra o aviso', () => {
     let run = runIn(NEIGHBOR_ID, { health: MAX_HEALTH - 1, enemyCatalog: {} })
+    assert.equal(doorToStage(run, false).state, 'closed')
     run.player = createPlayer(DOOR_EDGES[NEIGHBOR_SIDE])
     run = updateRun(run, PUSH_TO_STAGE, STEP)
     assert.equal(run.transition, null)
     assert.equal(run.notice?.text, 'Só com a vida cheia')
   })
 
-  test('com a vida cheia, entra', () => {
+  test('parado longe da porta, não há aviso', () => {
+    const run = updateRun(runIn(NEIGHBOR_ID, { health: MAX_HEALTH - 1, enemyCatalog: {} }), PUSH_TO_STAGE, STEP)
+    assert.equal(run.notice, null)
+  })
+
+  test('com a vida cheia, a porta fica aberta e entra', () => {
     let run = runIn(NEIGHBOR_ID, { enemyCatalog: {} })
+    assert.equal(doorToStage(run, true).state, 'open')
     run.player = createPlayer(DOOR_EDGES[NEIGHBOR_SIDE])
     run = updateRun(run, PUSH_TO_STAGE, STEP)
     assert.equal(run.transition?.toRoomId, STAGE_ID)
@@ -109,10 +122,10 @@ describe('Palco: a porta', () => {
 })
 
 describe('Palco: a Batuta e as ondas', () => {
-  test('a Batuta fica no pedestal do meio, e a sala começa limpa (portas abertas)', () => {
+  test('a Batuta fica no pedestal do meio da sala, e ela começa limpa (portas abertas)', () => {
     const run = runIn(STAGE_ID)
     const pedestals = getRoomPedestals(run, getCurrentRoom(run))
-    assert.deepEqual(pedestals.map((pedestal) => [pedestal.id, pedestal.itemId]), [['6-2', 'batuta-do-maestro']])
+    assert.deepEqual(pedestals.map((pedestal) => [pedestal.id, pedestal.itemId]), [['6-3', 'batuta-do-maestro']])
     assert.equal(getCurrentRoom(run).cleared, true)
     assert.equal(run.stage, null)
   })
