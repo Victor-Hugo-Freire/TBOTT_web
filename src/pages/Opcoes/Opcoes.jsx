@@ -16,7 +16,7 @@ const VOLUME_ITEMS = [
   { item: 'effects', name: 'effectsVolume', id: 'volume-efeitos', label: 'Sound effects' },
 ]
 
-export default function Opcoes() {
+export default function Opcoes({ embedded = false, enableKeyboard = true, onClose }) {
   const navigate = useNavigate()
   const { setMusicVolume, setEffectsVolume } = useAudio()
   const backRef = useRef(null)
@@ -54,6 +54,8 @@ export default function Opcoes() {
   }, [])
 
   useEffect(() => {
+    if (!enableKeyboard) return
+
     // Ao voltar de Controls, o foco volta para o botão Controls
     itemRefs.get(screen === 'options' ? itemToFocusRef.current : 'back')?.focus()
 
@@ -90,7 +92,7 @@ export default function Opcoes() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [screen, itemRefs])
+  }, [screen, itemRefs, enableKeyboard])
 
   async function toggleFullscreen() {
     setStatusMessage('')
@@ -123,12 +125,17 @@ export default function Opcoes() {
       return
     }
 
+    if (embedded) {
+      onClose?.()
+      return
+    }
+
     navigate(ROUTES.menuPrincipal)
   }
 
   return (
-    <main className="opcoes" aria-label="Options">
-      <title>Options | The Binding of Tung Tung</title>
+    <main className={`opcoes${embedded ? ' opcoes--embedded' : ''}`} aria-label="Options">
+      {!embedded && <title>Options | The Binding of Tung Tung</title>}
 
       <BotaoVoltar
         ref={backRef}
@@ -136,7 +143,7 @@ export default function Opcoes() {
         onClick={handleBack}
       />
 
-      <Login className="opcoes__usuario" ref={userRef} />
+      {!embedded && <Login className="opcoes__usuario" ref={userRef} />}
 
       <section className="opcoes__painel" aria-labelledby="opcoes-titulo">
         <h1 id="opcoes-titulo">{screen === 'controls' ? 'Controls' : 'Options'}</h1>
