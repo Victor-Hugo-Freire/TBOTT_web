@@ -68,15 +68,19 @@ export function getMinimapConnections(floor, currentRoomId) {
       const fromVisited = from.visited || from.id === currentRoomId
       const toVisited = to.visited || to.id === currentRoomId
       if (!fromVisited && !toVisited) continue
-      const locked = [from, to].some((source) =>
-        getRoomDoors(floor, source).some((door) => door.targetId === (source === from ? to.id : from.id) && door.state === 'locked'),
-      )
+      // Porta trancada entre as duas salas: lock diz o que abre ('garfo' ou 'grao', o Fliperama), ou null
+      let lock = null
+      for (const source of [from, to]) {
+        const otherId = source === from ? to.id : from.id
+        const door = getRoomDoors(floor, source).find((item) => item.targetId === otherId && item.state === 'locked')
+        if (door) lock = door.lock
+      }
 
       connections.push({
         from,
         to,
         visited: fromVisited && toVisited,
-        locked,
+        lock,
       })
     }
   }
@@ -122,8 +126,9 @@ export function getMinimapLayout(knownRooms, currentRoom, expanded) {
 // Sempre no canto superior direito: `right` e `top` são a margem até a borda do canvas.
 // A Adega Secreta não conta antes de visitada (está oculta), então não dá pista do lugar dela.
 // maxWidth e maxHeight: o painel nunca passa disso, mesmo em janela pequena (a escala diminui).
+// Devolve a altura (em pixels da tela) onde o painel termina.
 export function drawMinimap(ctx, floor, currentRoom, { top, right, scale = 1, expanded = false, maxWidth = Infinity, maxHeight = Infinity }) {
-  if (!currentRoom) return
+  if (!currentRoom) return top
   const knownRooms = floor.rooms.filter((room) => getMinimapRoomState(floor, room, currentRoom.id) !== 'hidden')
   const { cols, rows, startCol, startRow } = getMinimapLayout(knownRooms, currentRoom, expanded)
 
@@ -166,17 +171,20 @@ export function drawMinimap(ctx, floor, currentRoom, { top, right, scale = 1, ex
     if (icon) drawBitmap(ctx, ICONS[icon], iconPixel, x + Math.round((roomWidth - iconSize) / 2), y + Math.round((roomHeight - iconSize) / 2))
   }
 
-  const forkPixel = Math.max(1, Math.round(roomHeight / 16))
+  // Tranca no meio da ligação: o garfo, ou o grão na porta do Fliperama
+  const lockPixel = Math.max(1, Math.round(roomHeight / 16))
   for (const connection of connections) {
-    if (!connection.locked) continue
+    if (!connection.lock) continue
     const from = position(connection.from)
     const to = position(connection.to)
-    const x = Math.round((from.x + to.x + roomWidth) / 2 - 4 * forkPixel)
-    const y = Math.round((from.y + to.y + roomHeight) / 2 - 4 * forkPixel)
-    drawBitmap(ctx, ICONS.garfo, forkPixel, x, y, true)
+    const x = Math.round((from.x + to.x + roomWidth) / 2 - 4 * lockPixel)
+    const y = Math.round((from.y + to.y + roomHeight) / 2 - 4 * lockPixel)
+    drawBitmap(ctx, ICONS[connection.lock], lockPixel, x, y, true)
   }
 
   ctx.restore()
+  // Onde o painel termina (com a moldura): a lista de itens pegos fica logo abaixo
+  return panelTop + height + 2 * unit
 }
 
 function drawPanel(ctx, left, top, width, height, unit) {

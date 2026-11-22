@@ -1,7 +1,9 @@
+import { MAX_GRAINS } from '../data/economy.js'
 import { HITS_TO_OPEN } from './doors.js'
+import { DROP_KINDS } from './drops.js'
 import { LAST_FLOOR } from './floorGenerator.js'
-import { normalizeHealth } from './health.js'
-import { ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
+import { ROOM_FLOOR, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
+import { getBaseStats, STAT_LIMITS } from './stats.js'
 
 // Valor antigo do roomId. A run (run.js) trata qualquer id que não existe no andar como a sala inicial.
 export const DEFAULT_ROOM_ID = 'sala-inicial'
@@ -13,13 +15,24 @@ const MAX_OBSTACLES = 91 // a sala tem 13 x 7 casas
 const GRID_ID = /^\d{1,2}-\d{1,2}$/ // ids de sala e de obstáculo são 'col-row', como '3-5'
 const MAX_CAUSE_LENGTH = 32
 const MAX_FORKS = 99 // o HUD mostra 2 dígitos
+const MAX_ITEMS = 50 // bem mais que os itens do catálogo
+const ITEM_ID = /^[a-z0-9-]{1,40}$/ // ids de item são como 'cafe-duplo'
+const MAX_FLOOR_USES = 9 // usos "por andar" de um item (o Caldo cura 1 vez por andar)
 const STARTING_FORKS = 1 // igual a run.js (progress.js não importa run.js para não criar um ciclo)
+const MAX_DROPS = 30 // coisas no chão de uma sala (grãos, garfos e corações)
+const MAX_DROP_AMOUNT = 9 // grãos num grupo (os grupos são de 1, 3 e 5)
+const MAX_COUNT = 999 // jogadas no Fliperama e recompensas de sala limpa
 
 // Número dentro de [min, max]; valor que não é número vira o mínimo
 function clamp(value, min, max) {
   const numeric = Number(value)
   if (!Number.isFinite(numeric)) return min
   return Math.min(Math.max(numeric, min), max)
+}
+
+// Vida salva válida: inteiro de 0 até a maior vida máxima possível (STAT_LIMITS)
+function isValidHealth(value) {
+  return Number.isInteger(value) && value >= 0 && value <= STAT_LIMITS.maxHealth.max
 }
 
 // Seed salva: inteiro de 0 a 4294967295. Qualquer outra coisa vira null (a sala cria uma seed nova).
@@ -40,9 +53,33 @@ function normalizeIds(value, max) {
   return [...new Set(ids)].slice(0, max)
 }
 
-// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas, unlocked, slept } }.
-// Só entram as salas em que algo mudou. hits conta as batidas na parede da adega ou no tambor (até 3);
-// unlocked diz que a sala trancada já foi aberta com um garfo; slept, que ele já dormiu na rede (Sala de Descanso).
+// Coisas no chão de uma sala: { kind, amount, x, y }, com o tipo conhecido e o ponto dentro do piso.
+// Sem a lista (save antigo, ou sala em que nada mudou), devolve null: a Adega começa com o chão dela.
+function normalizeDrops(value) {
+  if (!Array.isArray(value)) return null
+  const drops = []
+  for (const drop of value.slice(0, MAX_DROPS)) {
+    if (!drop || !DROP_KINDS.includes(drop.kind)) continue
+    drops.push({
+      kind: drop.kind,
+      amount: Number.isInteger(drop.amount) ? clamp(drop.amount, 1, MAX_DROP_AMOUNT) : 1,
+      x: clamp(drop.x, ROOM_FLOOR.left, ROOM_FLOOR.right),
+      y: clamp(drop.y, ROOM_FLOOR.top, ROOM_FLOOR.bottom),
+    })
+  }
+  return drops
+}
+
+// Inteiro de 0 a max (contagens); qualquer outra coisa vira 0
+function normalizeCount(value, max) {
+  return Number.isInteger(value) ? clamp(value, 0, max) : 0
+}
+
+// Estado das salas do andar salvo: { idDaSala: { removed: [ids dos obstáculos quebrados], hits: batidas, unlocked, slept,
+// emptied, drops, rewards, plays, prize } }. Só entram as salas em que algo mudou. hits conta as batidas na parede da
+// adega ou no tambor (até 3); unlocked diz que a sala trancada já foi aberta (garfo ou grão); slept, que ele já dormiu
+// na rede (Sala de Descanso); emptied, as casas dos pedestais de onde o item já foi pego; drops, o que está no chão;
+// rewards, as recompensas de sala limpa já dadas; plays e prize, as jogadas e o item no pedestal do Fliperama.
 function normalizeRoomStates(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   const states = {}
@@ -50,11 +87,30 @@ function normalizeRoomStates(value) {
     if (!GRID_ID.test(id) || !state || typeof state !== 'object') continue
     const removed = normalizeIds(state.removed, MAX_OBSTACLES)
     const hits = Number.isInteger(state.hits) ? clamp(state.hits, 0, HITS_TO_OPEN) : 0
-    const unlocked = state.unlocked === true // sala trancada já aberta com um garfo
+    const unlocked = state.unlocked === true // sala trancada já aberta (garfo ou grão)
     const slept = state.slept === true // já dormiu na rede deste andar
-    if (removed.length > 0 || hits > 0 || unlocked || slept) states[id] = { removed, hits, unlocked, slept }
+    const emptied = normalizeIds(state.emptied, MAX_OBSTACLES) // pedestais vazios
+    const drops = normalizeDrops(state.drops)
+    const rewards = normalizeCount(state.rewards, MAX_COUNT)
+    const plays = normalizeCount(state.plays, MAX_COUNT)
+    const prize = typeof state.prize === 'string' && ITEM_ID.test(state.prize) ? state.prize : null
+    const changed = removed.length > 0 || hits > 0 || unlocked || slept || emptied.length > 0
+    if (changed || drops !== null || rewards > 0 || plays > 0 || prize !== null) {
+      states[id] = { removed, hits, unlocked, slept, emptied, drops, rewards, plays, prize }
+    }
   }
   return states
+}
+
+// Itens pegos, na ordem: lista de ids sem repetição. Save antigo, sem o campo, começa sem itens.
+// Id que não está no catálogo (item que saiu do banco) continua na lista, mas não faz nada.
+function normalizeItems(value) {
+  if (!Array.isArray(value)) return []
+  const items = []
+  for (const id of value) {
+    if (typeof id === 'string' && ITEM_ID.test(id) && !items.includes(id)) items.push(id)
+  }
+  return items.slice(0, MAX_ITEMS)
 }
 
 // O que matou o personagem (id curto, como 'chapa') ou null se ele está vivo
@@ -66,11 +122,12 @@ function normalizeDeathCause(value) {
 // campos que faltam ganham valores padrão e a posição fica dentro da sala.
 export function normalizeProgressPayload(value) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  const characterId =
+    typeof source.characterId === 'string' && source.characterId ? source.characterId : DEFAULT_CHARACTER_ID
 
   return {
     roomId: typeof source.roomId === 'string' && source.roomId ? source.roomId : DEFAULT_ROOM_ID,
-    characterId:
-      typeof source.characterId === 'string' && source.characterId ? source.characterId : DEFAULT_CHARACTER_ID,
+    characterId,
     playerX: clamp(source.playerX ?? ROOM_PLAYER_START.x, ROOM_PLAYER_BOUNDS.minX, ROOM_PLAYER_BOUNDS.maxX),
     playerY: clamp(source.playerY ?? ROOM_PLAYER_START.y, ROOM_PLAYER_BOUNDS.minY, ROOM_PLAYER_BOUNDS.maxY),
     elapsedMs: clamp(source.elapsedMs ?? 0, 0, Infinity),
@@ -82,11 +139,20 @@ export function normalizeProgressPayload(value) {
     visitedRoomIds: normalizeIds(source.visitedRoomIds, MAX_ROOMS),
     // Obstáculos quebrados e batidas de cada sala: o que quebrou não volta ao continuar a run
     roomStates: normalizeRoomStates(source.roomStates),
-    // Vida em meios corações (6 = 3 corações) e o que matou o personagem, se a run acabou em derrota
-    health: normalizeHealth(source.health),
+    // Vida em meios corações (6 = 3 corações), até o teto de STAT_LIMITS: a Muçarela aumenta a vida máxima, então
+    // um save pode ter mais vida que a ficha. O createRun corta de novo pela vida máxima com os itens.
+    // Vida inválida (ou save antigo, sem vida) começa com a vida cheia da ficha. E o que matou o personagem, se a run
+    // acabou em derrota.
+    health: isValidHealth(source.health) ? source.health : getBaseStats(characterId).maxHealth,
     deathCause: normalizeDeathCause(source.deathCause),
     // Garfos que sobraram (inteiro de 0 a 99). Save antigo, sem o campo, começa com o garfo do início da run.
     forks: Number.isInteger(source.forks) ? clamp(source.forks, 0, MAX_FORKS) : STARTING_FORKS,
+    // Grãos de café (inteiro de 0 a 99). Save antigo, sem o campo, começa sem grãos.
+    grains: normalizeCount(source.grains, MAX_GRAINS),
+    // Itens pegos na run, na ordem (ids do catálogo)
+    items: normalizeItems(source.items),
+    // Curas do Caldo da Mamãe já usadas neste andar (o limite por andar vem do catálogo). Save antigo: nenhuma.
+    floorHealsUsed: Number.isInteger(source.floorHealsUsed) ? clamp(source.floorHealsUsed, 0, MAX_FLOOR_USES) : 0,
   }
 }
 
@@ -105,6 +171,9 @@ export function createProgressSnapshot({
   health,
   deathCause,
   forks,
+  grains,
+  items,
+  floorHealsUsed,
 }) {
   return normalizeProgressPayload({
     roomId,
@@ -120,5 +189,8 @@ export function createProgressSnapshot({
     health,
     deathCause,
     forks,
+    grains,
+    items,
+    floorHealsUsed,
   })
 }

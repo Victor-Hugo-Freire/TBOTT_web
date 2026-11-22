@@ -15,5 +15,5 @@
 - peso de sorteio: 10 (comum) no sorteio da Sala do Tesouro
 - condição: nenhuma; do andar 2 em diante a porta tem o nó de espaguete (gasta 1 garfo)
 - pedestal: centro, sobre o tapete (coluna 6, linha 2 da grade 13×7); 1 pedestal
-- repetição: não repete na mesma partida; se todos os itens da Sala do Tesouro já saíram, o pedestal dá 5 grãos e 1 garfo
+- repetição: não repete na mesma partida; quando o item já saiu, o pedestal não aparece (regra do Victor, 2026-11-20: grão, garfo e coração só vêm da sala limpa e da Adega)
 - preço ou custo: nenhum

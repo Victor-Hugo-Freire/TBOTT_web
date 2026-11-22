@@ -1,6 +1,6 @@
 // Vida do personagem, em funções puras (sem React, sem canvas), para testar.
 // A vida é contada em MEIOS corações: 6 = 3 corações cheios. Assim meio coração é sempre um número inteiro.
-export const MAX_HEALTH = 6
+// A vida máxima é um atributo do personagem (6 no Tung, veja characterStats.js), e os itens podem mudá-la (stats.js).
 
 // Quanto cada tipo de golpe tira:
 // - leve: batida de inimigo e obstáculo que machuca (a chapa quente) = meio coração;
@@ -13,14 +13,16 @@ export function applyDamage(health, amount) {
   return Math.max(0, health - amount)
 }
 
-// Vida salva no progresso: inteiro de 0 a MAX_HEALTH. Qualquer outra coisa (ou save antigo, sem vida) = vida cheia.
-export function normalizeHealth(value) {
-  return Number.isInteger(value) && value >= 0 && value <= MAX_HEALTH ? value : MAX_HEALTH
+// Vida válida: inteiro de 0 a maxHealth. Qualquer outra coisa (ou save antigo, sem vida) = vida cheia.
+// Vida acima do máximo (a vida máxima diminuiu) também vira o máximo.
+export function normalizeHealth(value, maxHealth) {
+  return Number.isInteger(value) && value >= 0 && value <= maxHealth ? value : maxHealth
 }
 
 // Estado de cada coração do HUD, da esquerda para a direita: 'full', 'half' ou 'empty'.
-// Ex.: vida 3 (um coração e meio) = ['full', 'half', 'empty'].
-export function getHeartStates(health, maxHealth = MAX_HEALTH) {
+// maxHealth = vida máxima atual (2 meios corações por coração).
+// Ex.: vida 3 (um coração e meio) com máximo 6 = ['full', 'half', 'empty'].
+export function getHeartStates(health, maxHealth) {
   const states = []
   for (let heart = 0; heart < maxHealth / 2; heart++) {
     const remaining = health - heart * 2

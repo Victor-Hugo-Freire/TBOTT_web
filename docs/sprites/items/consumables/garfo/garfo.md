@@ -1,7 +1,7 @@
 # Garfo
 
 - **Para que serve:** é a chave do jogo. Enrola e tira o nó de espaguete das portas trancadas (Sala do Tesouro do andar 2 em diante e Sala de Descanso, pela issue #18). Cada porta gasta 1 garfo.
-- **Quando aparece:** cai de inimigos e de obstáculos quebráveis, e pode sair no Fliperama e na Adega Secreta (proposta da #18; a regra de drop ainda não existe no jogo).
+- **Quando aparece:** Regra do Victor (2026-11-20, etapa 5 da feat/44): só como recompensa ao eliminar todos os inimigos da sala (15%, src/data/economy.js), no chão da Adega (1 garfo), como prêmio do Fliperama (15%) e à venda na Loja (3 grãos). Obstáculos quebrados não soltam nada.
 - **Estado dos sprites:**
 
 | arte | arquivo | quadros | feito |

@@ -1,6 +1,9 @@
 # Aparência do Tung Tung com itens (sistema de camadas)
 
-**Proposta para o Victor decidir. Nada disto está no jogo.** O Tung não foi redesenhado. Cada item visível é uma camada
+**Está no jogo desde a etapa 4 da branch feat/44** (`src/utils/appearance.js` e `scene/drawPlayer.js`): os 5 itens, com todas as
+camadas escondidas no dano e na morte. No golpe, o Rolo gira com o bastão em volta do ombro, com as mesmas contas que
+geraram `ataque.png` (tabela `attackBat` em `appearanceSprites.js`), e some nos quadros em que a ponta fica atrás da
+cabeça ou do corpo. O Tung não foi redesenhado. Cada item visível é uma camada
 **separada**, desenhada por cima ou por baixo do original, e o md5 do Tung (`fdd79671...`) foi conferido antes e depois.
 Só existe 1 quadro por direção de cada item (mockup). Nenhum quadro completo foi produzido.
 

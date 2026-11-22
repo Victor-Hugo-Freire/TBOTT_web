@@ -1,3 +1,6 @@
+import { ARCADE_DOOR_PRICE, ARCADE_PLAY_PRICE, ARCADE_SPIN_MS, NOTICE_MS } from '../data/economy.js'
+import { ITEM_BANNERS } from '../data/itemBanners.js'
+import { ARCADE_PRIZE_CELL, isTouchingMachine, rollArcadePrize } from './arcade.js'
 import { overlaps } from './collision.js'
 import {
   applyUnlocking,
@@ -10,8 +13,27 @@ import {
   isNearDoor,
   OPPOSITE_SIDE,
 } from './doors.js'
+import {
+  advanceDrops,
+  collectDrops,
+  createCellarDrops,
+  DROP_COLLECT_MS,
+  healWithHeart,
+  placeDrops,
+  rollRoomReward,
+} from './drops.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
-import { applyDamage, DAMAGE_LIGHT, MAX_HEALTH } from './health.js'
+import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
+import {
+  assignPedestalItems,
+  CHOICE_ROOM_TYPES,
+  findTouchedPedestal,
+  getPedestalSolids,
+  getRoomPedestals,
+  getRoomTypeItem,
+  PEDESTAL_TOP_HEIGHT,
+} from './pedestals.js'
+import { removeAccents } from './pixelFont.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, hurtPlayer, killPlayer, updatePlayer } from './player.js'
 import { createProgressSnapshot } from './progress.js'
 import {
@@ -24,7 +46,7 @@ import {
   SLEEP_MS,
   TRALALERO_CAUSE,
 } from './roomInteractions.js'
-import { buildRoomObstacles } from './roomLayout.js'
+import { buildRoomObstacles, findFreeCell, getCellRect, getLayoutPoints } from './roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
 import {
   getFloorEffect,
@@ -39,6 +61,27 @@ import {
   updateBreakingObstacles,
   updateRollingObstacles,
 } from './roomObstacles.js'
+import { getBaseStats, getPlayerStats, STAT_LIMITS } from './stats.js'
+import {
+  addBumpFlashes,
+  applyMotherHeal,
+  armRoomShield,
+  createItemEffects,
+  createSwing,
+  endSwing,
+  getEffect,
+  getItemBonuses,
+  hitWithSwing,
+  onKills,
+  onPlayerHurt,
+  startSwing,
+  updateEffectTimers,
+  updateFlashes,
+  updatePuddles,
+  updateShards,
+  spendShield,
+} from './itemEffects.js'
+import { countNewKills, createTrainingTarget, updateTargets } from './targets.js'
 
 // Estado da run: o andar, a sala atual, o jogador, as transições, a faixa e os contadores.
 // Funções puras no estilo de player.js (sem React, sem canvas), para testar com node:test.
@@ -54,6 +97,8 @@ export const FLOOR_TRANSITION_MS = 900 // escurece 450, troca de andar, clareia 
 export const DEATH_HOLD_MS = 500 // depois da animação de morte, ele fica deitado esse tempo antes do aviso
 export const RESTART_HOLD_MS = 1000 // segurar R por 1 s recomeça a run com outra seed (como no Isaac)
 export const STARTING_FORKS = 1 // garfos no começo da run (cada porta trancada gasta 1)
+export const PICKUP_MS = 1000 // o item pego fica este tempo sobre a cabeça do Tung (ele continua andando e atacando)
+export const VANISH_MS = 600 // numa sala de escolha, o item que não foi pego some (sobe e apaga) neste tempo
 
 // O que machuca no piso: a chapa quente e os cacos do garrafão quebrado. A causa vai para o aviso de morte (veja health.js).
 const HOT_PLATE_CAUSE = 'chapa'
@@ -68,7 +113,7 @@ const NO_INPUT = { movement: { x: 0, y: 0 }, attackDirection: null }
 
 const NORMAL_ROOM_TYPES = ['inicial', 'comum']
 
-// O tambor fica sempre na mesma casa da sala do chefe (D em (6,3) no layout "chefe")
+// O tambor fica sempre na mesma casa da sala do chefe (D em (6,2) no layout "chefe", acima do meio da sala)
 const DRUM_BOX = buildRoomObstacles('chefe', 'cantina').find((obstacle) => obstacle.mechanic === 'tambor').box
 
 export function getDrumBox() {
@@ -86,6 +131,161 @@ function findRoom(floor, id) {
 
 export function getCurrentRoom(run) {
   return findRoom(run.floor, run.roomId)
+}
+
+// Atributos do jogador agora (dano, velocidades, vida máxima e invencibilidade): a ficha do personagem com os
+// bônus dos itens (getItemBonuses, em itemEffects.js; os limites ficam em stats.js)
+export function getRunStats(run) {
+  return getPlayerStats(getBaseStats(run.characterId), getItemBonuses(run))
+}
+
+// Dano no jogador (hoje a chapa quente e os cacos; depois, os inimigos). Devolve { player, health, death, effects }.
+// - invencível, no meio do dano ou morto: nada acontece;
+// - Caldo da Mamãe: o escudo da sala anula o dano (ele fica invencível um pouco, sem a animação de dano,
+//   e o Café não dispara);
+// - senão perde a vida, liga a corrida do Café e zera a sequência do Elixir; com pouca vida, o Caldo cura.
+function damagePlayer(run, player, health, effects, amount, cause, stats) {
+  const hurt = hurtPlayer(player, stats.invincibilityMs)
+  if (hurt === player) return { player, health, death: null, effects }
+  const shielded = spendShield(effects)
+  if (shielded) return { player: { ...player, invincibleMs: stats.invincibilityMs }, health, death: null, effects: shielded }
+
+  const nextHealth = applyDamage(health, amount)
+  const hurtEffects = onPlayerHurt(run, effects)
+  if (nextHealth === 0) return { player: killPlayer(hurt), health: 0, death: { cause }, effects: hurtEffects }
+  const healed = applyMotherHeal(run, nextHealth, stats.maxHealth, hurtEffects)
+  return { player: hurt, health: healed.health, death: null, effects: healed.effects }
+}
+
+// O item entra na lista (na ordem em que foi pego), fica PICKUP_MS sobre a cabeça do Tung e aparece o banner
+// com o nome dele e a frase do item.md. Se o item tira vida máxima (Pacto), a vida que passar do novo máximo cai junto.
+function giveItem(run, itemId) {
+  const next = { ...run, items: [...run.items, itemId] }
+  // A vida máxima que o item dá (Muçarela) já vem cheia; a que ele tira (Pacto) leva a vida junto
+  const gained = run.catalog[itemId]?.effect?.maxHealthBonus ?? 0
+  next.health = Math.min(next.health + gained, getRunStats(next).maxHealth)
+  const name = run.catalog[itemId]?.name ?? itemId
+  next.banner = { text: removeAccents(name), subtitle: ITEM_BANNERS[itemId] ?? '', elapsedMs: 0 }
+  next.pickup = { itemId, elapsedMs: 0 }
+  return next
+}
+
+// O item sobre a cabeça: o tempo anda até PICKUP_MS, e aí ele some
+function advancePickup(pickup, stepMs) {
+  if (!pickup) return null
+  const elapsedMs = pickup.elapsedMs + stepMs
+  return elapsedMs >= PICKUP_MS ? null : { ...pickup, elapsedMs }
+}
+
+// Itens sumindo (sala de escolha): o tempo de cada um anda até VANISH_MS, e aí ele sai da lista
+function advanceVanishing(vanishing, stepMs) {
+  const next = []
+  for (const item of vanishing) {
+    const elapsedMs = item.elapsedMs + stepMs
+    if (elapsedMs < VANISH_MS) next.push({ ...item, elapsedMs })
+  }
+  return next
+}
+
+// Dá para pagar o custo do item? O custo em vida máxima não pode deixar menos de 1 coração (STAT_LIMITS)
+function canPayItemCost(run, pedestal) {
+  return getRunStats(run).maxHealth - pedestal.maxHealthCost >= STAT_LIMITS.maxHealth.min
+}
+
+// Aviso curto em cima do Tung ("Faltam grãos", "Vida cheia"...), por NOTICE_MS
+function showNotice(run, text) {
+  return { ...run, notice: { text, elapsedMs: 0 } }
+}
+
+function advanceNotice(notice, stepMs) {
+  if (!notice) return null
+  const elapsedMs = notice.elapsedMs + stepMs
+  return elapsedMs >= NOTICE_MS ? null : { ...notice, elapsedMs }
+}
+
+// O que acabou de ser pego toca a animação "coleta" no lugar onde estava: { kind, amount, x, y, elapsedMs }
+function advanceCollecting(collecting, stepMs) {
+  const next = []
+  for (const thing of collecting) {
+    const elapsedMs = thing.elapsedMs + stepMs
+    if (elapsedMs < DROP_COLLECT_MS) next.push({ ...thing, elapsedMs })
+  }
+  return next
+}
+
+// A Adega começa com grãos e um garfo no chão (o save troca pelo que sobrou, se ele já esteve lá)
+function prepareCellarDrops(floor) {
+  for (const room of floor.rooms) {
+    if (room.type === 'adega') room.drops = createCellarDrops(room.layoutId)
+  }
+}
+
+// Pedestal tocado: pega o item (de graça, pagando grãos na Loja ou vida máxima no Pacto) ou compra o garfo ou o
+// coração da Loja. Sem grãos, ou coração com a vida cheia, não compra e mostra um aviso (só no começo do toque,
+// firstTouch). O pedestal fica vazio.
+function takeFromPedestal(run, room, pedestals, pedestal, firstTouch, maxHealth) {
+  if (pedestal.price > run.grains) return firstTouch ? showNotice(run, 'Faltam grãos') : run
+  if (pedestal.consumable === 'coracao' && run.health >= maxHealth) return firstTouch ? showNotice(run, 'Vida cheia') : run
+  if (!canPayItemCost(run, pedestal)) return run
+  room.emptied.push(pedestal.id)
+  const emptiedHere = [...run.emptiedHere, pedestal.id]
+  const paid = { ...run, grains: run.grains - pedestal.price, emptiedHere }
+
+  // Garfo e coração vão direto para o bolso; a animação de pegar toca em cima do pedestal
+  if (pedestal.consumable) {
+    const top = { kind: pedestal.consumable, amount: 1, x: pedestal.x, y: pedestal.y - PEDESTAL_TOP_HEIGHT, elapsedMs: 0 }
+    const collecting = [...paid.collecting, top]
+    if (pedestal.consumable === 'garfo') return { ...paid, forks: paid.forks + 1, collecting }
+    return { ...paid, health: healWithHeart(paid.health, maxHealth), collecting }
+  }
+
+  // Item. Numa sala de escolha (Tesouro e God), os outros pedestais também esvaziam: os outros itens somem com uma
+  // animação (sobem e apagam) e não aparecem mais na run. No Pacto e na Loja, os outros continuam lá.
+  const vanishing = []
+  if (CHOICE_ROOM_TYPES.includes(room.type)) {
+    for (const other of pedestals) {
+      if (other === pedestal || !other.itemId) continue
+      room.emptied.push(other.id)
+      emptiedHere.push(other.id)
+      vanishing.push({ roomId: room.id, pedestalId: other.id, itemId: other.itemId, elapsedMs: 0 })
+    }
+  }
+  return { ...giveItem(paid, pedestal.itemId), vanishing, emptiedHere }
+}
+
+// Fliperama: encostar no tambor (uma jogada por encostada: para jogar de novo, ele se afasta e volta) paga
+// ARCADE_PLAY_PRICE grãos e sorteia o prêmio (arcade.js). O prêmio já fica guardado na sala na hora (grão e garfo no
+// chão, esperando; o item no pedestal), para o save não perder nada, mas só aparece quando o tambor para de girar.
+function updateArcade(run, room, player, stepMs) {
+  let next = run
+  if (run.arcadeSpin) {
+    const elapsedMs = run.arcadeSpin.elapsedMs + stepMs
+    if (elapsedMs < ARCADE_SPIN_MS) next = { ...next, arcadeSpin: { ...run.arcadeSpin, elapsedMs } }
+    else if (run.arcadeSpin.prize.kind === 'nada') next = showNotice({ ...next, arcadeSpin: null }, 'Nada desta vez!')
+    else next = { ...next, arcadeSpin: null }
+  }
+
+  const touching = isTouchingMachine(player)
+  const firstTouch = touching && !run.touchingMachine
+  next = { ...next, touchingMachine: touching }
+  if (!firstTouch || next.arcadeSpin) return next
+  if (next.grains < ARCADE_PLAY_PRICE) return showNotice(next, 'Faltam grãos')
+
+  // O item do Fliperama (o Chifre da Sorte) sai uma vez só: se ele já saiu, esse prêmio vira grãos
+  const itemId = getRoomTypeItem(next, 'fliperama')
+  const prize = rollArcadePrize(next.seed, next.floor.number, room, room.plays, Boolean(itemId) && room.prize !== itemId)
+  room.plays += 1
+  if (prize.kind === 'item') {
+    const point = getLayoutPoints(room.layoutId).items[0]
+    room.prize = itemId
+    room.emptied = room.emptied.filter((id) => id !== `${point.col}-${point.row}`)
+  }
+  if (prize.kind === 'graos' || prize.kind === 'garfo') {
+    const drop = placeDrops([prize], ARCADE_PRIZE_CELL.col, ARCADE_PRIZE_CELL.row, -ARCADE_SPIN_MS)[0]
+    drop.x += ((room.plays % 3) - 1) * 40 // um pouco para o lado a cada jogada: os prêmios não ficam um em cima do outro
+    room.drops.push(drop)
+  }
+  return { ...next, grains: next.grains - ARCADE_PLAY_PRICE, arcadeSpin: { roomId: room.id, elapsedMs: 0, prize } }
 }
 
 // Paleta da sala: a inicial e as comuns usam o tema do andar; as especiais, a paleta do tipo delas
@@ -127,9 +327,11 @@ export function isSecretMarkVisible(run) {
 // Entra na sala: ela fica visitada e limpa (sem inimigos, toda sala fica limpa ao entrar).
 // O jogador surge parado, sem golpe e sem dano, virado para `direction`.
 // Na primeira entrada na sala do chefe o tambor cai do céu (quando houver luta, ele vai cair quando o chefe morrer).
+// As batidas no tambor recomeçam do zero a cada entrada: sair da sala (ou da run, e continuar depois) perde os "TUNG".
 function enterRoom(run, floor, room, position, direction = 'down') {
   room.visited = true
   room.cleared = true
+  if (room.type === 'chefe') room.hits = 0
   let drumDrop = null
   if (room.type === 'chefe' && !room.drumDropped) {
     room.drumDropped = true
@@ -145,6 +347,20 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     slip: null, // velocidade do deslize no líquido ({ x, y }) ou null (veja getSlipMovement)
     swingCounted: false,
     unlocking: null, // porta trancada abrindo agora: { side, elapsedMs } (veja "Porta trancada" em updateRoom)
+    // Alvos da sala (targets.js): hoje só o alvo de treino; depois, os inimigos. Saem ao trocar de sala.
+    targets: [],
+    swing: createSwing(), // o golpe atual: alvos que ele já acertou e os efeitos de item que valem nele
+    roomKills: 0, // abates nesta sala
+    // Coisas dos efeitos dos itens que ficam na sala (itemEffects.js): somem ao trocar de sala
+    shards: [], // lascas do Parmesão voando
+    puddles: [], // poças da Concha
+    flashes: [], // efeitos visuais que tocam uma vez (estalo, notas, mordida, faísca...)
+    effects: { ...run.effects, shieldHits: 0 }, // o escudo do Caldo é de cada sala
+    collecting: [], // o que acabou de ser pego, tocando a animação "coleta" (veja advanceCollecting)
+    emptiedHere: [], // pedestais esvaziados nesta visita: só eles aparecem vazios (os outros vazios somem)
+    touchingPedestal: null, // id do pedestal que ele estava tocando no quadro anterior (o aviso sai só no começo)
+    touchingMachine: false, // Fliperama: ele estava encostado no tambor no quadro anterior (uma jogada por encostada)
+    arcadeSpin: null, // Fliperama: o tambor girando, { roomId, elapsedMs, prize }
   }
 }
 
@@ -178,13 +394,29 @@ export function getVisitedRoomIds(floor) {
 }
 
 // O que mudou em cada sala do andar, para o progresso salvo: obstáculos quebrados, batidas
-// (parede da adega e tambor), se a sala trancada já foi aberta com um garfo e se ele já dormiu na rede.
-// Só entram as salas em que algo mudou.
+// (parede da adega e tambor), se a sala trancada já foi aberta (garfo ou grão), se ele já dormiu na rede,
+// os pedestais que ficaram vazios, o que está no chão, as recompensas de sala limpa já dadas e, no Fliperama,
+// as jogadas e o item no pedestal. Só entram as salas em que algo mudou (a Adega visitada sempre entra:
+// o chão dela começa com grãos e garfo, e o save guarda o que sobrou, mesmo que não tenha sobrado nada).
 export function getRoomStates(floor) {
   const states = {}
   for (const room of floor.rooms) {
-    if (room.removed.length > 0 || room.hits > 0 || room.unlocked || room.slept) {
-      states[room.id] = { removed: [...room.removed], hits: room.hits, unlocked: room.unlocked, slept: room.slept }
+    const changed = room.removed.length > 0 || room.hits > 0 || room.unlocked || room.slept || room.emptied.length > 0
+    // O chão da Adega começa cheio: ele só entra no save depois que o jogador passou por ela
+    const hasDrops = room.type === 'adega' ? room.visited : room.drops.length > 0
+    if (changed || hasDrops || room.rewards > 0 || room.plays > 0 || room.prize !== null) {
+      states[room.id] = {
+        removed: [...room.removed],
+        hits: room.hits,
+        unlocked: room.unlocked,
+        slept: room.slept,
+        emptied: [...room.emptied],
+        // Sem appearMs: ao continuar, o que estava aparecendo já está no chão
+        drops: room.drops.map((drop) => ({ kind: drop.kind, amount: drop.amount, x: drop.x, y: drop.y })),
+        rewards: room.rewards,
+        plays: room.plays,
+        prize: room.prize,
+      }
     }
   }
   return states
@@ -194,9 +426,10 @@ export function getRoomStates(floor) {
 // Do progresso salvo vêm também:
 // - visitedRoomIds: as salas já visitadas;
 // - roomStates: o que quebrou e as batidas de cada sala (formato de getRoomStates);
-// - health: a vida, em meios corações;
-// - forks: os garfos que sobraram (a run começa com STARTING_FORKS).
+// - health: a vida, em meios corações (sem ela, ou acima da vida máxima, a run começa com a vida máxima);
+// - forks: os garfos que sobraram (a run começa com STARTING_FORKS); grains: os grãos de café (começa com 0).
 // Ids que não existem neste andar são ignorados (os ids repetem de um andar para outro).
+// catalog = itens do catálogo da API, por id (itemCatalog.js); items = ids dos itens que ele já tem.
 export function createRun({
   seed,
   floorNumber = 1,
@@ -205,16 +438,22 @@ export function createRun({
   characterId,
   visitedRoomIds = [],
   roomStates = {},
-  health = MAX_HEALTH,
+  health,
   forks = STARTING_FORKS,
+  grains = 0,
+  catalog = {},
+  items = [],
+  floorHealsUsed = 0,
 }) {
   const floor = generateFloor(seed, floorNumber)
+  prepareCellarDrops(floor)
   const room = findRoom(floor, roomId) ?? findRoom(floor, floor.startRoomId)
   for (const id of visitedRoomIds) {
     const visited = findRoom(floor, id)
     if (visited) visited.visited = true
   }
-  // O que quebrou continua quebrado, e as batidas na parede da adega e no tambor continuam contadas
+  // O que quebrou continua quebrado, e as batidas na parede da adega continuam contadas
+  // (as do tambor ficam no save, mas o enterRoom lá embaixo zera ao entrar na sala do chefe)
   for (const [id, state] of Object.entries(roomStates)) {
     const saved = findRoom(floor, id)
     if (!saved) continue
@@ -222,6 +461,11 @@ export function createRun({
     saved.hits = state.hits
     saved.unlocked = Boolean(state.unlocked) // a porta aberta com garfo continua aberta
     saved.slept = Boolean(state.slept) // quem já dormiu na rede deste andar não dorme de novo
+    saved.emptied = [...(state.emptied ?? [])] // pedestal de onde o item já saiu continua vazio
+    if (state.drops) saved.drops = state.drops.map((drop) => ({ ...drop })) // o que ficou no chão (Adega: o que sobrou)
+    saved.rewards = state.rewards ?? 0
+    saved.plays = state.plays ?? 0 // Fliperama: jogadas feitas (o sorteio continua de onde parou)
+    saved.prize = state.prize ?? null // Fliperama: o item que saiu no tambor e ainda está no pedestal
   }
 
   // Save antigo (sem o estado das salas) dentro da adega: a parede da origem abre, senão ele ficaria preso
@@ -232,9 +476,18 @@ export function createRun({
   const start = {
     seed,
     characterId,
-    grains: 0,
+    catalog,
+    items: [...items], // na ordem em que foram pegos
+    pedestalItems: assignPedestalItems(seed, catalog), // itens dos pedestais de todos os andares (pedestals.js)
+    pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
+    vanishing: [], // itens sumindo da sala de escolha: { roomId, pedestalId, itemId, elapsedMs } (VANISH_MS)
+    effects: createItemEffects(floorHealsUsed), // tempos e contagens dos efeitos dos itens (itemEffects.js)
+    swing: createSwing(), // o golpe atual (o enterRoom zera de novo a cada sala)
+    attackHeld: false, // a seta de ataque estava segurada no quadro anterior
+    grains,
     forks,
-    health, // vida em meios corações (veja health.js)
+    notice: null, // aviso curto em cima do Tung: { text, elapsedMs } (veja showNotice)
+    health: 0, // vida em meios corações (veja health.js): vem logo abaixo, com a vida máxima dos atributos
     death: null, // { cause } depois que a vida acaba: toca a animação de morte e a run termina
     transition: null,
     finMs: 0, // relógio da barbatana do Tralalero na Sala do Pacto (o desenho usa o mesmo, para bater com o perigo)
@@ -243,6 +496,7 @@ export function createRun({
     banner: createBanner(floor),
     finished: false,
   }
+  start.health = normalizeHealth(health, getRunStats(start).maxHealth)
   return enterRoom(start, floor, room, getStartPosition(floor, room, position))
 }
 
@@ -261,7 +515,10 @@ export function createRunSnapshot(run, elapsedMs) {
     roomStates: getRoomStates(run.floor),
     health: run.health,
     forks: run.forks,
+    grains: run.grains,
     deathCause: run.death?.cause ?? null,
+    items: run.items,
+    floorHealsUsed: run.effects.floorHealsUsed,
   })
 }
 
@@ -297,37 +554,36 @@ function hitsTarget(room, obstacles, hitbox, player, drumFalling) {
 // Um quadro normal dentro da sala
 function updateRoom(run, input, deltaSeconds) {
   const room = getCurrentRoom(run)
+  const stats = getRunStats(run)
 
   // Piso: escorregadio (inércia), grudento (mais lento) e esteira (empurra)
   const effect = getFloorEffect(run.obstacles, run.player)
   const slipping = getSlipMovement(run.slip, effect, input.movement, deltaSeconds)
   const { movement } = slipping
-  const solids = getRoomSolids(run.obstacles)
+  // Os pedestais são sólidos, como os obstáculos
+  const pedestals = getRoomPedestals(run, room)
+  const solids = getRoomSolids(run.obstacles, getPedestalSolids(pedestals))
 
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
     solids,
     speedMultiplier: effect.speedMultiplier,
+    stats,
   })
   const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
   player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
 
-  // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado. hurtPlayer devolve o mesmo
-  // objeto enquanto ele está invencível, então só o golpe que vale tira vida. Sem vida, ele morre (e a animação
-  // de dano nem toca).
-  let { health, death } = run
+  // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado (veja damagePlayer). Enquanto ele
+  // está invencível, só o golpe que vale tira vida. Sem vida, ele morre (e a animação de dano nem toca).
+  let { health, death, effects } = run
   let hazard = null
   if (touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
   else if (isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
   if (hazard) {
-    const hurt = hurtPlayer(player)
-    if (hurt !== player) {
-      player = hurt
-      health = applyDamage(health, DAMAGE_LIGHT)
-      if (health === 0) {
-        player = killPlayer(player)
-        death = { cause: hazard }
-      }
-    }
+    const hit = damagePlayer(run, player, health, effects, DAMAGE_LIGHT, hazard, stats)
+    player = hit.player
+    health = hit.health
+    effects = hit.effects
+    if (hit.death) death = hit.death
   }
 
   // Poça do Tralalero (Sala do Pacto): a barbatana dá voltas na poça. Ele morre na hora, com qualquer vida:
@@ -350,13 +606,15 @@ function updateRoom(run, input, deltaSeconds) {
   // Rede da Sala de Descanso: chegar perto dela com a vida incompleta faz o Tung dormir. Só uma vez por andar
   // (room.slept; só existe uma Descanso por andar). A vida enche no meio do sono, com a tela preta (veja updateSleep).
   let sleep = null
-  if (room.type === 'descanso' && !death && !room.slept && health < MAX_HEALTH && isNearHammock(player)) {
+  if (room.type === 'descanso' && !death && !room.slept && health < stats.maxHealth && isNearHammock(player)) {
     sleep = { elapsedMs: 0 }
   }
 
-  // Golpe novo: não havia golpe, ou o tempo dele voltou a ser menor (outro golpe começou)
+  // Golpe novo: não havia golpe, ou o tempo dele voltou a ser menor (outro golpe começou).
+  // O golpe anterior acabou se não há mais golpe, ou se outro começou no mesmo quadro.
   const previous = run.player.attack
   const newSwing = player.attack && (!previous || player.attack.elapsed < previous.elapsed)
+  const swingEnded = Boolean(previous) && (!player.attack || newSwing)
   let swingCounted = newSwing ? false : run.swingCounted
 
   let obstacles = run.obstacles
@@ -380,22 +638,75 @@ function updateRoom(run, input, deltaSeconds) {
   }
   saveRemoved(room, obstacles)
 
-  const next = { ...run, player, obstacles, slip, swingCounted, health, death, finMs, drumDrop }
+  // Alvos e efeitos dos itens (itemEffects.js), nesta ordem: os tempos andam (os dos alvos também: lento, preso,
+  // empurrão e a volta do alvo de treino), o golpe que acabou, o que começou, os acertos dele, as lascas,
+  // as poças e, no fim, os abates do quadro (de qualquer dano: golpe, lascas, onda, raio ou parede).
+  const stepMs = deltaSeconds * 1000
+  const targets = updateTargets(run.targets, deltaSeconds, solids)
+  let next = {
+    ...run,
+    player,
+    obstacles,
+    slip,
+    swingCounted,
+    health,
+    death,
+    finMs,
+    drumDrop,
+    effects: updateEffectTimers(effects, stepMs),
+    targets,
+    flashes: updateFlashes(run.flashes, stepMs, targets), // o efeito em cima de um alvo vai junto com ele
+    // A seta está segurada agora? (a Batuta só conta o golpe de uma seta apertada de novo, e não segurada)
+    attackHeld: input.attackDirection !== null,
+  }
+  next = addBumpFlashes(next)
+  if (swingEnded) next = endSwing(next)
+  if (newSwing) next = startSwing(next, !run.attackHeld, stats)
+  if (hitbox) next = hitWithSwing(next, hitbox, stats)
+  next = updateShards(next, deltaSeconds, solids)
+  next = updatePuddles(next, stepMs)
+  const kills = countNewKills(run.targets, next.targets)
+  next = onKills({ ...next, roomKills: run.roomKills + kills }, kills)
+
   if (death) return next // morto não atravessa porta nem passa de andar
   if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
 
-  // Porta trancada: empurrar com garfo no bolso gasta 1 garfo e abre a sala para o resto da run (target.unlocked).
-  // Enquanto a animação toca, a porta ainda não deixa passar; sem garfo, ela só fica trancada.
+  // Coisas no chão (drops.js): a animação de aparecer anda e encostar pega. Grão e garfo vão para os contadores;
+  // o coração cura (com a vida cheia, ele fica no chão).
+  room.drops = advanceDrops(room.drops, stepMs)
+  const counters = { grains: next.grains, forks: next.forks, health: next.health, maxHealth: stats.maxHealth }
+  const picked = collectDrops(room.drops, player, counters)
+  room.drops = picked.drops
+  const justPicked = picked.collected.map((drop) => ({ kind: drop.kind, amount: drop.amount, x: drop.x, y: drop.y, elapsedMs: 0 }))
+  next = { ...next, grains: picked.grains, forks: picked.forks, health: picked.health, collecting: [...next.collecting, ...justPicked] }
+
+  // Pedestal: encostar pega o item ou compra (veja takeFromPedestal). O aviso de que não dá sai só no começo do toque.
+  const touched = findTouchedPedestal(pedestals, player)
+  const firstTouch = Boolean(touched) && run.touchingPedestal !== touched.id
+  next.touchingPedestal = touched ? touched.id : null
+  if (touched) next = takeFromPedestal(next, room, pedestals, touched, firstTouch, stats.maxHealth)
+
+  // Fliperama: o tambor (jogada e prêmio)
+  if (room.type === 'fliperama') next = updateArcade(next, room, player, stepMs)
+
+  // Porta trancada: empurrar pagando (1 garfo no nó de espaguete, ou ARCADE_DOOR_PRICE grãos no Fliperama) abre a sala
+  // para o resto da run (target.unlocked). Enquanto a animação toca, a porta ainda não deixa passar; sem garfo ou
+  // grão, ela só fica trancada.
   if (next.unlocking) {
     const elapsedMs = next.unlocking.elapsedMs + deltaSeconds * 1000
     next.unlocking = elapsedMs >= FORK_UNLOCK_MS ? null : { ...next.unlocking, elapsedMs }
   }
   const roomDoors = getRoomDoors(run.floor, room)
-  const lockedSide = next.forks > 0 && !next.unlocking ? getExitSide(player, input.movement, roomDoors, 'locked') : null
+  const lockedSide = next.unlocking ? null : getExitSide(player, input.movement, roomDoors, 'locked')
   if (lockedSide) {
-    findRoom(run.floor, roomDoors.find((door) => door.side === lockedSide).targetId).unlocked = true
-    next.forks -= 1
-    next.unlocking = { side: lockedSide, elapsedMs: 0 }
+    const door = roomDoors.find((one) => one.side === lockedSide)
+    const paysWithGrain = door.lock === 'grao'
+    if (paysWithGrain ? next.grains >= ARCADE_DOOR_PRICE : next.forks > 0) {
+      findRoom(run.floor, door.targetId).unlocked = true
+      if (paysWithGrain) next.grains -= ARCADE_DOOR_PRICE
+      else next.forks -= 1
+      next.unlocking = { side: lockedSide, elapsedMs: 0, lock: door.lock } // lock: o desenho sabe se é garfo ou grão
+    }
   }
 
   const doors = applyUnlocking(roomDoors, next.unlocking)
@@ -450,8 +761,11 @@ function updateFloorTransition(run, stepMs) {
     if (run.floor.number >= LAST_FLOOR) return { ...next, finished: true }
 
     const floor = generateFloor(run.seed, run.floor.number + 1)
+    prepareCellarDrops(floor)
     next = enterRoom(next, floor, findRoom(floor, floor.startRoomId), { ...ROOM_PLAYER_START })
     next.banner = createBanner(floor)
+    // Andar novo: as curas do Caldo da Mamãe ("por andar") voltam
+    next.effects = { ...next.effects, floorHealsUsed: 0 }
   }
 
   if (elapsedMs >= FLOOR_TRANSITION_MS) next.transition = null
@@ -478,7 +792,7 @@ function updateSleep(run, stepMs) {
   let { health } = run
   if (run.sleep.elapsedMs < halfMs && elapsedMs >= halfMs) {
     getCurrentRoom(run).slept = true
-    health = MAX_HEALTH
+    health = getRunStats(run).maxHealth
   }
   // A faixa do andar (escondida no sono) continua contando, para não voltar a aparecer quando ele acordar
   const banner = advanceBanner(run.banner, stepMs)
@@ -531,7 +845,57 @@ export function updateRun(run, input, deltaSeconds) {
   // A faixa só começa a contar depois da troca de andar; na troca de sala ela continua contando
   if (run.transition?.type === 'floor') return updateFloorTransition(run, stepMs)
 
-  const current = { ...run, banner: advanceBanner(run.banner, stepMs) }
+  // O item sobre a cabeça continua na troca de sala: ele anda junto com o Tung
+  const current = {
+    ...run,
+    banner: advanceBanner(run.banner, stepMs),
+    pickup: advancePickup(run.pickup, stepMs),
+    vanishing: advanceVanishing(run.vanishing, stepMs),
+    notice: advanceNotice(run.notice, stepMs),
+    collecting: advanceCollecting(run.collecting, stepMs),
+  }
   if (current.transition) return updateRoomTransition(current, stepMs)
   return updateRoom(current, input, deltaSeconds)
+}
+
+// ---------- ferramentas de teste (só no npm run dev, com o F3 ligado; veja SalaInicial.jsx) ----------
+
+const CENTER_CELL = { col: 6, row: 3 } // casa do meio da sala (a grade tem 13 x 7)
+
+// Tecla T: põe o alvo de treino numa casa livre perto do meio da sala, ou tira o que já está lá.
+// A base fica a 3/4 da altura da casa, para a caixa da base (a que bate no empurrão) caber dentro dela.
+export function toggleTrainingTarget(run) {
+  if (run.targets.some((target) => target.training)) return removeTrainingTarget(run)
+  const cell = findFreeCell(getCurrentRoom(run).layoutId, CENTER_CELL.col, CENTER_CELL.row)
+  if (!cell) return run
+  const rect = getCellRect(cell.col, cell.row)
+  const target = createTrainingTarget({ x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.75 })
+  // Com o alvo na sala, o escudo do Caldo arma, como ao entrar numa sala com inimigos
+  return armRoomShield({ ...run, targets: [...run.targets, target] })
+}
+
+// Recompensa da sala limpa na sala atual (drops.js), com os abates da sala para o Chifre da Sorte.
+// Quem chama: a tecla G (depuração) e, quando houver inimigos, a morte do último inimigo da sala.
+// room.rewards conta as recompensas já dadas: a 1ª é a de verdade; a tecla G sorteia outra a cada vez.
+export function giveRoomReward(run) {
+  const room = getCurrentRoom(run)
+  const horn = getEffect(run, 'chifre-da-sorte')
+  const reward = rollRoomReward(run.seed, run.floor.number, room, run.roomKills, horn?.extraCoinChance ?? 0, room.rewards)
+  room.rewards += 1
+  room.drops = [...room.drops, ...reward.drops]
+  return { ...run } // "nada" não tem aviso: a sala simplesmente não solta nada
+}
+
+// Desligar o F3 tira o alvo de treino: ele só existe com o F3 ligado
+export function removeTrainingTarget(run) {
+  return { ...run, targets: run.targets.filter((target) => !target.training) }
+}
+
+// Tecla I: dá o próximo item do catálogo que o jogador ainda não tem (na ordem do catálogo, que vem por nome),
+// com o banner, como se tivesse pego. Ele não aparece mais no pedestal da sala dele.
+export function giveNextItem(run) {
+  for (const id of Object.keys(run.catalog)) {
+    if (!run.items.includes(id)) return giveItem(run, id)
+  }
+  return run
 }
