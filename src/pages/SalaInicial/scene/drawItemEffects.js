@@ -1,15 +1,15 @@
+import { EFFECT_SPRITES } from '../../../data/effectSprites.js'
 import { ITEM_SPRITES } from '../../../data/itemSprites.js'
 import { SHIELD_BREAK_MS } from '../../../utils/itemEffects.js'
 import { getTimedFrame, getTotalDuration } from '../../../utils/spriteAnimation.js'
 import { PLAYER_SPRITE_SCALE } from './drawSprite.js'
 import { getImage, isImageReady } from './images.js'
 
-// Efeitos visuais dos itens (as folhas "variants" de itemSprites.js), em unidades da sala.
-// Os efeitos não têm pés: cada quadro é desenhado com o meio em (x, y), na escala do Tung.
+// Efeitos visuais dos itens (as folhas "variants" de itemSprites.js) e dos inimigos (effectSprites.js), em unidades
+// da sala. Os efeitos não têm pés: cada quadro é desenhado com o meio em (x, y), na escala do Tung.
 
-// Um quadro do efeito `variant` do item, com o meio em (x, y). scale = tamanho a mais; angle = giro (radianos).
-function drawEffectFrame(ctx, itemId, variant, frame, x, y, scale = 1, angle = 0) {
-  const sprite = ITEM_SPRITES[itemId]?.variants?.[variant]
+// Um quadro de uma folha de efeito (uma linha só), com o meio em (x, y). scale = tamanho a mais; angle = giro (radianos).
+export function drawEffectSpriteFrame(ctx, sprite, frame, x, y, scale = 1, angle = 0) {
   if (!sprite || frame < 0) return
   const image = getImage(sprite.path)
   if (!isImageReady(image)) return
@@ -26,13 +26,28 @@ function drawEffectFrame(ctx, itemId, variant, frame, x, y, scale = 1, angle = 0
   ctx.restore()
 }
 
-// Quadro de uma animação que toca uma vez (-1 depois do fim) ou em laço (loop = true)
-function getEffectFrame(itemId, variant, elapsedMs, loop) {
-  const sprite = ITEM_SPRITES[itemId]?.variants?.[variant]
+// Um quadro do efeito `variant` do item
+function drawEffectFrame(ctx, itemId, variant, frame, x, y, scale = 1, angle = 0) {
+  drawEffectSpriteFrame(ctx, ITEM_SPRITES[itemId]?.variants?.[variant], frame, x, y, scale, angle)
+}
+
+// Quadro de uma folha de efeito que toca uma vez (-1 depois do fim) ou em laço (loop = true)
+export function getEffectSpriteFrame(sprite, elapsedMs, loop) {
   if (!sprite) return -1
   const { durations } = Object.values(sprite.animations)[0]
   if (loop) return getTimedFrame(durations, elapsedMs % getTotalDuration(durations))
   return getTimedFrame(durations, elapsedMs)
+}
+
+// Quadro do efeito `variant` do item
+function getEffectFrame(itemId, variant, elapsedMs, loop) {
+  return getEffectSpriteFrame(ITEM_SPRITES[itemId]?.variants?.[variant], elapsedMs, loop)
+}
+
+// A folha de um efeito da lista flashes: a de um inimigo (effect) ou a de um item (itemId + variant)
+function getFlashSprite(flash) {
+  if (flash.effect) return EFFECT_SPRITES[flash.effect]
+  return ITEM_SPRITES[flash.itemId]?.variants?.[flash.variant]
 }
 
 // Poças de molho da Concha, no chão (embaixo de tudo): crescem uma vez, ficam no último quadro e apagam no fim
@@ -49,11 +64,22 @@ export function drawPuddles(ctx, puddles) {
   }
 }
 
-// Efeitos que tocam uma vez (estalo, notas, mordida, fios de queijo, faísca, lascas, impacto), por cima de tudo
+// Efeitos que tocam uma vez (estalo, notas, mordida, fios de queijo, faísca, lascas, impacto) e os dos inimigos
+// (explosão, impacto; as estrelas de atordoado repetem, loop), por cima de tudo
+// hold: depois de tocar, fica no último quadro e apaga no fim (a fumaça da Vespina, que fica na sala)
+const HOLD_FADE_MS = 400
+
 export function drawFlashes(ctx, flashes) {
   for (const flash of flashes) {
-    const frame = getEffectFrame(flash.itemId, flash.variant, flash.elapsedMs, false)
-    drawEffectFrame(ctx, flash.itemId, flash.variant, frame, flash.x, flash.y, flash.scale, flash.angle)
+    const sprite = getFlashSprite(flash)
+    let frame = getEffectSpriteFrame(sprite, flash.elapsedMs, Boolean(flash.loop))
+    ctx.save()
+    if (flash.hold && frame === -1) {
+      frame = Object.values(sprite.animations)[0].frames - 1
+      ctx.globalAlpha = Math.min(1, (flash.durationMs - flash.elapsedMs) / HOLD_FADE_MS)
+    }
+    drawEffectSpriteFrame(ctx, sprite, frame, flash.x, flash.y, flash.scale, flash.angle)
+    ctx.restore()
   }
 }
 

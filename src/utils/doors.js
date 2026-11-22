@@ -130,7 +130,7 @@ export const HITS_TO_OPEN = 3
 
 // Salas trancadas com o nó de espaguete: abrir gasta 1 garfo (regra de itens/spawn.md, issue #18).
 // A Sala do Tesouro só tranca do andar 2 em diante; a Sala de Descanso tranca sempre. A Loja fica sempre aberta.
-// A vida cheia no Palco ainda não fecha a porta.
+// O Palco não tranca: a porta deixa passar, mas a run (run.js) só deixa entrar com a vida cheia.
 export function needsFork(floor, room) {
   return (room.type === 'tesouro' && floor.number >= 2) || room.type === 'descanso'
 }

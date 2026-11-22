@@ -133,7 +133,7 @@ describe('roomLayouts.json (formato)', () => {
       pacto: [{ col: 6, row: 4 }], // um pouco abaixo do meio, longe da poça do Tralalero (2026-11-20)
       god: [{ col: 6, row: 3 }], // à frente da estátua
       fliperama: [{ col: 6, row: 4 }], // na frente da máquina, sem encostar no tambor (2026-11-21)
-      palco: [{ col: 6, row: 2 }],
+      palco: [{ col: 6, row: 3 }],
       adega: [{ col: 6, row: 2 }],
       descanso: [],
     }

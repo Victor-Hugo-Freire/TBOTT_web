@@ -135,8 +135,10 @@ function saveAndContinue(run) {
     position: { x: progress.playerX, y: progress.playerY },
     characterId: progress.characterId,
     visitedRoomIds: progress.visitedRoomIds,
+    clearedRoomIds: progress.clearedRoomIds,
     roomStates: progress.roomStates,
     health: progress.health,
+    enemyCatalog: run.enemyCatalog,
   })
 }
 
@@ -244,6 +246,7 @@ describe('createRun', () => {
       floor: 3,
       finished: false,
       visitedRoomIds: [run.roomId],
+      clearedRoomIds: [run.roomId],
       roomStates: {},
       health: MAX_HEALTH,
       deathCause: null,

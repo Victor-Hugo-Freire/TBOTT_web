@@ -39,9 +39,9 @@ function pedestalsOf(layoutId) {
 const PEDESTAL_LAYOUTS = ROOM_LAYOUTS.filter((layout) => PEDESTAL_VARIANTS[layout.type])
 
 describe('pedestais nos layouts', () => {
-  test('cada sala usa um pedestal que existe; o God usa o pedestal comum', () => {
+  test('cada sala usa um pedestal que existe; o God e o Palco usam o pedestal comum', () => {
     for (const variant of Object.values(PEDESTAL_VARIANTS)) assert.ok(PEDESTAL_SPRITES[variant], variant)
-    assert.deepEqual(PEDESTAL_VARIANTS, { tesouro: 'base', chefe: 'base', god: 'base', adega: 'adega', pacto: 'pacto' })
+    assert.deepEqual(PEDESTAL_VARIANTS, { tesouro: 'base', chefe: 'base', god: 'base', adega: 'adega', pacto: 'pacto', palco: 'base' })
   })
 
   test('todo layout de sala com item tem de 1 a 3 casas de pedestal; só o Pacto passa de 2', () => {
@@ -152,8 +152,8 @@ describe('pedestais da sala (getRoomPedestals)', () => {
     assert.equal(pedestals[0].box.y + pedestals[0].box.height, pedestals[0].y)
   })
 
-  test('salas sem pedestal de item: comum, Palco e Descanso (por enquanto)', () => {
-    for (const type of ['inicial', 'comum', 'palco', 'descanso']) {
+  test('salas sem pedestal de item: inicial, comum e Descanso', () => {
+    for (const type of ['inicial', 'comum', 'descanso']) {
       assert.deepEqual(getRoomPedestals(fakeRun({ id: '4-4' }, ['tiramisu']), { id: '4-4', type, layoutId: type === 'comum' ? 'comum-01' : type, cleared: true, emptied: [] }), [], type)
     }
   })

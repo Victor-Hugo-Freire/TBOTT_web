@@ -137,6 +137,8 @@ export function normalizeProgressPayload(value) {
     finished: source.finished === true,
     // Salas já visitadas do andar (o minimapa precisa delas depois de sair da run e voltar)
     visitedRoomIds: normalizeIds(source.visitedRoomIds, MAX_ROOMS),
+    // Salas já limpas do andar: os inimigos delas não voltam. Save antigo, sem a lista: null (a run usa as visitadas)
+    clearedRoomIds: Array.isArray(source.clearedRoomIds) ? normalizeIds(source.clearedRoomIds, MAX_ROOMS) : null,
     // Obstáculos quebrados e batidas de cada sala: o que quebrou não volta ao continuar a run
     roomStates: normalizeRoomStates(source.roomStates),
     // Vida em meios corações (6 = 3 corações), até o teto de STAT_LIMITS: a Muçarela aumenta a vida máxima, então
@@ -167,6 +169,7 @@ export function createProgressSnapshot({
   floor,
   finished,
   visitedRoomIds,
+  clearedRoomIds,
   roomStates,
   health,
   deathCause,
@@ -185,6 +188,7 @@ export function createProgressSnapshot({
     floor,
     finished,
     visitedRoomIds,
+    clearedRoomIds,
     roomStates,
     health,
     deathCause,

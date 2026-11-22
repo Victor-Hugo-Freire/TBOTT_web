@@ -1,3 +1,4 @@
+import { ENEMY_SPRITES } from '../data/enemySprites.js'
 import { ITEM_SPRITES } from '../data/itemSprites.js'
 
 // Catálogo de itens que vem da API (GET /api/catalog): nome, raridade, salas (roomTypes), preço e os números
@@ -28,4 +29,29 @@ export function buildItemCatalog(items) {
     if (!catalog[id]) missingInCatalog.push(id)
   }
   return { items: catalog, missingSprite, missingInCatalog }
+}
+
+// Inimigos do catálogo (lista `enemies` da mesma resposta): vida em pontos, damage em meios corações, speed em u/s
+// e minFloor (primeiro andar em que aparece). Inimigo sem sprite no jogo fica de fora, e sprite sem inimigo no
+// catálogo também (missingSprite e missingInCatalog, como nos itens).
+// Devolve { enemies: { id: inimigo }, missingSprite, missingInCatalog }.
+export function buildEnemyCatalog(enemies) {
+  const catalog = {}
+  const missingSprite = []
+  const missingInCatalog = []
+  const list = Array.isArray(enemies) ? enemies : []
+
+  for (const enemy of list) {
+    if (!enemy || typeof enemy.id !== 'string') continue
+    if (!ENEMY_SPRITES[enemy.id]) {
+      missingSprite.push(enemy.id)
+      continue
+    }
+    catalog[enemy.id] = enemy
+  }
+
+  for (const id of Object.keys(ENEMY_SPRITES)) {
+    if (!catalog[id]) missingInCatalog.push(id)
+  }
+  return { enemies: catalog, missingSprite, missingInCatalog }
 }

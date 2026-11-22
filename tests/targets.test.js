@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
 import {
-  countNewKills,
   createTarget,
   createTrainingTarget,
   damageTarget,
   DAMAGE_TEXT_MS,
+  findNewKills,
   findSwingHits,
   findTargetsNear,
   getTargetBox,
@@ -91,7 +91,7 @@ describe('dano no alvo', () => {
   })
 })
 
-describe('golpe e área (findSwingHits, findTargetsNear) e abates (countNewKills)', () => {
+describe('golpe e área (findSwingHits, findTargetsNear) e abates (findNewKills)', () => {
   test('o golpe acha o alvo que a caixa toca, uma vez por golpe', () => {
     const target = createTrainingTarget(HOME)
     assert.deepEqual(findSwingHits([target], hitboxOn(target), []), [0])
@@ -116,12 +116,29 @@ describe('golpe e área (findSwingHits, findTargetsNear) e abates (countNewKills
   test('conta os alvos que morreram no quadro; o alvo de treino que voltou não conta', () => {
     const alive = createTrainingTarget(HOME)
     const dead = damageTarget(alive, 30)
-    assert.equal(countNewKills([alive, alive], [dead, alive]), 1)
-    assert.equal(countNewKills([dead], [{ ...alive }]), 0)
+    assert.deepEqual(findNewKills([alive, alive], [dead, alive]), [dead])
+    assert.deepEqual(findNewKills([dead], [{ ...alive }]), [])
   })
 })
 
 describe('lentidão, prisão e empurrão', () => {
+  test('preso com intervalo: só pode ser preso de novo depois de immuneMs, contados da prisão', () => {
+    let target = stunTarget(createTrainingTarget(HOME), 800, 2000)
+    assert.deepEqual([target.stunMs, target.stunImmuneMs], [800, 2000])
+    target = wait(target, 1000)
+    assert.equal(stunTarget(target, 800, 2000), target, 'em menos de 2 s, nada muda')
+    target = wait(target, 1000)
+    assert.equal(stunTarget(target, 800, 2000).stunMs, 800, 'passados 2 s, prende de novo')
+  })
+
+  test('levar dano zera o tempo desde o último dano (a animação "dano" dos inimigos)', () => {
+    let target = createTrainingTarget(HOME)
+    assert.equal(target.hurtMs, Infinity)
+    target = damageTarget(target, 3)
+    assert.equal(target.hurtMs, 0)
+    assert.equal(wait(target, 100).hurtMs, 100)
+  })
+
   test('lento e preso duram o tempo pedido; o tempo maior vale', () => {
     let target = slowTarget(createTrainingTarget(HOME), 0.5, 2000)
     target = stunTarget(target, 800)

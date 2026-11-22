@@ -1,4 +1,5 @@
 import { ARCADE_DOOR_PRICE, ARCADE_PLAY_PRICE, ARCADE_SPIN_MS, NOTICE_MS } from '../data/economy.js'
+import { STAGE } from '../data/enemyBehavior.js'
 import { ITEM_BANNERS } from '../data/itemBanners.js'
 import { ARCADE_PRIZE_CELL, isTouchingMachine, rollArcadePrize } from './arcade.js'
 import { overlaps } from './collision.js'
@@ -17,11 +18,24 @@ import {
   advanceDrops,
   collectDrops,
   createCellarDrops,
+  createGrainDrop,
   DROP_COLLECT_MS,
   healWithHeart,
   placeDrops,
+  rollLuckyGrain,
   rollRoomReward,
 } from './drops.js'
+import {
+  areEnemiesDefeated,
+  createRoomEnemies,
+  createWaveEnemies,
+  findTouchingEnemy,
+  pickRoomEnemies,
+  updateEnemies,
+  updateEnemyFloor,
+} from './enemies.js'
+import { createEnemyFlash } from './enemyBehaviors.js'
+import { updateEnemyShots } from './enemyShots.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
 import {
@@ -67,6 +81,7 @@ import {
   applyMotherHeal,
   armRoomShield,
   createItemEffects,
+  createLuckyFlash,
   createSwing,
   endSwing,
   getEffect,
@@ -81,7 +96,7 @@ import {
   updateShards,
   spendShield,
 } from './itemEffects.js'
-import { countNewKills, createTrainingTarget, updateTargets } from './targets.js'
+import { createTrainingTarget, findNewKills, updateTargets } from './targets.js'
 
 // Estado da run: o andar, a sala atual, o jogador, as transições, a faixa e os contadores.
 // Funções puras no estilo de player.js (sem React, sem canvas), para testar com node:test.
@@ -103,6 +118,7 @@ export const VANISH_MS = 600 // numa sala de escolha, o item que não foi pego s
 // O que machuca no piso: a chapa quente e os cacos do garrafão quebrado. A causa vai para o aviso de morte (veja health.js).
 const HOT_PLATE_CAUSE = 'chapa'
 const SHARDS_CAUSE = 'cacos'
+const HOT_CHEESE_CAUSE = 'fenicottero-fornarino' // o queijo quente que a pizza do Fenicottero deixa no chão
 
 // Tambor caindo do céu na sala do chefe: cai em DRUM_FALL_MS (cada vez mais rápido) de DRUM_FALL_HEIGHT u de altura
 // e levanta poeira até DRUM_DROP_MS. Enquanto cai, não dá para bater nele.
@@ -155,6 +171,22 @@ function damagePlayer(run, player, health, effects, amount, cause, stats) {
   if (nextHealth === 0) return { player: killPlayer(hurt), health: 0, death: { cause }, effects: hurtEffects }
   const healed = applyMotherHeal(run, nextHealth, stats.maxHealth, hurtEffects)
   return { player: hurt, health: healed.health, death: null, effects: healed.effects }
+}
+
+// Chifre da Sorte: cada abate do quadro (killed, os alvos que acabaram de morrer) tem extraCoinChance de soltar
+// 1 grão nos pés de quem morreu, com o brilho da sorte. O sorteio usa o número do abate na sala (run.roomKills
+// ainda é o de antes deste quadro), então o mesmo abate dá sempre o mesmo resultado.
+function dropLuckyGrains(run, room, killed) {
+  const horn = getEffect(run, 'chifre-da-sorte')
+  if (!horn?.extraCoinChance || killed.length === 0) return run
+  const flashes = [...run.flashes]
+  for (let index = 0; index < killed.length; index++) {
+    if (!rollLuckyGrain(run.seed, run.floor.number, room, run.roomKills + index, horn.extraCoinChance)) continue
+    const { x, y } = killed[index]
+    room.drops.push(createGrainDrop(x, y))
+    flashes.push(createLuckyFlash(x, y))
+  }
+  return { ...run, flashes }
 }
 
 // O item entra na lista (na ordem em que foi pego), fica PICKUP_MS sobre a cabeça do Tung e aparece o banner
@@ -250,7 +282,67 @@ function takeFromPedestal(run, room, pedestals, pedestal, firstTouch, maxHealth)
       vanishing.push({ roomId: room.id, pedestalId: other.id, itemId: other.itemId, elapsedMs: 0 })
     }
   }
-  return { ...giveItem(paid, pedestal.itemId), vanishing, emptiedHere }
+  const taken = { ...giveItem(paid, pedestal.itemId), vanishing, emptiedHere }
+  // Palco: pegar a Batuta fecha a cortina sobre as portas e começam as ondas
+  if (room.type === 'palco') {
+    room.cleared = false
+    return { ...taken, stage: startStage(false) }
+  }
+  return taken
+}
+
+// ---------- Palco ----------
+// run.stage = a luta do Palco: { wave, waitMs, curtainMs, won }, ou null fora dela.
+// - wave: a onda atual (0 a STAGE.waves.length - 1); waitMs: ms até ela entrar (0 = ela já está na sala);
+// - curtainMs: há quanto tempo a cortina começou a fechar (ou a abrir, depois de vencer: won = true).
+// O save não guarda nada novo: com o item já pego (room.emptied) e a sala ainda não limpa, a luta não acabou.
+
+// A luta começa: a cortina fecha e a 1ª onda entra STAGE.startMs depois. closed = a cortina já começa fechada
+// (ao continuar a run no meio da luta).
+function startStage(closed) {
+  return { wave: 0, waitMs: STAGE.startMs, curtainMs: closed ? STAGE.curtainMs : 0, won: false }
+}
+
+// Quanto a cortina do Palco cobre as portas: de 0 (aberta) a 1 (fechada)
+export function getStageCurtain(stage) {
+  const progress = Math.min(1, stage.curtainMs / STAGE.curtainMs)
+  return stage.won ? 1 - progress : progress
+}
+
+// A luta do Palco começou e não acabou? (a Batuta já saiu do pedestal e a sala ainda não está limpa)
+function isStageFightPending(room) {
+  return room.type === 'palco' && room.emptied.length > 0 && !room.cleared
+}
+
+// Palco com a Batuta no pedestal: a porta que leva a ele fica fechada enquanto a vida não está cheia
+// (needsFullHealth: empurrar mostra o aviso). Vale para a run (não deixa passar) e para o desenho (fechada).
+export function applyStageDoor(doors, floor, fullHealth) {
+  if (fullHealth) return doors
+  return doors.map((door) => {
+    const target = findRoom(floor, door.targetId)
+    if (door.state !== 'open' || target?.type !== 'palco' || target.emptied.length > 0) return door
+    return { ...door, state: 'closed', needsFullHealth: true }
+  })
+}
+
+// Um quadro da luta: a cortina anda e, acabada a pausa, a onda entra (uma nuvem onde cada inimigo nasce); sem
+// inimigo vivo, vem a próxima. Vencida a última, a sala fica limpa (as portas abrem), sai a recompensa e a cortina
+// abre; quando ela termina de abrir, a luta acaba (stage = null).
+function updateStage(run, room, stepMs) {
+  const stage = { ...run.stage, curtainMs: run.stage.curtainMs + stepMs }
+  if (stage.won) return { ...run, stage: stage.curtainMs >= STAGE.curtainMs ? null : stage }
+  if (stage.waitMs > 0) {
+    stage.waitMs = Math.max(0, stage.waitMs - stepMs)
+    if (stage.waitMs > 0) return { ...run, stage }
+    const enemies = createWaveEnemies(run.seed, run.floor.number, room, stage.wave, run.enemyCatalog)
+    const clouds = enemies.map((enemy) => createEnemyFlash('poof', enemy.x, enemy.y - enemy.height / 2))
+    const others = run.targets.filter((target) => !target.enemyId) // os mortos da onda anterior saem; o alvo de treino fica
+    return { ...run, stage, targets: [...others, ...enemies], flashes: [...run.flashes, ...clouds] }
+  }
+  if (run.targets.some((target) => target.enemyId && !target.dead)) return { ...run, stage }
+  if (stage.wave + 1 < STAGE.waves.length) return { ...run, stage: { ...stage, wave: stage.wave + 1, waitMs: STAGE.wavePauseMs } }
+  room.cleared = true
+  return giveRoomReward({ ...run, stage: { ...stage, won: true, curtainMs: 0 } })
 }
 
 // Fliperama: encostar no tambor (uma jogada por encostada: para jogar de novo, ele se afasta e volta) paga
@@ -324,20 +416,24 @@ export function isSecretMarkVisible(run) {
   return room.hits >= 1 || isNearDoor(run.player, room.secret.side)
 }
 
-// Entra na sala: ela fica visitada e limpa (sem inimigos, toda sala fica limpa ao entrar).
-// O jogador surge parado, sem golpe e sem dano, virado para `direction`.
+// Entra na sala: ela fica visitada. Sala ainda não limpa ganha os inimigos dela (enemies.js), com a vida cheia;
+// sem inimigos, ela fica limpa na hora. O jogador surge parado, sem golpe e sem dano, virado para `direction`.
 // Na primeira entrada na sala do chefe o tambor cai do céu (quando houver luta, ele vai cair quando o chefe morrer).
 // As batidas no tambor recomeçam do zero a cada entrada: sair da sala (ou da run, e continuar depois) perde os "TUNG".
 function enterRoom(run, floor, room, position, direction = 'down') {
   room.visited = true
-  room.cleared = true
+  const enemies = room.cleared ? [] : createRoomEnemies(run.seed, floor.number, room, run.enemyCatalog)
+  // Palco no meio da luta (a run continuou dali): as ondas recomeçam da 1ª, com a cortina já fechada
+  const stagePending = isStageFightPending(room)
+  if (enemies.length === 0 && !stagePending) room.cleared = true
   if (room.type === 'chefe') room.hits = 0
   let drumDrop = null
   if (room.type === 'chefe' && !room.drumDropped) {
     room.drumDropped = true
     drumDrop = { elapsedMs: 0 }
   }
-  return {
+  // Com inimigos vivos na sala, o escudo do Caldo arma
+  return armRoomShield({
     ...run,
     drumDrop, // { elapsedMs } enquanto o tambor cai do céu (veja getDrumFall), senão null
     floor,
@@ -347,13 +443,16 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     slip: null, // velocidade do deslize no líquido ({ x, y }) ou null (veja getSlipMovement)
     swingCounted: false,
     unlocking: null, // porta trancada abrindo agora: { side, elapsedMs } (veja "Porta trancada" em updateRoom)
-    // Alvos da sala (targets.js): hoje só o alvo de treino; depois, os inimigos. Saem ao trocar de sala.
-    targets: [],
+    // Alvos da sala (targets.js): os inimigos e, no F3, o alvo de treino. Saem ao trocar de sala.
+    targets: enemies,
+    stage: stagePending ? startStage(true) : null, // a luta das ondas do Palco (veja updateStage)
     swing: createSwing(), // o golpe atual: alvos que ele já acertou e os efeitos de item que valem nele
     roomKills: 0, // abates nesta sala
     // Coisas dos efeitos dos itens que ficam na sala (itemEffects.js): somem ao trocar de sala
     shards: [], // lascas do Parmesão voando
     puddles: [], // poças da Concha
+    enemyFloor: [], // rastros dos inimigos no chão (gelo do Pinguino, queijo quente): obstáculos de piso que somem com o tempo
+    enemyShots: [], // projéteis dos inimigos voando (enemyShots.js)
     flashes: [], // efeitos visuais que tocam uma vez (estalo, notas, mordida, faísca...)
     effects: { ...run.effects, shieldHits: 0 }, // o escudo do Caldo é de cada sala
     collecting: [], // o que acabou de ser pego, tocando a animação "coleta" (veja advanceCollecting)
@@ -361,7 +460,7 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     touchingPedestal: null, // id do pedestal que ele estava tocando no quadro anterior (o aviso sai só no começo)
     touchingMachine: false, // Fliperama: ele estava encostado no tambor no quadro anterior (uma jogada por encostada)
     arcadeSpin: null, // Fliperama: o tambor girando, { roomId, elapsedMs, prize }
-  }
+  })
 }
 
 // A posição salva serve? Precisa estar dentro da área dos pés e não tocar em nada que bloqueia.
@@ -391,6 +490,12 @@ function createBanner(floor) {
 // o minimapa (F3 hoje, o do jogo depois) lê esse mesmo campo.
 export function getVisitedRoomIds(floor) {
   return floor.rooms.filter((room) => room.visited).map((room) => room.id)
+}
+
+// Ids das salas limpas do andar (sem inimigo vivo), para o progresso salvo: sala limpa não volta a ter inimigos.
+// A sala em que ele estava no meio da luta não entra: ao continuar, os inimigos dela voltam com a vida cheia.
+export function getClearedRoomIds(floor) {
+  return floor.rooms.filter((room) => room.cleared).map((room) => room.id)
 }
 
 // O que mudou em cada sala do andar, para o progresso salvo: obstáculos quebrados, batidas
@@ -425,11 +530,13 @@ export function getRoomStates(floor) {
 // Começa a run (nova ou continuada). roomId inválido (ou o antigo 'sala-inicial') = sala inicial.
 // Do progresso salvo vêm também:
 // - visitedRoomIds: as salas já visitadas;
+// - clearedRoomIds: as salas já limpas (save antigo, sem a lista: as visitadas, porque antes não havia inimigos);
 // - roomStates: o que quebrou e as batidas de cada sala (formato de getRoomStates);
 // - health: a vida, em meios corações (sem ela, ou acima da vida máxima, a run começa com a vida máxima);
 // - forks: os garfos que sobraram (a run começa com STARTING_FORKS); grains: os grãos de café (começa com 0).
 // Ids que não existem neste andar são ignorados (os ids repetem de um andar para outro).
 // catalog = itens do catálogo da API, por id (itemCatalog.js); items = ids dos itens que ele já tem.
+// enemyCatalog = inimigos do catálogo, por id (buildEnemyCatalog); vazio = nenhuma sala tem inimigos.
 export function createRun({
   seed,
   floorNumber = 1,
@@ -437,11 +544,13 @@ export function createRun({
   position = null,
   characterId,
   visitedRoomIds = [],
+  clearedRoomIds = null,
   roomStates = {},
   health,
   forks = STARTING_FORKS,
   grains = 0,
   catalog = {},
+  enemyCatalog = {},
   items = [],
   floorHealsUsed = 0,
 }) {
@@ -451,6 +560,10 @@ export function createRun({
   for (const id of visitedRoomIds) {
     const visited = findRoom(floor, id)
     if (visited) visited.visited = true
+  }
+  for (const id of clearedRoomIds ?? visitedRoomIds) {
+    const cleared = findRoom(floor, id)
+    if (cleared) cleared.cleared = true
   }
   // O que quebrou continua quebrado, e as batidas na parede da adega continuam contadas
   // (as do tambor ficam no save, mas o enterRoom lá embaixo zera ao entrar na sala do chefe)
@@ -477,6 +590,7 @@ export function createRun({
     seed,
     characterId,
     catalog,
+    enemyCatalog,
     items: [...items], // na ordem em que foram pegos
     pedestalItems: assignPedestalItems(seed, catalog), // itens dos pedestais de todos os andares (pedestals.js)
     pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
@@ -512,6 +626,7 @@ export function createRunSnapshot(run, elapsedMs) {
     // Morreu = acabou: um save feito durante a animação de morte já conta como run encerrada
     finished: run.finished || Boolean(run.death),
     visitedRoomIds: getVisitedRoomIds(run.floor),
+    clearedRoomIds: getClearedRoomIds(run.floor),
     roomStates: getRoomStates(run.floor),
     health: run.health,
     forks: run.forks,
@@ -540,13 +655,14 @@ function saveRemoved(room, obstacles) {
 }
 
 // O golpe acerta o tambor ou a parede da adega? (até 3 batidas)
-// A parede secreta só conta golpe com a marca visível (de perto, ou já trincada): de longe, nada acontece.
+// A parede secreta só conta golpe com a marca visível (de perto, ou já trincada) e com a sala limpa.
 // O tambor ainda caindo do céu (drumFalling) não conta golpe.
 function hitsTarget(room, obstacles, hitbox, player, drumFalling) {
   if (room.hits >= HITS_TO_OPEN) return false
   const drum = obstacles.find((obstacle) => obstacle.mechanic === 'tambor')
   if (drum && isDrumVisible(room)) return !drumFalling && overlaps(hitbox, drum.box)
-  if (!room.secret) return false
+  // Com inimigo vivo a parede secreta não trinca: abrir a adega seria fugir da luta
+  if (!room.secret || !room.cleared) return false
   const markVisible = room.hits >= 1 || isNearDoor(player, room.secret.side)
   return markVisible && overlaps(hitbox, DOOR_HIT_ZONES[room.secret.side])
 }
@@ -556,8 +672,9 @@ function updateRoom(run, input, deltaSeconds) {
   const room = getCurrentRoom(run)
   const stats = getRunStats(run)
 
-  // Piso: escorregadio (inércia), grudento (mais lento) e esteira (empurra)
-  const effect = getFloorEffect(run.obstacles, run.player)
+  // Piso: escorregadio (inércia), grudento (mais lento) e esteira (empurra). O gelo do Pinguino também escorrega.
+  // Personagem que voa (stats.flying) não sente o piso.
+  const effect = getFloorEffect(stats.flying ? [] : [...run.obstacles, ...run.enemyFloor], run.player)
   const slipping = getSlipMovement(run.slip, effect, input.movement, deltaSeconds)
   const { movement } = slipping
   // Os pedestais são sólidos, como os obstáculos
@@ -572,14 +689,23 @@ function updateRoom(run, input, deltaSeconds) {
   const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
   player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
 
-  // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado (veja damagePlayer). Enquanto ele
-  // está invencível, só o golpe que vale tira vida. Sem vida, ele morre (e a animação de dano nem toca).
+  // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado. Encostar num inimigo vivo: o dano
+  // dele (catálogo), e a causa da morte é o id dele. Tudo passa por damagePlayer; enquanto ele está invencível,
+  // nada tira vida. Sem vida, ele morre (e a animação de dano nem toca).
   let { health, death, effects } = run
   let hazard = null
-  if (touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
-  else if (isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
+  let hazardDamage = DAMAGE_LIGHT
+  const touchedEnemy = findTouchingEnemy(run.targets, player)
+  // Voando, a chapa, os cacos e o queijo quente não o machucam
+  if (!stats.flying && touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
+  else if (!stats.flying && isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
+  else if (!stats.flying && touchesHot(run.enemyFloor, player)) hazard = HOT_CHEESE_CAUSE
+  else if (touchedEnemy) {
+    hazard = touchedEnemy.enemyId
+    hazardDamage = touchedEnemy.damage
+  }
   if (hazard) {
-    const hit = damagePlayer(run, player, health, effects, DAMAGE_LIGHT, hazard, stats)
+    const hit = damagePlayer(run, player, health, effects, hazardDamage, hazard, stats)
     player = hit.player
     health = hit.health
     effects = hit.effects
@@ -642,7 +768,21 @@ function updateRoom(run, input, deltaSeconds) {
   // empurrão e a volta do alvo de treino), o golpe que acabou, o que começou, os acertos dele, as lascas,
   // as poças e, no fim, os abates do quadro (de qualquer dano: golpe, lascas, onda, raio ou parede).
   const stepMs = deltaSeconds * 1000
-  const targets = updateTargets(run.targets, deltaSeconds, solids)
+  // Os alvos também batem nas portas (as zonas delas avançam sobre o piso): empurrado, ninguém para dentro do vão
+  const targetSolids = [...solids, ...Object.values(DOOR_HIT_ZONES)]
+  // Os inimigos agem (enemyBehaviors.js) e deixam no "mundo" o que fizeram: dano fora do contato, efeitos, rastros
+  // e projéteis novos. Depois os projéteis que já voavam andam (enemyShots.js) e também deixam dano e queijo.
+  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [] }
+  world.floorObstacles = [...obstacles, ...run.enemyFloor] // o piso vale para os inimigos também
+  const targets = updateEnemies(updateTargets(run.targets, deltaSeconds, targetSolids), world)
+  const enemyShots = [...updateEnemyShots(run.enemyShots, world), ...world.shots]
+  for (const hit of world.hits) {
+    const result = damagePlayer(run, player, health, effects, hit.damage, hit.cause, stats)
+    player = result.player
+    health = result.health
+    effects = result.effects
+    if (result.death) death = result.death
+  }
   let next = {
     ...run,
     player,
@@ -655,7 +795,9 @@ function updateRoom(run, input, deltaSeconds) {
     drumDrop,
     effects: updateEffectTimers(effects, stepMs),
     targets,
-    flashes: updateFlashes(run.flashes, stepMs, targets), // o efeito em cima de um alvo vai junto com ele
+    flashes: [...updateFlashes(run.flashes, stepMs, targets), ...world.flashes], // o efeito em cima de um alvo vai junto com ele
+    enemyFloor: [...updateEnemyFloor(run.enemyFloor, stepMs), ...world.floor], // o gelo do Pinguino e o queijo quente
+    enemyShots, // caroços, pizzas e anéis de vapor voando
     // A seta está segurada agora? (a Batuta só conta o golpe de uma seta apertada de novo, e não segurada)
     attackHeld: input.attackDirection !== null,
   }
@@ -665,8 +807,17 @@ function updateRoom(run, input, deltaSeconds) {
   if (hitbox) next = hitWithSwing(next, hitbox, stats)
   next = updateShards(next, deltaSeconds, solids)
   next = updatePuddles(next, stepMs)
-  const kills = countNewKills(run.targets, next.targets)
-  next = onKills({ ...next, roomKills: run.roomKills + kills }, kills)
+  const killed = findNewKills(run.targets, next.targets)
+  next = dropLuckyGrains(next, room, killed)
+  next = onKills({ ...next, roomKills: run.roomKills + killed.length }, killed.length)
+
+  // O último inimigo morreu: a sala fica limpa (as portas abrem) e pode soltar a recompensa.
+  // No Palco, quem decide é a luta das ondas.
+  if (next.stage) next = updateStage(next, room, stepMs)
+  else if (!room.cleared && areEnemiesDefeated(next.targets)) {
+    room.cleared = true
+    next = giveRoomReward(next)
+  }
 
   if (death) return next // morto não atravessa porta nem passa de andar
   if (sleep) return { ...next, sleep } // começou a dormir: neste quadro ele não atravessa porta
@@ -697,7 +848,8 @@ function updateRoom(run, input, deltaSeconds) {
     next.unlocking = elapsedMs >= FORK_UNLOCK_MS ? null : { ...next.unlocking, elapsedMs }
   }
   const roomDoors = getRoomDoors(run.floor, room)
-  const lockedSide = next.unlocking ? null : getExitSide(player, input.movement, roomDoors, 'locked')
+  // Com inimigo vivo, nenhuma porta abre (nem gastando garfo ou grão)
+  const lockedSide = next.unlocking || !room.cleared ? null : getExitSide(player, input.movement, roomDoors, 'locked')
   if (lockedSide) {
     const door = roomDoors.find((one) => one.side === lockedSide)
     const paysWithGrain = door.lock === 'grao'
@@ -709,15 +861,19 @@ function updateRoom(run, input, deltaSeconds) {
     }
   }
 
-  const doors = applyUnlocking(roomDoors, next.unlocking)
+  const doors = applyStageDoor(applyUnlocking(roomDoors, next.unlocking), run.floor, next.health >= stats.maxHealth)
+  // Empurrar a porta do Palco fechada por falta de vida mostra o aviso (ele só sai de novo depois de sumir)
+  const stageDoors = doors.filter((door) => door.needsFullHealth)
+  if (!next.notice && getExitSide(player, input.movement, stageDoors, 'closed')) next = showNotice(next, 'Só com a vida cheia')
   // A porta vale só com a tecla apertada para ela: o deslize sozinho nunca troca de sala
   const side = getExitSide(player, input.movement, doors)
   if (side) {
     const toRoomId = doors.find((door) => door.side === side).targetId
-    // A sala nova já fica limpa: assim as portas dela aparecem abertas enquanto ela desliza para dentro
     const target = findRoom(run.floor, toRoomId)
+    // A sala nova sem inimigos já fica limpa: assim as portas dela aparecem abertas enquanto ela desliza para
+    // dentro. Com inimigos, elas aparecem fechadas (o enterRoom cria os inimigos no fim da transição).
     target.visited = true
-    target.cleared = true
+    if (pickRoomEnemies(run.seed, run.floor.number, target, run.enemyCatalog).length === 0) target.cleared = true
     return {
       ...next,
       transition: {
@@ -874,13 +1030,12 @@ export function toggleTrainingTarget(run) {
   return armRoomShield({ ...run, targets: [...run.targets, target] })
 }
 
-// Recompensa da sala limpa na sala atual (drops.js), com os abates da sala para o Chifre da Sorte.
-// Quem chama: a tecla G (depuração) e, quando houver inimigos, a morte do último inimigo da sala.
+// Recompensa da sala limpa na sala atual (drops.js).
+// Quem chama: a morte do último inimigo da sala e a tecla G (depuração).
 // room.rewards conta as recompensas já dadas: a 1ª é a de verdade; a tecla G sorteia outra a cada vez.
 export function giveRoomReward(run) {
   const room = getCurrentRoom(run)
-  const horn = getEffect(run, 'chifre-da-sorte')
-  const reward = rollRoomReward(run.seed, run.floor.number, room, run.roomKills, horn?.extraCoinChance ?? 0, room.rewards)
+  const reward = rollRoomReward(run.seed, run.floor.number, room, room.rewards)
   room.rewards += 1
   room.drops = [...room.drops, ...reward.drops]
   return { ...run } // "nada" não tem aviso: a sala simplesmente não solta nada

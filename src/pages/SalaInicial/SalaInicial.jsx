@@ -6,7 +6,7 @@ import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
 import { CONSUMABLE_INFO } from '../../data/economy.js'
 import { CONSUMABLE_SPRITES } from '../../data/itemSprites.js'
-import { buildItemCatalog } from '../../utils/itemCatalog.js'
+import { buildEnemyCatalog, buildItemCatalog } from '../../utils/itemCatalog.js'
 import { findNearbyPedestal, getRoomPedestals } from '../../utils/pedestals.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
 import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
@@ -137,14 +137,16 @@ export default function SalaInicial() {
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
-    // Primeiro o catálogo de itens (GET /api/catalog: nomes, salas e os números dos efeitos), depois o progresso.
-    // Sem o catálogo a run não começa: aparece o aviso de erro com "Tentar de novo".
+    // Primeiro o catálogo (GET /api/catalog: itens com os números dos efeitos e inimigos com vida, dano, velocidade
+    // e andar mínimo), depois o progresso. Sem o catálogo a run não começa: aparece o aviso de erro com "Tentar de novo".
     async function loadGame() {
       let catalog
+      let enemyCatalog
       try {
         const response = await apiRequest('/api/catalog', { credentials: 'include' })
         if (isCancelled) return
         catalog = buildItemCatalog(response?.items)
+        enemyCatalog = buildEnemyCatalog(response?.enemies)
       } catch (error) {
         if (isCancelled) return
         // Sessão vencida (401): o apiRequest já leva para a tela de entrar
@@ -155,13 +157,16 @@ export default function SalaInicial() {
       if (catalog.missingSprite.length > 0 || catalog.missingInCatalog.length > 0) {
         console.warn('Itens ignorados.', { semSprite: catalog.missingSprite, semCatalogo: catalog.missingInCatalog })
       }
-      await loadProgress(catalog.items)
+      if (enemyCatalog.missingSprite.length > 0 || enemyCatalog.missingInCatalog.length > 0) {
+        console.warn('Inimigos ignorados.', { semSprite: enemyCatalog.missingSprite, semCatalogo: enemyCatalog.missingInCatalog })
+      }
+      await loadProgress(catalog.items, enemyCatalog.enemies)
     }
     retryLoadRef.current = loadGame
 
     // O andar, a sala, a posição e o tempo vêm da API (e não do state da navegação, que o navegador
     // guarda no histórico e pode estar velho). A partida nova já foi salva pela seleção, sem seed.
-    async function loadProgress(catalog) {
+    async function loadProgress(catalog, enemyCatalog) {
       let progress = normalizeProgressPayload(null)
       let characterId = selectedCharacter.id
       try {
@@ -192,11 +197,13 @@ export default function SalaInicial() {
         position: { x: progress.playerX, y: progress.playerY },
         characterId,
         visitedRoomIds: progress.visitedRoomIds,
+        clearedRoomIds: progress.clearedRoomIds,
         roomStates: progress.roomStates,
         health: progress.health,
         forks: progress.forks,
         grains: progress.grains,
         catalog,
+        enemyCatalog,
         items: progress.items,
         floorHealsUsed: progress.floorHealsUsed,
       })
@@ -293,7 +300,7 @@ export default function SalaInicial() {
     // A tela está preta nesta hora. O tempo segurado volta a 0: a tela clareia na run nova e, com o R ainda
     // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
     function restartRun() {
-      run = createRun({ seed: createRunSeed(), characterId: run.characterId, catalog: run.catalog })
+      run = createRun({ seed: createRunSeed(), characterId: run.characterId, catalog: run.catalog, enemyCatalog: run.enemyCatalog })
       elapsedMs = 0
       restartHoldMs = 0
       enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez

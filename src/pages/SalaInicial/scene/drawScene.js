@@ -4,16 +4,20 @@ import { getRoomPedestals } from '../../../utils/pedestals.js'
 import { PUDDLE_FALL_CAUSE, TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
 import {
+  applyStageDoor,
   FLOOR_TRANSITION_MS,
   getCurrentRoom,
   getDrumFall,
   getRoomObstacles,
   getRoomTheme,
+  getRunStats,
+  getStageCurtain,
   isDrumVisible,
   isSecretMarkVisible,
 } from '../../../utils/run.js'
 import { drawDoors, drawSecretMark } from './drawDoors.js'
 import { drawCollecting, drawDrops, drawNotice } from './drawDrops.js'
+import { drawEnemy, drawEnemyFloor, drawEnemyShots, drawEnemyShotsFloor } from './drawEnemies.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
@@ -51,6 +55,11 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     arcadeSpin: run.arcadeSpin, // o tambor do Fliperama girando numa jogada
     flashes: run.flashes,
     effects: run.effects,
+    targets: run.targets, // os inimigos da sala atual (o alvo de treino é desenhado pelo F3)
+    enemyFloor: run.enemyFloor, // o gelo do Pinguino e o queijo quente no chão
+    enemyShots: run.enemyShots, // caroços, pizzas e anéis de vapor
+    stage: run.stage, // a luta das ondas do Palco (a cortina nas portas)
+    fullHealth: run.health >= getRunStats(run).maxHealth, // sem a vida cheia, a porta do Palco aparece fechada
     visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
   }
   const { transition } = run
@@ -79,6 +88,10 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       flashes: [],
       collecting: [],
       notice: null,
+      targets: [], // os inimigos da sala nova só aparecem quando ela termina de entrar
+      enemyFloor: [],
+      enemyShots: [],
+      stage: null,
     })
   const progress = transition.elapsedMs / transition.durationMs
 
@@ -114,12 +127,13 @@ export function getFloorFade(run) {
 }
 
 // Uma sala, de baixo para cima: sala, piso, cenário, portas, marca da adega,
-// depois obstáculos, tambor, pedestais e jogador na ordem dos pés (quem está mais embaixo fica na frente).
+// depois obstáculos, tambor, pedestais, inimigos e jogador na ordem dos pés (quem está mais embaixo fica na frente).
 // pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
   const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
   const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
+  const { targets, enemyFloor, enemyShots, stage, fullHealth } = options // os inimigos, os rastros deles no chão, os projéteis e o Palco
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -128,11 +142,15 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
   drawPuddles(ctx, puddles) // poças de molho da Concha, no chão
+  drawEnemyFloor(ctx, enemyFloor) // gelo do Pinguino e queijo quente, no chão
+  drawEnemyShotsFloor(ctx, enemyShots) // sombras dos projéteis, marca da pizza e anel de vapor, no chão
   const arcadeSpinMs = arcadeSpin?.roomId === room.id ? arcadeSpin.elapsedMs : null
   drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle, arcadeSpinMs })
   drawDrops(ctx, room.drops, timeMs, reduceMotion) // grãos, garfos e corações no chão (embaixo de quem anda)
 
-  const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
+  let doors = applyStageDoor(applyUnlocking(getRoomDoors(floor, room), unlocking), floor, fullHealth)
+  // Palco em luta: a cortina de veludo fecha (ou abre) o vão das portas
+  if (room.type === 'palco' && stage) doors = doors.map((door) => ({ ...door, curtain: getStageCurtain(stage) }))
   drawDoors(ctx, doors, ROOM_THEMES[theme])
   const secretDoor = room.secret ? doors.find((door) => door.side === room.secret.side) : null
   if (showSecretMark && secretDoor?.state === 'hidden') drawSecretMark(ctx, secretDoor.side)
@@ -155,6 +173,9 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
     const leaving = vanishing.find((item) => item.roomId === room.id && item.pedestalId === pedestal.id) ?? null
     sprites.push({ feetY: pedestal.y, draw: () => drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) })
   }
+  for (const target of targets) {
+    if (target.enemyId) sprites.push({ feetY: target.y, draw: () => drawEnemy(ctx, target, reduceMotion, timeMs) })
+  }
   if (player) {
     const drawTung = () => {
       // Na poça, no lugar do personagem caído: a animação dele sendo puxado ou afundando sozinho
@@ -171,6 +192,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
     sprites.push({ feetY: player.y, draw: drawTung })
   }
   sprites.sort((a, b) => a.feetY - b.feetY).forEach((sprite) => sprite.draw())
+  drawEnemyShots(ctx, enemyShots) // o caroço e a pizza voando, na frente de todos
 
   // Cacos do garrafão voando, poeira da batida do tambor no chão e o "TUNG" acima dele:
   // desenhados por último, o jogador não os cobre

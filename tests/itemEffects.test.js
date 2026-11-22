@@ -212,6 +212,17 @@ describe('Muçarela', () => {
     assert.ok(run.flashes.some((flash) => flash.variant === 'fios-de-queijo'))
   })
 
+  test('o mesmo alvo só é preso de novo depois de restunDelayMs (2 s)', () => {
+    let run = swing(runWithTarget(['mucarela'])) // 1º golpe inteiro (630 ms): acertou e prendeu por 800 ms
+    assert.ok(run.targets[0].stunMs > 0)
+    run = swing(run) // o 2º golpe acerta uns 630 ms depois do 1º, dentro dos 2 s: não prende de novo
+    assert.equal(run.targets[0].stunMs, 0, 'a 1ª prisão acabou e não foi renovada')
+    run = steps(run, 1000 / STEP_MS) // passa dos 2 s desde a 1ª prisão
+    run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (!run.swing.hitAny) run = updateRun(run, IDLE, STEP)
+    assert.ok(run.targets[0].stunMs > 700, 'passados 2 s, prende de novo')
+  })
+
   test('com o Rolo, os fios de queijo vão junto com o alvo empurrado (não ficam onde ele estava)', () => {
     let run = updateRun(runWithTarget(['mucarela', 'rolo-de-bronze']), { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
     while (!run.swing.hitAny) run = updateRun(run, IDLE, STEP)

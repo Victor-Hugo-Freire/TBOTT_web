@@ -26,6 +26,8 @@ export function createTarget({ id, x, y, width, height, health }) {
     slowMs: 0, // lento: ms que faltam
     slowMultiplier: 1, // velocidade enquanto está lento (0,5 = metade)
     stunMs: 0, // preso: ms que faltam (não anda nem ataca)
+    stunImmuneMs: 0, // ms até poder ser preso de novo (Muçarela)
+    hurtMs: Infinity, // ms desde o último dano (a animação "dano" dos inimigos toca no começo)
     push: null, // empurrão: { x, y } em u/s e os ms que faltam
     damageTexts: [], // { amount, ageMs }: números de dano subindo
   }
@@ -43,34 +45,45 @@ export function getTargetBox(target) {
   return { x: target.x - target.width / 2, y: target.y - target.height, width: target.width, height: target.height }
 }
 
-function getBaseBox(target) {
+// Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda
+export function getBaseBox(target) {
   return { x: target.x - BASE_BOX.width / 2, y: target.y - BASE_BOX.height, width: BASE_BOX.width, height: BASE_BOX.height }
 }
 
+// Dá para acertar o alvo? Morto não, e escondido também não (a Polpetta debaixo do molho): nenhum golpe, lasca,
+// raio, onda, poça ou empurrão chega nele
+export function isTargetable(target) {
+  return !target.dead && !target.hidden
+}
+
 // Tira `amount` pontos de vida e mostra o número. Com 0 de vida o alvo morre; morto, não leva mais dano.
+// Com o escudo de vapor da Moka (shielded), o dano não passa: o escudo some no lugar.
 export function damageTarget(target, amount) {
-  if (target.dead) return target
+  if (!isTargetable(target)) return target
+  if (target.shielded) return { ...target, shielded: false }
   const health = Math.max(0, target.health - amount)
-  return { ...target, health, dead: health === 0, deadMs: 0, damageTexts: [...target.damageTexts, { amount, ageMs: 0 }] }
+  const damageTexts = [...target.damageTexts, { amount, ageMs: 0 }]
+  return { ...target, health, dead: health === 0, deadMs: 0, hurtMs: 0, damageTexts }
 }
 
 // Fica lento por `ms`, andando a `multiplier` da velocidade. Se já estava lento, vale o tempo maior.
 export function slowTarget(target, multiplier, ms) {
-  if (target.dead) return target
+  if (!isTargetable(target)) return target
   return { ...target, slowMultiplier: multiplier, slowMs: Math.max(target.slowMs, ms) }
 }
 
 // Fica preso por `ms`: não anda nem ataca. Se já estava preso, vale o tempo maior.
-export function stunTarget(target, ms) {
-  if (target.dead) return target
-  return { ...target, stunMs: Math.max(target.stunMs, ms) }
+// immuneMs: depois de preso, só pode ser preso de novo passado esse tempo (contado agora); até lá, nada muda.
+export function stunTarget(target, ms, immuneMs = 0) {
+  if (!isTargetable(target) || target.stunImmuneMs > 0) return target
+  return { ...target, stunMs: Math.max(target.stunMs, ms), stunImmuneMs: immuneMs }
 }
 
 // Empurrão: desliza `distance` na direção (directionX, directionY) em PUSH_MS, parando no que bloqueia.
 // A direção tem tamanho 1: { x: 1, y: 0 } empurra para a direita.
 // wallDamage = dano a mais se ele bater numa parede ou obstáculo no caminho (Rolo de Bronze); 0 = nenhum.
 export function pushTarget(target, directionX, directionY, distance, wallDamage = 0) {
-  if (target.dead) return target
+  if (!isTargetable(target)) return target
   const speed = distance / (PUSH_MS / 1000)
   return { ...target, push: { x: directionX * speed, y: directionY * speed, ms: PUSH_MS, wallDamage } }
 }
@@ -97,6 +110,7 @@ function respawn(target) {
     slowMs: 0,
     slowMultiplier: 1,
     stunMs: 0,
+    stunImmuneMs: 0,
     push: null,
   }
 }
@@ -111,6 +125,8 @@ export function updateTarget(target, deltaSeconds, solids) {
     ...target,
     slowMs: Math.max(0, target.slowMs - stepMs),
     stunMs: Math.max(0, target.stunMs - stepMs),
+    stunImmuneMs: Math.max(0, target.stunImmuneMs - stepMs),
+    hurtMs: target.hurtMs + stepMs,
     damageTexts: ageDamageTexts(target.damageTexts, stepMs),
     bumped: false,
   }
@@ -154,7 +170,7 @@ export function findSwingHits(targets, hitbox, hitIds) {
   const indexes = []
   for (let index = 0; index < targets.length; index++) {
     const target = targets[index]
-    if (!target.dead && !hitIds.includes(target.id) && overlaps(hitbox, getTargetBox(target))) indexes.push(index)
+    if (isTargetable(target) && !hitIds.includes(target.id) && overlaps(hitbox, getTargetBox(target))) indexes.push(index)
   }
   return indexes
 }
@@ -164,17 +180,17 @@ export function findTargetsNear(targets, x, y, range) {
   const indexes = []
   for (let index = 0; index < targets.length; index++) {
     const target = targets[index]
-    if (!target.dead && Math.hypot(target.x - x, target.y - y) <= range) indexes.push(index)
+    if (isTargetable(target) && Math.hypot(target.x - x, target.y - y) <= range) indexes.push(index)
   }
   return indexes
 }
 
-// Quantos alvos morreram entre `before` e `after` (a mesma lista, um quadro depois): os abates do quadro.
+// Os alvos que morreram entre `before` e `after` (a mesma lista, um quadro depois): os abates do quadro.
 // O alvo de treino que voltou (estava morto e ficou vivo) não conta.
-export function countNewKills(before, after) {
-  let kills = 0
+export function findNewKills(before, after) {
+  const killed = []
   for (let index = 0; index < after.length; index++) {
-    if (before[index] && !before[index].dead && after[index].dead) kills += 1
+    if (before[index] && !before[index].dead && after[index].dead) killed.push(after[index])
   }
-  return kills
+  return killed
 }

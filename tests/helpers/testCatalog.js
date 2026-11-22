@@ -1,4 +1,4 @@
-import { buildItemCatalog } from '../../src/utils/itemCatalog.js'
+import { buildEnemyCatalog, buildItemCatalog } from '../../src/utils/itemCatalog.js'
 
 // Catálogo de teste no formato de GET /api/catalog, com as salas e os efeitos do seed 0002_items.sql da API,
 // na ordem da API (por nome). Os testes não dependem da API nem do banco.
@@ -67,7 +67,7 @@ const ITEMS = [
     name: 'Muçarela',
     rarity: 'incomum',
     roomTypes: ['tesouro'],
-    effect: { trigger: 'golpe-acerta', stunDurationMs: 800, maxHealthBonus: 2 },
+    effect: { trigger: 'golpe-acerta', stunDurationMs: 800, restunDelayMs: 2000, maxHealthBonus: 2 },
   },
   {
     id: 'palitos-de-pao',
@@ -102,3 +102,20 @@ const ITEMS = [
 
 export const TEST_CATALOG = buildItemCatalog(ITEMS).items
 export const TREASURE_ITEMS = ['cafe-duplo', 'concha-longa', 'mucarela', 'palitos-de-pao', 'parmesao-curado']
+
+// Inimigos no formato de GET /api/catalog, com os números do seed 0003_enemies.sql da API (na ordem da API:
+// andar mínimo e depois nome)
+const ENEMIES = [
+  { id: 'formaggino-saltellino', name: 'Formaggino Saltellino', health: 6, damage: 1, speed: 150, behavior: 'perseguir', minFloor: 1 },
+  { id: 'pistacchio-sputacchio', name: 'Pistacchio Sputacchio', health: 6, damage: 1, speed: 90, behavior: 'atirar', minFloor: 1 },
+  { id: 'zanzarina-tarantella', name: 'Zanzarina Tarantella', health: 5, damage: 1, speed: 200, behavior: 'vagar', minFloor: 1 },
+  { id: 'cannolo-carica', name: 'Cannolo Carica', health: 9, damage: 1, speed: 120, behavior: 'investir', minFloor: 2 },
+  { id: 'pinguino-sorbettino', name: 'Pinguino Sorbettino', health: 9, damage: 1, speed: 140, behavior: 'investir', minFloor: 2 },
+  { id: 'polpetta-sotterranea', name: 'Polpetta Sotterranea', health: 9, damage: 1, speed: 100, behavior: 'emboscar', minFloor: 2 },
+  { id: 'fenicottero-fornarino', name: 'Fenicottero Fornarino', health: 9, damage: 2, speed: 70, behavior: 'atirar', minFloor: 3 },
+  { id: 'moka-scudiera', name: 'Moka Scudiera', health: 12, damage: 1, speed: 100, behavior: 'proteger', minFloor: 3 },
+  { id: 'vespina-lambrettina', name: 'Vespina Lambrettina', health: 6, damage: 1, speed: 240, behavior: 'investir', minFloor: 3 },
+  { id: 'peperoncino-kamikaze', name: 'Peperoncino Kamikaze', health: 5, damage: 2, speed: 230, behavior: 'explodir', minFloor: 4 },
+]
+
+export const TEST_ENEMIES = buildEnemyCatalog(ENEMIES).enemies

@@ -6,8 +6,8 @@ import { getBaseStats, getPlayerStats, STAT_LIMITS } from '../src/utils/stats.js
 const TUNG = getBaseStats('tung-tung-sahur')
 
 describe('ficha do personagem', () => {
-  test('o Tung Tung: golpe de 3, velocidades normais, 3 corações, 1 s de invencibilidade e golpe de tamanho normal', () => {
-    assert.deepEqual(TUNG, { damage: 3, moveSpeed: 1, attackSpeed: 1, maxHealth: 6, invincibilityMs: 1000, attackArea: 1 })
+  test('o Tung Tung: golpe de 3, velocidades normais, 3 corações, 1 s de invencibilidade, golpe de tamanho normal e não voa', () => {
+    assert.deepEqual(TUNG, { damage: 3, moveSpeed: 1, attackSpeed: 1, maxHealth: 6, invincibilityMs: 1000, attackArea: 1, flying: false })
   })
 
   test('id sem ficha (save antigo ou personagem que ainda não existe) usa a do Tung Tung', () => {

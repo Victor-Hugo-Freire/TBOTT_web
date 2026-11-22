@@ -1,6 +1,6 @@
 import { ARCADE_SPIN_MS } from '../../../data/economy.js'
 import { ellipse, polygon, rect } from '../../../utils/canvas.js'
-import { getCellRect } from '../../../utils/roomLayout.js'
+import { getCellPoint, getCellRect, getLayoutPoints } from '../../../utils/roomLayout.js'
 import { getSharkFinPosition, PUDDLE } from '../../../utils/roomInteractions.js'
 import { drawSharkFin } from './drawShark.js'
 
@@ -725,10 +725,13 @@ function drawStage(ctx) {
   drawStageHalf(ctx, left)
   drawStageHalf(ctx, right)
 
-  // Luz do refletor no piso, na frente do palco, e a máscara pintada no chão
-  ellipse(ctx, 'rgba(255, 232, 160, 0.1)', 800, 470, 200, 74)
-  ellipse(ctx, 'rgba(255, 232, 160, 0.08)', 800, 470, 130, 48)
-  drawIcon(ctx, ICONS.mascara, 8, 768, 380)
+  // Luz do refletor no piso e a máscara pintada no chão, em volta da base do pedestal da Batuta (a casa 't' do
+  // layout do Palco, no meio da sala): mudar o pedestal de casa leva a luz junto
+  const { col, row } = getLayoutPoints('palco').items[0]
+  const light = getCellPoint(col, row)
+  ellipse(ctx, 'rgba(255, 232, 160, 0.1)', light.x, light.y, 200, 74)
+  ellipse(ctx, 'rgba(255, 232, 160, 0.08)', light.x, light.y, 130, 48)
+  drawIcon(ctx, ICONS.mascara, 8, light.x - 32, light.y - 90)
 }
 
 const CURTAIN_WIDTH = 132
