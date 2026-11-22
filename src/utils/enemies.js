@@ -1,7 +1,7 @@
+import { BOSS_BASE_HEIGHT, BOSS_BASE_WIDTH_SHARE, BOSS_BODIES, BOSS_CONTACT_DEPTH, BOSS_SPEEDS } from '../data/bossBehavior.js'
 import { CONTACT_DEPTH, CONTACT_WIDTH_SHARE, ENEMY_BODIES, FLYING_ENEMIES, STAGE, START_WAIT_MS } from '../data/enemyBehavior.js'
-import { ENEMY_SPRITES } from '../data/enemySprites.js'
 import { overlaps } from './collision.js'
-import { ENEMY_BEHAVIORS, explodeIfLit, getIdleAnimation, setAnimation, settleOnFloor } from './enemyBehaviors.js'
+import { ENEMY_BEHAVIORS, explodeIfLit, getEnemySprite, getIdleAnimation, setAnimation, settleOnFloor } from './enemyBehaviors.js'
 import { createChaseMap, getHazardBoxes } from './enemyPath.js'
 import { createRandom, mixSeed, pick } from './random.js'
 import { getCellPoint, getLayoutPoints } from './roomLayout.js'
@@ -30,9 +30,9 @@ export function pickRoomEnemies(seed, floorNumber, room, enemyCatalog) {
 
 // Um inimigo parado na casa (col, row), com a vida cheia. Os pés ficam no ponto da casa (a 3/4 da altura, como o
 // alvo de treino), para a caixa da base caber nela. O id é a casa: único na sala.
-export function createEnemy(data, col, row) {
+// body = a caixa do corpo ({ width, height }); o chefe passa a dele (bosses.js).
+export function createEnemy(data, col, row, body = ENEMY_BODIES[data.id]) {
   const point = getCellPoint(col, row)
-  const body = ENEMY_BODIES[data.id]
   const target = createTarget({
     id: `${col}-${row}`,
     x: point.x,
@@ -64,6 +64,30 @@ export function createRoomEnemies(seed, floorNumber, room, enemyCatalog) {
   )
 }
 
+// O chefe: um inimigo grande, com a vida, o dano de encostar e os ataques do catálogo (bosses da API), o nome (para
+// a barra de vida), a velocidade de BOSS_SPEEDS e uma base maior que a dos inimigos (veja getBaseBox em targets.js).
+// O id é sempre 'chefe' (a sala tem um só).
+export function createBoss(data, col, row) {
+  const body = BOSS_BODIES[data.id]
+  return {
+    ...createEnemy(data, col, row, body),
+    id: 'chefe',
+    boss: true,
+    name: data.name,
+    speed: BOSS_SPEEDS[data.id],
+    attacks: Array.isArray(data.attacks) ? data.attacks : [], // [{ id, name, damage }]: o id é o nome da animação
+    base: { width: Math.round(body.width * BOSS_BASE_WIDTH_SHARE), height: BOSS_BASE_HEIGHT },
+  }
+}
+
+// O chefe da sala do chefe, na casa "i" do layout, pronto para entrar em run.targets: [chefe], ou [] sem chefe
+// para o andar (bossId null: catálogo vazio). bossCatalog = chefes do catálogo por id (buildBossCatalog).
+export function createRoomBoss(bossId, bossCatalog, room) {
+  if (!bossId || !bossCatalog[bossId]) return []
+  const { col, row } = getLayoutPoints(room.layoutId).enemies[0]
+  return [createBoss(bossCatalog[bossId], col, row)]
+}
+
 const STAGE_SEED = 7200 // separa o sorteio das ondas do Palco do sorteio das salas comuns
 
 // Os inimigos da onda `wave` (0 a 3) do Palco, nas casas "i" do layout dele (STAGE.waves diz quantos). Os tipos são
@@ -83,10 +107,11 @@ export function createWaveEnemies(seed, floorNumber, room, wave, enemyCatalog) {
   return enemies
 }
 
-// Área de contato no chão, em volta dos pés: encostar nela machuca
+// Área de contato no chão, em volta dos pés: encostar nela machuca. A do chefe é mais funda (o corpo ocupa mais chão).
 export function getEnemyContactBox(enemy) {
   const width = enemy.width * CONTACT_WIDTH_SHARE
-  return { x: enemy.x - width / 2, y: enemy.y - CONTACT_DEPTH, width, height: CONTACT_DEPTH }
+  const depth = enemy.boss ? BOSS_CONTACT_DEPTH : CONTACT_DEPTH
+  return { x: enemy.x - width / 2, y: enemy.y - depth, width, height: depth }
 }
 
 // O primeiro inimigo vivo que os pés do Tung (feet = { x, y }) estão tocando, ou null
@@ -148,7 +173,7 @@ function withSide(enemy, animations, name) {
 // assim ele não some de repente. O dano toca logo depois de levar um golpe; as outras repetem. Com "reduzir
 // movimento", as que repetem ficam no quadro 0.
 export function getEnemyPose(enemy, reduceMotion = false) {
-  const { animations } = ENEMY_SPRITES[enemy.enemyId]
+  const { animations } = getEnemySprite(enemy.enemyId)
   if (enemy.vanished) return null // explodiu (Peperoncino): a explosão toma o lugar da morte
   if (enemy.dead) {
     const animation = withSide(enemy, animations, 'morte')

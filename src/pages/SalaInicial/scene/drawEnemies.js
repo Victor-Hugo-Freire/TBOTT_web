@@ -1,7 +1,7 @@
 import { EFFECT_SPRITES } from '../../../data/effectSprites.js'
 import { MOKA } from '../../../data/enemyBehavior.js'
-import { ENEMY_SPRITES } from '../../../data/enemySprites.js'
 import { getEnemyPose } from '../../../utils/enemies.js'
+import { getEnemySprite } from '../../../utils/enemyBehaviors.js'
 import { SEED_HEIGHT } from '../../../utils/enemyShots.js'
 import { drawEffectSpriteFrame, getEffectSpriteFrame } from './drawItemEffects.js'
 import { drawShadow } from './drawShadow.js'
@@ -12,20 +12,23 @@ const SHIELD_SCALE = 1.8 // escudo de vapor (71 u na escala 1) em volta do corpo
 const SEED_SCALE = 1.3 // caroço
 const PIZZA_SCALE = 1.3 // pizza
 const MARK_SCALE = 1.95 // marca no chão (62 u na escala 1) do tamanho do queijo que a pizza vai deixar
+const BOSS_SHADOW_SCALE = 2.5 // a sombra do chefe: 2,5x a do Tung (61 u), mais ou menos a largura da base dele
 
-// Um inimigo na sala: a sombra, as pernas (atrás) e o tronco (na frente), com os pés em (enemy.x, enemy.y).
+// Um inimigo (ou o chefe) na sala: a sombra, as pernas (atrás) e o tronco (na frente), com os pés em (enemy.x, enemy.y).
 // A folha é de frente; virado para a esquerda, o desenho é espelhado em volta dos pés.
 // Sem barra de vida nem número de dano (regra do Victor): o dano aparece pela animação "dano" e a morte pela "morte".
+// Só o chefe tem barra, embaixo da tela (drawBossBar.js).
 // Com o escudo de vapor da Moka, a bolha de vapor fica em volta do corpo até ele levar um golpe.
 export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   const pose = getEnemyPose(enemy, reduceMotion)
   if (!pose) return // a animação de morte já acabou: ele sumiu
-  const sprite = ENEMY_SPRITES[enemy.enemyId]
+  const sprite = getEnemySprite(enemy.enemyId)
   const { row } = sprite.animations[pose.animation]
 
   ctx.save()
   ctx.globalAlpha = pose.alpha // no fim da morte, ele e a sombra apagam juntos
-  if (!enemy.hidden) drawShadow(ctx, enemy) // escondida no molho, a Polpetta não tem sombra
+  if (enemy.boss) drawScaledShadow(ctx, enemy.x, enemy.y, BOSS_SHADOW_SCALE)
+  else if (!enemy.hidden) drawShadow(ctx, enemy) // escondida no molho, a Polpetta não tem sombra
   ctx.translate(enemy.x, enemy.y)
   if (enemy.facingLeft) ctx.scale(-1, 1)
   drawFrame(ctx, { ...sprite, path: sprite.layers.pernas }, row, pose.frame, 0, 0)
@@ -53,11 +56,11 @@ export function drawEnemyFloor(ctx, floor) {
   }
 }
 
-// Sombra pequena (metade da de um personagem) embaixo de um projétil
-function drawSmallShadow(ctx, x, y) {
+// Sombra de um personagem `scale` vezes maior: 0,5 embaixo de um projétil e BOSS_SHADOW_SCALE embaixo do chefe
+function drawScaledShadow(ctx, x, y, scale) {
   ctx.save()
   ctx.translate(x, y)
-  ctx.scale(0.5, 0.5)
+  ctx.scale(scale, scale)
   drawShadow(ctx, { x: 0, y: 0 })
   ctx.restore()
 }
@@ -75,7 +78,7 @@ export function drawEnemyShotsFloor(ctx, shots) {
       const mark = EFFECT_SPRITES['marca-chao']
       drawEffectSpriteFrame(ctx, mark, getEffectSpriteFrame(mark, shot.ageMs, true), shot.to.x, shot.to.y, MARK_SCALE)
     }
-    drawSmallShadow(ctx, shot.x, shot.y)
+    drawScaledShadow(ctx, shot.x, shot.y, 0.5)
   }
 }
 

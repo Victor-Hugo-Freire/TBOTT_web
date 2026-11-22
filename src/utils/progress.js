@@ -22,6 +22,7 @@ const STARTING_FORKS = 1 // igual a run.js (progress.js não importa run.js para
 const MAX_DROPS = 30 // coisas no chão de uma sala (grãos, garfos e corações)
 const MAX_DROP_AMOUNT = 9 // grãos num grupo (os grupos são de 1, 3 e 5)
 const MAX_COUNT = 999 // jogadas no Fliperama e recompensas de sala limpa
+const PACT_ROOM_TYPES = ['pacto', 'god'] // tipos da sala ao lado do chefe
 
 // Número dentro de [min, max]; valor que não é número vira o mínimo
 function clamp(value, min, max) {
@@ -155,6 +156,9 @@ export function normalizeProgressPayload(value) {
     items: normalizeItems(source.items),
     // Curas do Caldo da Mamãe já usadas neste andar (o limite por andar vem do catálogo). Save antigo: nenhuma.
     floorHealsUsed: Number.isInteger(source.floorHealsUsed) ? clamp(source.floorHealsUsed, 0, MAX_FLOOR_USES) : 0,
+    // A sala ao lado do chefe deste andar, decidida na morte dele: 'god' (venceu sem perder vida) ou 'pacto'.
+    // null = o chefe ainda não morreu, o andar não tem essa sala, ou save antigo (vale o tipo da geração do andar).
+    pactRoomType: PACT_ROOM_TYPES.includes(source.pactRoomType) ? source.pactRoomType : null,
   }
 }
 
@@ -177,6 +181,7 @@ export function createProgressSnapshot({
   grains,
   items,
   floorHealsUsed,
+  pactRoomType,
 }) {
   return normalizeProgressPayload({
     roomId,
@@ -196,5 +201,6 @@ export function createProgressSnapshot({
     grains,
     items,
     floorHealsUsed,
+    pactRoomType,
   })
 }

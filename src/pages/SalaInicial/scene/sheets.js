@@ -1,4 +1,5 @@
 import { APPEARANCE_SPRITES } from '../../../data/appearanceSprites.js'
+import { BOSS_SPRITES } from '../../../data/bossSprites.js'
 import { CHARACTER_SPRITES } from '../../../data/characterSprites.js'
 import { ENEMY_SPRITES } from '../../../data/enemySprites.js'
 import { getImage } from './images.js'
@@ -23,8 +24,8 @@ export function loadSheets() {
       if (layer) getImage(layer.path)
     }
   }
-  // Camadas dos inimigos (@1x, pequenas): pedidas já agora, para o inimigo não aparecer sem desenho na primeira sala
-  for (const enemy of Object.values(ENEMY_SPRITES)) {
+  // Camadas dos inimigos e dos chefes (@1x, pequenas): pedidas já agora, para não aparecerem sem desenho na primeira sala
+  for (const enemy of [...Object.values(ENEMY_SPRITES), ...Object.values(BOSS_SPRITES)]) {
     getImage(enemy.layers.pernas)
     getImage(enemy.layers.tronco)
   }

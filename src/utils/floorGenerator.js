@@ -1,4 +1,4 @@
-﻿import { OPPOSITE_SIDE, SIDE_VECTORS, SIDES } from './doors.js'
+﻿import { BOSS_BRANCH_TYPES, OPPOSITE_SIDE, SIDE_VECTORS, SIDES } from './doors.js'
 import { chance, createRandom, mixSeed, pick, randomInt } from './random.js'
 import { pickLayout } from './roomLayout.js'
 
@@ -208,7 +208,7 @@ function addCellar(rooms, occupied, number, random) {
 }
 
 // Pacto ou sala do Tung Tung God, tipo 'god' (andares 2 a 4, 1 chance em 2): ao lado da sala do chefe. Nunca no andar 1 (pedido do Victor).
-// Enquanto não há luta, a seed escolhe uma das duas, meio a meio.
+// A seed escolhe uma das duas, meio a meio; com a luta, quem decide é a morte do chefe (setPactRoomType).
 // A porta é normal nos dois sentidos; quem esconde a porta até o chefe ficar limpo é doors.js.
 function addPactRoom(rooms, occupied, number, random) {
   // A chance é sorteada também no andar 1 (e descartada): assim o resto do sorteio do andar 1 quase não muda
@@ -228,6 +228,25 @@ function addPactRoom(rooms, occupied, number, random) {
   linkRooms(boss, side, pact)
   rooms.push(pact)
   occupied.set(pact.id, pact)
+}
+
+const PACT_SEED = 7400 // separa o sorteio do layout da sala do Pacto/God (depois da luta) do sorteio do andar
+
+// Depois da luta com o chefe (issue #47), a sala ao lado dele vira a do Tung Tung God (vencer sem perder vida) ou o
+// Pacto. Troca o tipo e o layout da sala; o resto do andar não muda, porque o layout novo sai de um sorteio próprio,
+// e não do sorteio do andar. Com o mesmo tipo da geração, a sala fica como estava. Andar sem essa sala (andares 1 e 5,
+// ou a chance não saiu): nada acontece. Ninguém viu a sala antes: a porta dela só aparece com o chefe morto.
+export function setPactRoomType(floor, type) {
+  const pact = floor.rooms.find((room) => BOSS_BRANCH_TYPES.includes(room.type))
+  if (!pact || pact.type === type) return
+  pact.type = type
+  pact.layoutId = pickLayout(type, getLinkedSides(pact), createRandom(mixSeed(floor.floorSeed, PACT_SEED)))
+}
+
+// Tipo da sala do Pacto/God do andar ('pacto' ou 'god'), ou null se o andar não tem essa sala
+export function getPactRoomType(floor) {
+  const pact = floor.rooms.find((room) => BOSS_BRANCH_TYPES.includes(room.type))
+  return pact ? pact.type : null
 }
 
 // Lados com porta, contando a porta secreta da adega (o layout tem que deixar o caminho livre até ela)

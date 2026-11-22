@@ -1,5 +1,6 @@
 import { CANNOLO, FENICOTTERO, FORMAGGINO, HAZARD_COOLDOWN_MS, HAZARD_DAMAGE, MOKA, PEPERONCINO, PINGUINO } from '../data/enemyBehavior.js'
 import { PISTACCHIO, POLPETTA, VESPINA, ZANZARINA } from '../data/enemyBehavior.js'
+import { BOSS_SPRITES } from '../data/bossSprites.js'
 import { EFFECT_SPRITES } from '../data/effectSprites.js'
 import { ENEMY_SPRITES } from '../data/enemySprites.js'
 import { moveAndCollide } from './collision.js'
@@ -32,6 +33,11 @@ import { damageTarget, getBaseBox, isTargetable } from './targets.js'
 // Quem voa só bate nas paredes e nas portas: passa por cima dos obstáculos e dos pedestais
 const AIR_SOLIDS = [...ROOM_WALLS, ...Object.values(DOOR_HIT_ZONES)]
 
+// A folha (enemySprites.js ou bossSprites.js) de um inimigo ou de um chefe: os dois são alvos com enemyId
+export function getEnemySprite(enemyId) {
+  return ENEMY_SPRITES[enemyId] ?? BOSS_SPRITES[enemyId]
+}
+
 // Troca de animação (o tempo dela volta a 0, e ela ainda não soltou o efeito dela). Pedir a mesma animação não
 // reinicia nada.
 export function setAnimation(enemy, animation) {
@@ -42,7 +48,7 @@ export function setAnimation(enemy, animation) {
 // A animação atual chegou ao quadro que solta o efeito dela (emits na folha: o caroço, a pizza, o vapor, a fumaça)
 // e ainda não soltou? Quem chama solta o efeito e marca emitted: true.
 function reachedEmitFrame(enemy) {
-  const { durations, emits } = ENEMY_SPRITES[enemy.enemyId].animations[enemy.animation]
+  const { durations, emits } = getEnemySprite(enemy.enemyId).animations[enemy.animation]
   if (!emits || enemy.emitted) return false
   const frame = getTimedFrame(durations, enemy.animationMs)
   return frame === -1 || frame >= emits.frame // -1: a animação já acabou (quadro grande demais)
@@ -50,7 +56,7 @@ function reachedEmitFrame(enemy) {
 
 // Duração de uma animação do inimigo: a soma dos quadros
 function getAnimationMs(enemy, animation) {
-  return getTotalDuration(ENEMY_SPRITES[enemy.enemyId].animations[animation].durations)
+  return getTotalDuration(getEnemySprite(enemy.enemyId).animations[animation].durations)
 }
 
 // A animação atual chegou ao fim? (as que repetem, como "andando", só acabam quando o comportamento troca)
@@ -60,13 +66,13 @@ function isAnimationOver(enemy) {
 
 // Está num quadro de acerto (hitFrames) da animação atual?
 function isHitFrame(enemy) {
-  const { durations, hitFrames = [] } = ENEMY_SPRITES[enemy.enemyId].animations[enemy.animation]
+  const { durations, hitFrames = [] } = getEnemySprite(enemy.enemyId).animations[enemy.animation]
   return hitFrames.includes(getTimedFrame(durations, enemy.animationMs))
 }
 
 // Quanto tempo somam os quadros de acerto de uma animação
 function getHitWindowMs(enemy, animation) {
-  const { durations, hitFrames = [] } = ENEMY_SPRITES[enemy.enemyId].animations[animation]
+  const { durations, hitFrames = [] } = getEnemySprite(enemy.enemyId).animations[animation]
   let ms = 0
   for (const frame of hitFrames) ms += durations[frame]
   return ms

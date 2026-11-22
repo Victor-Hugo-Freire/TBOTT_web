@@ -96,7 +96,7 @@ export function isNearDoor(feet, side) {
 
 const NORMAL_ROOM_TYPES = ['inicial', 'comum']
 // Salas que saem da sala do chefe (as únicas ligadas a outra sala especial)
-const BOSS_BRANCH_TYPES = ['pacto', 'god']
+export const BOSS_BRANCH_TYPES = ['pacto', 'god']
 
 function isSpecial(room) {
   return !NORMAL_ROOM_TYPES.includes(room.type)

@@ -1,3 +1,4 @@
+import { BOSS_STUN_MS } from '../data/bossBehavior.js'
 import { moveAndCollide, overlaps } from './collision.js'
 
 // Alvo: tudo o que o golpe e os efeitos dos itens podem acertar. Hoje é só o alvo de treino (F3 + T, só no
@@ -45,9 +46,11 @@ export function getTargetBox(target) {
   return { x: target.x - target.width / 2, y: target.y - target.height, width: target.width, height: target.height }
 }
 
-// Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda
+// Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda.
+// O chefe tem uma base maior (target.base, veja bosses.js); os outros usam BASE_BOX.
 export function getBaseBox(target) {
-  return { x: target.x - BASE_BOX.width / 2, y: target.y - BASE_BOX.height, width: BASE_BOX.width, height: BASE_BOX.height }
+  const size = target.base ?? BASE_BOX
+  return { x: target.x - size.width / 2, y: target.y - size.height, width: size.width, height: size.height }
 }
 
 // Dá para acertar o alvo? Morto não, e escondido também não (a Polpetta debaixo do molho): nenhum golpe, lasca,
@@ -74,9 +77,11 @@ export function slowTarget(target, multiplier, ms) {
 
 // Fica preso por `ms`: não anda nem ataca. Se já estava preso, vale o tempo maior.
 // immuneMs: depois de preso, só pode ser preso de novo passado esse tempo (contado agora); até lá, nada muda.
+// O chefe fica preso no máximo BOSS_STUN_MS.
 export function stunTarget(target, ms, immuneMs = 0) {
   if (!isTargetable(target) || target.stunImmuneMs > 0) return target
-  return { ...target, stunMs: Math.max(target.stunMs, ms), stunImmuneMs: immuneMs }
+  const stunMs = target.boss ? Math.min(ms, BOSS_STUN_MS) : ms
+  return { ...target, stunMs: Math.max(target.stunMs, stunMs), stunImmuneMs: immuneMs }
 }
 
 // Empurrão: desliza `distance` na direção (directionX, directionY) em PUSH_MS, parando no que bloqueia.
@@ -138,8 +143,8 @@ export function updateTarget(target, deltaSeconds, solids) {
     const dx = target.push.x * seconds
     const dy = target.push.y * seconds
     const moved = moveAndCollide(box, dx, dy, solids)
-    next.x = moved.x + BASE_BOX.width / 2
-    next.y = moved.y + BASE_BOX.height
+    next.x = moved.x + box.width / 2
+    next.y = moved.y + box.height
     // Bateu em alguma coisa (andou menos que o pedido) ou o tempo acabou: o empurrão para
     const blocked = moved.x !== box.x + dx || moved.y !== box.y + dy
     const ms = target.push.ms - stepMs

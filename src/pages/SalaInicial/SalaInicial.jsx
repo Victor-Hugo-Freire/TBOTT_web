@@ -6,7 +6,7 @@ import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
 import { CONSUMABLE_INFO } from '../../data/economy.js'
 import { CONSUMABLE_SPRITES } from '../../data/itemSprites.js'
-import { buildEnemyCatalog, buildItemCatalog } from '../../utils/itemCatalog.js'
+import { buildBossCatalog, buildEnemyCatalog, buildItemCatalog } from '../../utils/itemCatalog.js'
 import { findNearbyPedestal, getRoomPedestals } from '../../utils/pedestals.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
 import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
@@ -36,6 +36,7 @@ import {
   updateRestartKey,
   updateRun,
 } from '../../utils/run.js'
+import { drawBossBar, getBossBar } from './scene/drawBossBar.js'
 import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
 import { drawHud, getHudBottom, loadHudImages } from './scene/drawHud.js'
@@ -259,16 +260,19 @@ export default function SalaInicial() {
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
-    // Primeiro o catálogo (GET /api/catalog: itens com os números dos efeitos e inimigos com vida, dano, velocidade
-    // e andar mínimo), depois o progresso. Sem o catálogo a run não começa: aparece o aviso de erro com "Tentar de novo".
+    // Primeiro o catálogo (GET /api/catalog: itens com os números dos efeitos, inimigos com vida, dano, velocidade
+    // e andar mínimo e chefes com vida, dano, ataques e andares), depois o progresso. Sem o catálogo a run não
+    // começa: aparece o aviso de erro com "Tentar de novo".
     async function loadGame() {
       let catalog
       let enemyCatalog
+      let bossCatalog
       try {
         const response = await apiRequest('/api/catalog', { credentials: 'include' })
         if (isCancelled) return
         catalog = buildItemCatalog(response?.items)
         enemyCatalog = buildEnemyCatalog(response?.enemies)
+        bossCatalog = buildBossCatalog(response?.bosses)
       } catch (error) {
         if (isCancelled) return
         // Sessão vencida (401): o apiRequest já leva para a tela de entrar
@@ -282,13 +286,16 @@ export default function SalaInicial() {
       if (enemyCatalog.missingSprite.length > 0 || enemyCatalog.missingInCatalog.length > 0) {
         console.warn('Inimigos ignorados.', { semSprite: enemyCatalog.missingSprite, semCatalogo: enemyCatalog.missingInCatalog })
       }
-      await loadProgress(catalog.items, enemyCatalog.enemies)
+      if (bossCatalog.missingSprite.length > 0 || bossCatalog.missingInCatalog.length > 0) {
+        console.warn('Chefes ignorados.', { semSprite: bossCatalog.missingSprite, semCatalogo: bossCatalog.missingInCatalog })
+      }
+      await loadProgress(catalog.items, enemyCatalog.enemies, bossCatalog.bosses)
     }
     retryLoadRef.current = loadGame
 
     // O andar, a sala, a posição e o tempo vêm da API (e não do state da navegação, que o navegador
     // guarda no histórico e pode estar velho). A partida nova já foi salva pela seleção, sem seed.
-    async function loadProgress(catalog, enemyCatalog) {
+    async function loadProgress(catalog, enemyCatalog, bossCatalog) {
       let progress = normalizeProgressPayload(null)
       let characterId = selectedCharacter.id
       try {
@@ -326,6 +333,8 @@ export default function SalaInicial() {
         grains: progress.grains,
         catalog,
         enemyCatalog,
+        bossCatalog,
+        pactRoomType: progress.pactRoomType,
         items: progress.items,
         floorHealsUsed: progress.floorHealsUsed,
       })
@@ -442,7 +451,13 @@ export default function SalaInicial() {
     // A tela está preta nesta hora. O tempo segurado volta a 0: a tela clareia na run nova e, com o R ainda
     // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
     function restartRun() {
-      run = createRun({ seed: createRunSeed(), characterId: run.characterId, catalog: run.catalog, enemyCatalog: run.enemyCatalog })
+      run = createRun({
+        seed: createRunSeed(),
+        characterId: run.characterId,
+        catalog: run.catalog,
+        enemyCatalog: run.enemyCatalog,
+        bossCatalog: run.bossCatalog,
+      })
       elapsedMs = 0
       restartHoldMs = 0
       enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez
@@ -701,6 +716,18 @@ export default function SalaInicial() {
       // Itens pegos, na ordem, embaixo do minimapa (com o mapa ampliado, ele cobriria a lista)
       if (!showMinimap) {
         drawItemList(ctx, run.items, { right: minimapRight, top: minimapBottom + Math.round(8 * pixelRatio), size: Math.round(26 * pixelRatio) })
+      }
+
+      // Barra de vida do chefe, embaixo da tela, no meio (some na transição de sala e quando a morte dele acaba)
+      const bossBar = run.transition ? null : getBossBar(run.targets)
+      if (bossBar) {
+        drawBossBar(ctx, bossBar, {
+          centerX: Math.round((canvas.clientWidth / 2) * pixelRatio),
+          bottom: toScreenY(visibleTop + visibleHeight) - pixelSize * 4,
+          pixelSize,
+          timeMs: performance.now(),
+          reduceMotion,
+        })
       }
 
       // Entrada na run, troca de andar, fim da run, R segurado e sono na rede: a tela escurece por cima da sala e do HUD
