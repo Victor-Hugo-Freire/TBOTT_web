@@ -25,6 +25,9 @@ describe('normalizeProgressPayload', () => {
       health: 6,
       deathCause: null,
       forks: 1,
+      grains: 0,
+      items: [],
+      floorHealsUsed: 0,
     })
   })
 
@@ -80,9 +83,9 @@ describe('normalizeProgressPayload', () => {
       },
     })
     assert.deepEqual(payload.roomStates, {
-      '3-3': { removed: ['2-1', '9-4'], hits: 0, unlocked: false, slept: false },
-      '4-2': { removed: [], hits: 3, unlocked: false, slept: false },
-      '6-1': { removed: ['1-1'], hits: 3, unlocked: false, slept: false },
+      '3-3': { removed: ['2-1', '9-4'], hits: 0, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null },
+      '4-2': { removed: [], hits: 3, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null },
+      '6-1': { removed: ['1-1'], hits: 3, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null },
     })
   })
 
@@ -95,10 +98,11 @@ describe('normalizeProgressPayload', () => {
     assert.equal({}.hits, undefined)
   })
 
-  test('guarda a vida de 0 a 6 e a causa da morte; valor inválido vira vida cheia e sem causa', () => {
+  test('guarda a vida de 0 a 12 (a Muçarela aumenta a vida máxima) e a causa da morte; valor inválido vira vida cheia da ficha e sem causa', () => {
     assert.equal(normalizeProgressPayload({ health: 0 }).health, 0)
     assert.equal(normalizeProgressPayload({ health: 3 }).health, 3)
-    for (const health of [-1, 7, 2.5, '3', null]) assert.equal(normalizeProgressPayload({ health }).health, 6, String(health))
+    assert.equal(normalizeProgressPayload({ health: 8 }).health, 8)
+    for (const health of [-1, 13, 2.5, '3', null]) assert.equal(normalizeProgressPayload({ health }).health, 6, String(health))
     assert.equal(normalizeProgressPayload({ deathCause: 'chapa' }).deathCause, 'chapa')
     for (const deathCause of ['', 'x'.repeat(33), 5, {}, undefined]) {
       assert.equal(normalizeProgressPayload({ deathCause }).deathCause, null, String(deathCause))
@@ -132,6 +136,9 @@ describe('normalizeProgressPayload com dados estranhos', () => {
         health: 6,
         deathCause: null,
         forks: 1,
+        grains: 0,
+        items: [],
+        floorHealsUsed: 0,
       })
     }
   })
@@ -159,6 +166,9 @@ describe('createProgressSnapshot', () => {
       health: 6,
       deathCause: null,
       forks: 1,
+      grains: 0,
+      items: [],
+      floorHealsUsed: 0,
     })
   })
 
@@ -171,7 +181,7 @@ describe('createProgressSnapshot', () => {
     })
     assert.equal(snapshot.health, 3)
     assert.equal(snapshot.deathCause, 'chapa')
-    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0, unlocked: false, slept: false } })
+    assert.deepEqual(snapshot.roomStates, { '3-3': { removed: ['2-1'], hits: 0, unlocked: false, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null } })
   })
 
   test('inclui as salas visitadas', () => {
@@ -214,7 +224,7 @@ describe('garfos e salas trancadas no progresso', () => {
     const { roomStates } = normalizeProgressPayload({
       roomStates: { '4-2': { removed: [], hits: 0, unlocked: true }, '5-3': { removed: [], hits: 0, unlocked: 'sim' } },
     })
-    assert.deepEqual(roomStates, { '4-2': { removed: [], hits: 0, unlocked: true, slept: false } })
+    assert.deepEqual(roomStates, { '4-2': { removed: [], hits: 0, unlocked: true, slept: false, emptied: [], drops: null, rewards: 0, plays: 0, prize: null } })
   })
 })
 
@@ -223,11 +233,31 @@ describe('rede no progresso', () => {
     const { roomStates } = normalizeProgressPayload({
       roomStates: { '3-2': { removed: [], hits: 0, slept: true }, '4-4': { removed: [], hits: 0, slept: 'sim' } },
     })
-    assert.deepEqual(roomStates, { '3-2': { removed: [], hits: 0, unlocked: false, slept: true } })
+    assert.deepEqual(roomStates, { '3-2': { removed: [], hits: 0, unlocked: false, slept: true, emptied: [], drops: null, rewards: 0, plays: 0, prize: null } })
   })
 
   test('save antigo, sem o campo, não marca nenhuma sala como "já dormiu"', () => {
     const { roomStates } = normalizeProgressPayload({ roomStates: { '3-3': { removed: ['2-1'], hits: 0 } } })
     assert.equal(roomStates['3-3'].slept, false)
+  })
+})
+
+describe('itens e pedestais no progresso', () => {
+  test('itens pegos: ids na ordem, sem repetição e sem lixo', () => {
+    const { items } = normalizeProgressPayload({ items: ['cafe-duplo', 'mucarela', 'cafe-duplo', 7, '', 'Com Espaço', 'x'.repeat(41), 'tiramisu'] })
+    assert.deepEqual(items, ['cafe-duplo', 'mucarela', 'tiramisu'])
+  })
+
+  test('save antigo (sem itens) ou valor inválido: nenhum item', () => {
+    for (const value of [undefined, null, 'cafe-duplo', 3, {}]) assert.deepEqual(normalizeProgressPayload({ items: value }).items, [], String(value))
+  })
+
+  test('o pedestal vazio vai para o save, mesmo sem mais nada na sala', () => {
+    const { roomStates } = normalizeProgressPayload({ roomStates: { '5-2': { emptied: ['6-2', 'lixo'], drops: null, rewards: 0, plays: 0, prize: null } } })
+    assert.deepEqual(roomStates, { '5-2': { removed: [], hits: 0, unlocked: false, slept: false, emptied: ['6-2'], drops: null, rewards: 0, plays: 0, prize: null } })
+  })
+
+  test('createProgressSnapshot guarda os itens', () => {
+    assert.deepEqual(createProgressSnapshot({ items: ['dente-de-tubarao'] }).items, ['dente-de-tubarao'])
   })
 })

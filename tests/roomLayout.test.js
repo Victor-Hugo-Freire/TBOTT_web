@@ -7,6 +7,7 @@ import {
   buildRoomObstacles,
   CELL_HEIGHT,
   CELL_WIDTH,
+  findFreeCell,
   findLayoutProblems,
   getCellRect,
   getLayout,
@@ -58,7 +59,7 @@ describe('roomLayouts.json (formato)', () => {
   test('os ids são únicos e todo tipo de sala tem pelo menos 1 layout', () => {
     const ids = ROOM_LAYOUTS.map((layout) => layout.id)
     assert.equal(new Set(ids).size, ids.length)
-    assert.equal(ids.length, 21)
+    assert.equal(ids.length, 30)
     for (const type of ROOM_TYPES) assert.ok(ROOM_LAYOUTS.some((layout) => layout.type === type), type)
     assert.deepEqual([...new Set(ROOM_LAYOUTS.map((layout) => layout.type))].sort(), [...ROOM_TYPES].sort())
   })
@@ -86,28 +87,52 @@ describe('roomLayouts.json (formato)', () => {
     assert.equal(counts.filter((count) => count >= 9 && count <= 12).length, 2)
   })
 
-  test('tesouro: até 6 obstáculos e item no centro (6,2)', () => {
+  test('tesouro: até 6 obstáculos; 2 layouts com o item no centro (6,2) e 3 salas de escolha', () => {
     const treasures = ROOM_LAYOUTS.filter((layout) => layout.type === 'tesouro')
-    assert.equal(treasures.length, 2)
-    for (const layout of treasures) {
-      assert.ok(countObstacles(layout) <= 6, layout.id)
-      assert.deepEqual(getLayoutPoints(layout.id).items, [{ col: 6, row: 2 }])
+    assert.equal(treasures.length, 5)
+    for (const layout of treasures) assert.ok(countObstacles(layout) <= 6, layout.id)
+    for (const id of ['tesouro-01', 'tesouro-02']) assert.deepEqual(getLayoutPoints(id).items, [{ col: 6, row: 2 }], id)
+  })
+
+  test('Pacto: de 1 a 3 pedestais, todos na fileira 4 (abaixo do meio), com a poça (X) no mesmo lugar', () => {
+    const pacts = ROOM_LAYOUTS.filter((layout) => layout.type === 'pacto')
+    assert.deepEqual(pacts.map((layout) => getLayoutPoints(layout.id).items.length), [1, 2, 2, 3, 3])
+    for (const layout of pacts) {
+      for (const point of getLayoutPoints(layout.id).items) assert.equal(point.row, 4, layout.id)
+      assert.equal(layout.tiles[1], '.....XXX.....', layout.id)
     }
   })
 
-  test('chefe: tambor em (6,3), inimigo em (6,2), item em (4,3) e nenhum obstáculo', () => {
+  test('salas de escolha (Tesouro e God): 2 pedestais bem afastados, com o cenário X da sala no mesmo lugar', () => {
+    const choices = ['tesouro-03', 'tesouro-04', 'tesouro-05', 'god-02', 'god-03']
+    for (const id of choices) {
+      const [first, second] = getLayoutPoints(id).items
+      assert.equal(getLayoutPoints(id).items.length, 2, id)
+      assert.ok(Math.abs(first.col - second.col) >= 4, `${id}: pedestais a pelo menos 4 colunas`)
+      const base = getLayout(getLayout(id).type) // o cenário (estátua, poça) é desenhado sempre no mesmo lugar
+      if (base) {
+        base.tiles.forEach((line, row) => {
+          ;[...line].forEach((letter, col) => {
+            if (letter === 'X') assert.equal(getLayout(id).tiles[row][col], 'X', `${id} (${col},${row})`)
+          })
+        })
+      }
+    }
+  })
+
+  test('chefe: tambor em (6,2), chefe no meio (6,3), item logo abaixo (6,4) e nenhum obstáculo', () => {
     const boss = getLayout('chefe')
-    assert.equal(boss.tiles[3][6], 'D')
+    assert.equal(boss.tiles[2][6], 'D')
     assert.equal(countObstacles(boss), 0)
-    assert.deepEqual(getLayoutPoints('chefe'), { enemies: [{ col: 6, row: 2 }], items: [{ col: 4, row: 3 }] })
+    assert.deepEqual(getLayoutPoints('chefe'), { enemies: [{ col: 6, row: 3 }], items: [{ col: 6, row: 4 }] })
   })
 
   test('salas especiais: pontos de item nas posições do spawn.md e cenário X', () => {
     const expected = {
-      loja: [{ col: 4, row: 2 }, { col: 6, row: 2 }, { col: 8, row: 2 }],
-      pacto: [{ col: 6, row: 2 }],
-      god: [{ col: 10, row: 2 }],
-      fliperama: [{ col: 6, row: 3 }],
+      loja: [{ col: 4, row: 3 }, { col: 6, row: 3 }, { col: 8, row: 3 }], // uma fileira livre embaixo do balcão (2026-11-21)
+      pacto: [{ col: 6, row: 4 }], // um pouco abaixo do meio, longe da poça do Tralalero (2026-11-20)
+      god: [{ col: 6, row: 3 }], // à frente da estátua
+      fliperama: [{ col: 6, row: 4 }], // na frente da máquina, sem encostar no tambor (2026-11-21)
       palco: [{ col: 6, row: 2 }],
       adega: [{ col: 6, row: 2 }],
       descanso: [],
@@ -154,7 +179,7 @@ describe('buildRoomObstacles (obstáculos no tema do andar)', () => {
     assert.deepEqual(counter.box, getCellRect(3, 0))
 
     const drum = buildRoomObstacles('chefe', 'porto').find((item) => item.kind === 'tambor')
-    assert.equal(drum.id, '6-3')
+    assert.equal(drum.id, '6-2')
     assert.equal(drum.blocking, true)
   })
 
@@ -256,5 +281,30 @@ describe('pickLayout (sorteio do layout)', () => {
 
   test('lança erro quando nenhum layout serve', () => {
     assert.throws(() => pickLayout('inexistente', ['up'], createRandom(1)), /Nenhum layout/)
+  })
+})
+
+describe('findFreeCell (casa livre perto de um ponto)', () => {
+  test('a casa pedida, se estiver livre', () => {
+    assert.deepEqual(findFreeCell('inicial', 6, 3), { col: 6, row: 3 })
+  })
+
+  test('na sala do chefe, o centro é o ponto do chefe: vale a casa livre mais perto', () => {
+    assert.equal(getLayout('chefe').tiles[3][6], 'i')
+    assert.deepEqual(findFreeCell('chefe', 6, 3), { col: 5, row: 3 })
+  })
+
+  test('nunca devolve casa de porta', () => {
+    for (const side of SIDES) {
+      const { col, row } = DOOR_CELLS[side]
+      assert.notDeepEqual(findFreeCell('inicial', col, row), { col, row }, side)
+    }
+  })
+
+  test('em todo layout, a casa achada perto do centro está livre', () => {
+    for (const layout of ROOM_LAYOUTS) {
+      const cell = findFreeCell(layout.id, 6, 3)
+      assert.equal(layout.tiles[cell.row][cell.col], '.', layout.id)
+    }
   })
 })

@@ -4,6 +4,10 @@ import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
+import { CONSUMABLE_INFO } from '../../data/economy.js'
+import { CONSUMABLE_SPRITES } from '../../data/itemSprites.js'
+import { buildItemCatalog } from '../../utils/itemCatalog.js'
+import { findNearbyPedestal, getRoomPedestals } from '../../utils/pedestals.js'
 import { normalizeProgressPayload } from '../../utils/progress.js'
 import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
 import { createRunSeed } from '../../utils/random.js'
@@ -22,15 +26,23 @@ import {
   getCurrentRoom,
   getEnterFade,
   getRestartFade,
+  getRunStats,
+  giveNextItem,
+  giveRoomReward,
+  removeTrainingTarget,
   RESTART_HOLD_MS,
+  toggleTrainingTarget,
   updateRestartHold,
   updateRestartKey,
   updateRun,
 } from '../../utils/run.js'
 import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
-import { drawHud, loadHudImages } from './scene/drawHud.js'
+import { drawHud, getHudBottom, loadHudImages } from './scene/drawHud.js'
+import { drawItemInfo } from './scene/drawItemInfo.js'
+import { drawItemList } from './scene/drawItemList.js'
 import { drawMinimap } from './scene/drawMinimap.js'
+import { loadDescriptionFont } from './scene/fonts.js'
 import { drawRunScene, getFloorFade } from './scene/drawScene.js'
 import { drawSleepText } from './scene/drawSleep.js'
 import { drawTimer } from './scene/drawTimer.js'
@@ -66,9 +78,12 @@ export default function SalaInicial() {
   const endingRef = useRef(null)
   const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
+  const retryLoadRef = useRef(null)
   const [floorInfo, setFloorInfo] = useState(null) // { number, name } do andar atual
   // Aviso de fim: { outcome: 'victory' | 'defeat', cause, time, status: 'sending' | 'sent' | 'error', message }
   const [ending, setEnding] = useState(null)
+  // Mensagem de erro se o catálogo de itens não carregou (sem ele a run não começa)
+  const [loadError, setLoadError] = useState(null)
   const endingStatus = ending?.status
 
   // Personagem escolhido na seleção: o id vai para a run (e para o ranking) e o nome para o leitor de tela.
@@ -91,6 +106,7 @@ export default function SalaInicial() {
     const ctx = canvas.getContext('2d')
     const sheets = loadSheets()
     const hudImages = loadHudImages()
+    loadDescriptionFont()
     // Quem pede "reduzir movimento" no sistema vê o andar parado no quadro 0, a faixa sem deslizar
     // e a troca de sala por escurecimento
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -121,9 +137,31 @@ export default function SalaInicial() {
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
+    // Primeiro o catálogo de itens (GET /api/catalog: nomes, salas e os números dos efeitos), depois o progresso.
+    // Sem o catálogo a run não começa: aparece o aviso de erro com "Tentar de novo".
+    async function loadGame() {
+      let catalog
+      try {
+        const response = await apiRequest('/api/catalog', { credentials: 'include' })
+        if (isCancelled) return
+        catalog = buildItemCatalog(response?.items)
+      } catch (error) {
+        if (isCancelled) return
+        // Sessão vencida (401): o apiRequest já leva para a tela de entrar
+        if (error?.status !== 401) setLoadError(error?.message || 'Tente de novo daqui a pouco.')
+        return
+      }
+      // Item sem sprite no jogo (ou sprite sem item no catálogo) fica fora da run
+      if (catalog.missingSprite.length > 0 || catalog.missingInCatalog.length > 0) {
+        console.warn('Itens ignorados.', { semSprite: catalog.missingSprite, semCatalogo: catalog.missingInCatalog })
+      }
+      await loadProgress(catalog.items)
+    }
+    retryLoadRef.current = loadGame
+
     // O andar, a sala, a posição e o tempo vêm da API (e não do state da navegação, que o navegador
     // guarda no histórico e pode estar velho). A partida nova já foi salva pela seleção, sem seed.
-    async function loadProgress() {
+    async function loadProgress(catalog) {
       let progress = normalizeProgressPayload(null)
       let characterId = selectedCharacter.id
       try {
@@ -157,6 +195,10 @@ export default function SalaInicial() {
         roomStates: progress.roomStates,
         health: progress.health,
         forks: progress.forks,
+        grains: progress.grains,
+        catalog,
+        items: progress.items,
+        floorHealsUsed: progress.floorHealsUsed,
       })
       elapsedMs = progress.elapsedMs
       enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)
@@ -251,7 +293,7 @@ export default function SalaInicial() {
     // A tela está preta nesta hora. O tempo segurado volta a 0: a tela clareia na run nova e, com o R ainda
     // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
     function restartRun() {
-      run = createRun({ seed: createRunSeed(), characterId: run.characterId })
+      run = createRun({ seed: createRunSeed(), characterId: run.characterId, catalog: run.catalog })
       elapsedMs = 0
       restartHoldMs = 0
       enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez
@@ -280,6 +322,20 @@ export default function SalaInicial() {
       if (import.meta.env.DEV && event.code === 'F3') {
         event.preventDefault()
         showDebug = !showDebug
+        // O alvo de treino só existe com o F3 ligado
+        if (!showDebug && run) run = removeTrainingTarget(run)
+        return
+      }
+
+      // Ferramentas de teste do F3: T põe ou tira o alvo de treino, I dá o próximo item que ele ainda não tem e G
+      // dá a recompensa de sala limpa nesta sala (contando os abates do alvo de treino). Segurar a tecla não repete.
+      const testKeys = ['KeyT', 'KeyI', 'KeyG']
+      if (import.meta.env.DEV && showDebug && run && testKeys.includes(event.code)) {
+        event.preventDefault()
+        if (event.repeat) return
+        if (event.code === 'KeyT') run = toggleTrainingTarget(run)
+        if (event.code === 'KeyI') run = giveNextItem(run)
+        if (event.code === 'KeyG') run = giveRoomReward(run)
         return
       }
 
@@ -404,6 +460,7 @@ export default function SalaInicial() {
       // os corações em cima e os contadores de grão e de garfo embaixo deles
       drawHud(ctx, hudImages, {
         health: run.health,
+        maxHealth: getRunStats(run).maxHealth,
         grains: run.grains,
         forks: run.forks,
         left: toScreenX(screen.left + 20),
@@ -413,15 +470,36 @@ export default function SalaInicial() {
 
       drawTimer(ctx, formatRunTime(elapsedMs), Math.round((canvas.clientWidth / 2) * pixelRatio), hudTop, pixelSize)
 
+      // Perto de um pedestal com item: a caixa com o nome e a descrição do item, embaixo do HUD.
+      // Enquanto a faixa de um item pego aparece, a caixa espera (as duas ficariam uma em cima da outra).
+      const room = getCurrentRoom(run)
+      const itemBannerOn = Boolean(run.banner?.subtitle)
+      const pedestals = run.transition || run.death || itemBannerOn ? [] : getRoomPedestals(run, room)
+      const nearby = findNearbyPedestal(pedestals, run.player)
+      if (nearby) {
+        drawItemInfo(ctx, {
+          item: getPedestalInfo(run, nearby),
+          left: toScreenX(screen.left + 20),
+          top: getHudBottom(hudTop, pixelSize) + pixelSize * 4,
+          maxWidth: Math.round(Math.min(canvas.width * 0.34, 460 * pixelRatio)),
+          fontSize: Math.round(Math.max(13, 17 * view.scale) * pixelRatio),
+        })
+      }
+
       // Sempre no canto superior direito; segurar Tab amplia o mapa
-      drawMinimap(ctx, run.floor, getCurrentRoom(run), {
-        right: canvas.width - Math.round(18 * pixelRatio),
+      const minimapRight = canvas.width - Math.round(18 * pixelRatio)
+      const minimapBottom = drawMinimap(ctx, run.floor, room, {
+        right: minimapRight,
         top: Math.round(18 * pixelRatio),
         scale: pixelRatio * (showMinimap ? 2 : 0.9),
         expanded: showMinimap,
         maxWidth: canvas.width * 0.5,
         maxHeight: canvas.height * 0.75,
       })
+      // Itens pegos, na ordem, embaixo do minimapa (com o mapa ampliado, ele cobriria a lista)
+      if (!showMinimap) {
+        drawItemList(ctx, run.items, { right: minimapRight, top: minimapBottom + Math.round(8 * pixelRatio), size: Math.round(26 * pixelRatio) })
+      }
 
       // Entrada na run, troca de andar, fim da run, R segurado e sono na rede: a tela escurece por cima da sala e do HUD
       const sleepFade = getSleepFade(run.sleep)
@@ -448,11 +526,13 @@ export default function SalaInicial() {
       if (run.banner && !run.death && !run.finished && !run.sleep) {
         drawFloorBanner(ctx, {
           text: run.banner.text,
+          subtitle: run.banner.subtitle, // só a faixa de item tem a frase embaixo do nome
           elapsedMs: run.banner.elapsedMs,
           reduceMotion,
           left: toScreenX(ROOM_FLOOR.left),
           right: toScreenX(ROOM_FLOOR.right),
-          centerY: toScreenY(visibleTop + visibleHeight * 0.18),
+          // A faixa de item tem duas linhas e é mais alta: fica mais embaixo, para não cobrir o HUD e o minimapa
+          centerY: toScreenY(visibleTop + visibleHeight * (run.banner.subtitle ? 0.3 : 0.18)),
           pixelSize: Math.max(3, Math.round(6 * scale)),
         })
       }
@@ -474,7 +554,7 @@ export default function SalaInicial() {
     window.addEventListener('blur', handleBlur)
     window.addEventListener('focus', handleFocus)
     BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
-    void loadProgress()
+    void loadGame()
     // Parado na janela sem foco, não há o que salvar
     const saveTimer = window.setInterval(() => {
       if (!isPaused) void saveProgress()
@@ -523,6 +603,37 @@ export default function SalaInicial() {
         aria-label={floorInfo ? `Andar ${floorInfo.number}, ${floorInfo.name}, com ${characterName}` : `Sala com ${characterName}`}
       />
 
+      {/* Erro ao carregar o catálogo. Usa o visual e o ref do aviso de fim: os dois nunca aparecem juntos
+          (sem catálogo a run não existe), e o ref deixa o mouse clicar nos botões */}
+      {loadError && (
+        <div className="sala-inicial__fim" ref={endingRef}>
+          <section className="sala-inicial__fim-painel" role="dialog" aria-modal="true" aria-labelledby="sala-inicial-erro-titulo">
+            <h2 id="sala-inicial-erro-titulo" className="sala-inicial__fim-titulo">
+              Erro ao carregar
+            </h2>
+            <p className="sala-inicial__fim-mensagem" role="alert">
+              Não foi possível carregar os itens do jogo. {loadError}
+            </p>
+            <div className="sala-inicial__fim-botoes">
+              <button type="button" className="sala-inicial__fim-botao" onClick={() => navigate(ROUTES.menuPrincipal)}>
+                Voltar ao menu
+              </button>
+              <button
+                type="button"
+                className="sala-inicial__fim-botao"
+                autoFocus
+                onClick={() => {
+                  setLoadError(null)
+                  retryLoadRef.current?.()
+                }}
+              >
+                Tentar de novo
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {ending && (
         <div className="sala-inicial__fim" ref={endingRef}>
           <section className="sala-inicial__fim-painel" role="dialog" aria-modal="true" aria-labelledby="sala-inicial-fim-titulo">
@@ -551,4 +662,11 @@ export default function SalaInicial() {
       )}
     </main>
   )
+}
+
+// O que a caixa de descrição mostra para o pedestal: o item do catálogo, ou o garfo e o coração da Loja.
+// O preço não entra: ele já aparece na etiqueta embaixo do pedestal.
+function getPedestalInfo(run, pedestal) {
+  if (pedestal.itemId) return run.catalog[pedestal.itemId]
+  return { ...CONSUMABLE_INFO[pedestal.consumable], icon: CONSUMABLE_SPRITES[pedestal.consumable]?.icon }
 }

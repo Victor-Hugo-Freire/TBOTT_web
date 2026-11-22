@@ -135,6 +135,31 @@ export function getLayoutPoints(layoutId) {
   return { enemies, items }
 }
 
+// A casa é a de uma porta? (nada é posto nela, para não tapar a passagem)
+function isDoorCell(col, row) {
+  for (const side of SIDES) {
+    if (DOOR_CELLS[side].col === col && DOOR_CELLS[side].row === row) return true
+  }
+  return false
+}
+
+// Casa livre (letra '.') mais perto da casa (col, row), fora das casas de porta. Serve para pôr alguma coisa
+// no meio da sala sem cair num obstáculo (o centro da sala do chefe é o tambor). No empate, vale a primeira
+// casa na ordem de leitura, linha por linha. Sem nenhuma casa livre, devolve null.
+export function findFreeCell(layoutId, col, row) {
+  let best = null
+  let bestDistance = Infinity
+  forEachTile(resolveLayout(layoutId), (letter, tileCol, tileRow) => {
+    if (letter !== '.' || isDoorCell(tileCol, tileRow)) return
+    const distance = (tileCol - col) * (tileCol - col) + (tileRow - row) * (tileRow - row)
+    if (distance < bestDistance) {
+      best = { col: tileCol, row: tileRow }
+      bestDistance = distance
+    }
+  })
+  return best
+}
+
 // ---------- validação do caminho ----------
 
 // A busca anda em passos de meia caixa dos pés (22 x 9 u). Com passos menores que a caixa,

@@ -15,5 +15,5 @@
 - peso de sorteio: único item da recompensa (quando houver mais itens de chefe, sorteio entre eles)
 - condição: vencer o chefe do andar
 - pedestal: centro da Sala do Chefe, onde o chefe caiu (coluna 6, linha 3); 1 pedestal
-- repetição: só um por partida; nos chefes seguintes, a recompensa vira 5 grãos e 1 coração
+- repetição: só um por partida; nos chefes seguintes, o pedestal não aparece (quando houver chefe, a sala dá a recompensa de sala limpa como qualquer sala com inimigos; regra do Victor, 2026-11-20)
 - preço ou custo: nenhum

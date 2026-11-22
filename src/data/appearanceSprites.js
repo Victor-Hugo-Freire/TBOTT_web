@@ -1,5 +1,5 @@
-// Aparência do Tung Tung com itens (proposta: se a equipe desistir, apague este arquivo e a pasta
-// public/sprites/characters/tung-tung-sahur/aparencia/). Nenhuma tela usa estes dados ainda.
+// Aparência do Tung Tung com itens. Usada na sala: utils/appearance.js decide o que aparece e
+// scene/drawPlayer.js desenha as camadas (imagens em public/sprites/characters/tung-tung-sahur/aparencia/).
 // Cada item visível é uma camada separada, por cima ou por baixo do personagem; o Tung original não muda.
 // - Cada camada é uma imagem do tamanho da célula do tronco (296x259, a mesma de tungTungSahurAndar) e já vem
 //   desenhada no lugar certo do QUADRO 0 do andar. Só existe esse quadro: nos outros, o jogo soma o deslocamento de APPEARANCE_ANCHORS.
@@ -10,7 +10,8 @@
 // - Deslocamento por quadro (px da célula, em relação ao quadro 0 do andar):
 //   cabeca e costas seguem APPEARANCE_ANCHORS.<direção>.walk[quadro].head (no golpe, attackHead; no dano, hurtHead);
 //   bastao segue batRing (o anel muda de lugar) e batAngle (o ângulo muda até 8 graus no andar). No golpe o bastão
-//   dá a volta inteira e isso NÃO foi medido: esconda o slot bastao durante o ataque;
+//   dá a volta inteira em volta do ombro (shoulder): attackBat[quadro] = [dx, dy, giro em graus] do ombro, com as
+//   mesmas contas que geraram ataque.png (golpe.py); null = a ponta fica atrás da cabeça ou do corpo (some no quadro);
 //   aura não se mexe (os pés ficam parados).
 // - Dano: o 1º quadro é o Tung inteiro branco e os outros são vermelhos; esconda as camadas no dano ou tinja igual.
 // Gerado a partir de ancoras.json e das camadas da arte (docs/sprites/aparencia/).
@@ -86,6 +87,8 @@ export const APPEARANCE_ANCHORS = {
     ],
     attackHead: [[0, -3], [0, -6], [0, 2], [0, 5], [0, 7], [0, 5], [0, 2], [0, 0]],
     hurtHead: [[0, -4], [0, -8], [0, -4], [0, 0]],
+    shoulder: [184, 167],
+    attackBat: [[-17, 9.5, -35.3], null, [-34, 27, -14.2], [-34, 30, 30.8], [-34, 32, 75.8], [-34, 30, 125.8], null, [0, 0, 0]],
   },
   left: {
     walk: [
@@ -104,6 +107,8 @@ export const APPEARANCE_ANCHORS = {
     ],
     attackHead: [[3, 0], [6, 0], [-2, 0], [-5, 0], [-7, 0], [-5, 0], [-2, 0], [0, 0]],
     hurtHead: [[5, 0], [18, 18], [15, 4], [0, 0]],
+    shoulder: [181, 180],
+    attackBat: [[-26.5, 6, 28.6], [-53, 12, 52], [-61, 12, 102], [-64, 12, 152], [-66, 12, 202], null, null, [0, 0, 0]],
   },
   right: {
     walk: [
@@ -122,6 +127,8 @@ export const APPEARANCE_ANCHORS = {
     ],
     attackHead: [[-3, 0], [-6, 0], [2, 0], [5, 0], [7, 0], [5, 0], [2, 0], [0, 0]],
     hurtHead: [[-4, 0], [-18, 16], [-12, 3], [0, 0]],
+    shoulder: [116, 165],
+    attackBat: [[26, 13.5, -22.3], [52, 27, 319.5], [60, 27, 269.5], [63, 27, 219.5], [65, 27, 169.5], null, null, [0, 0, 0]],
   },
   up: {
     walk: [
@@ -140,5 +147,7 @@ export const APPEARANCE_ANCHORS = {
     ],
     attackHead: [[0, 3], [0, 6], [0, -2], [0, -5], [0, -7], [0, -5], [0, -2], [0, 0]],
     hurtHead: [[0, 4], [0, 8], [0, 4], [0, 0]],
+    shoulder: [187, 165],
+    attackBat: [null, null, [-37, -123, 247.6], [-37, -126, 289.6], [-37, -128, 331.6], null, null, [0, 0, 0]],
   },
 }

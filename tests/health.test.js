@@ -9,14 +9,17 @@ import {
   DAMAGE_LIGHT,
   getDeathCauseLabel,
   getHeartStates,
-  MAX_HEALTH,
   normalizeHealth,
 } from '../src/utils/health.js'
+import { getBaseStats } from '../src/utils/stats.js'
+
+// Vida máxima da ficha do Tung (sem itens)
+const MAX_HEALTH = getBaseStats('tung-tung-sahur').maxHealth
 
 describe('vida em meios corações', () => {
   test('o personagem tem 3 corações: 6 meios corações', () => {
     assert.equal(MAX_HEALTH, 6)
-    assert.equal(getHeartStates(MAX_HEALTH).length, 3)
+    assert.equal(getHeartStates(MAX_HEALTH, MAX_HEALTH).length, 3)
   })
 
   test('batida de inimigo tira meio coração; explosão e ataque pesado tiram 1 coração inteiro', () => {
@@ -42,30 +45,41 @@ describe('vida em meios corações', () => {
 })
 
 describe('normalizeHealth (vida salva no progresso)', () => {
-  test('aceita os inteiros de 0 a 6', () => {
-    for (let health = 0; health <= MAX_HEALTH; health++) assert.equal(normalizeHealth(health), health)
+  test('aceita os inteiros de 0 à vida máxima', () => {
+    for (let health = 0; health <= MAX_HEALTH; health++) assert.equal(normalizeHealth(health, MAX_HEALTH), health)
   })
 
   test('valor inválido ou save antigo (sem vida) vira vida cheia', () => {
     for (const value of [undefined, null, -1, 7, 2.5, '3', NaN, Infinity, {}, true]) {
-      assert.equal(normalizeHealth(value), MAX_HEALTH, String(value))
+      assert.equal(normalizeHealth(value, MAX_HEALTH), MAX_HEALTH, String(value))
     }
+  })
+
+  test('vida máxima menor (custo do Pacto): a vida acima dela cai junto, a de baixo fica', () => {
+    assert.equal(normalizeHealth(6, 4), 4)
+    assert.equal(normalizeHealth(5, 4), 4)
+    assert.equal(normalizeHealth(3, 4), 3)
   })
 })
 
 describe('getHeartStates (corações do HUD)', () => {
   test('cada coração fica cheio, pela metade ou vazio, da esquerda para a direita', () => {
-    assert.deepEqual(getHeartStates(6), ['full', 'full', 'full'])
-    assert.deepEqual(getHeartStates(5), ['full', 'full', 'half'])
-    assert.deepEqual(getHeartStates(4), ['full', 'full', 'empty'])
-    assert.deepEqual(getHeartStates(3), ['full', 'half', 'empty'])
-    assert.deepEqual(getHeartStates(2), ['full', 'empty', 'empty'])
-    assert.deepEqual(getHeartStates(1), ['half', 'empty', 'empty'])
-    assert.deepEqual(getHeartStates(0), ['empty', 'empty', 'empty'])
+    assert.deepEqual(getHeartStates(6, 6), ['full', 'full', 'full'])
+    assert.deepEqual(getHeartStates(5, 6), ['full', 'full', 'half'])
+    assert.deepEqual(getHeartStates(4, 6), ['full', 'full', 'empty'])
+    assert.deepEqual(getHeartStates(3, 6), ['full', 'half', 'empty'])
+    assert.deepEqual(getHeartStates(2, 6), ['full', 'empty', 'empty'])
+    assert.deepEqual(getHeartStates(1, 6), ['half', 'empty', 'empty'])
+    assert.deepEqual(getHeartStates(0, 6), ['empty', 'empty', 'empty'])
   })
 
   test('com mais vida máxima aparecem mais corações', () => {
     assert.deepEqual(getHeartStates(7, 8), ['full', 'full', 'full', 'half'])
+  })
+
+  test('com menos vida máxima aparecem menos corações', () => {
+    assert.deepEqual(getHeartStates(4, 4), ['full', 'full'])
+    assert.deepEqual(getHeartStates(1, 2), ['half'])
   })
 })
 

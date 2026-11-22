@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { FORK_UNLOCK_MS, getEntryPosition, getRoomDoors, OPPOSITE_SIDE, SIDE_VECTORS } from '../src/utils/doors.js'
 import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
-import { DAMAGE_LIGHT, MAX_HEALTH } from '../src/utils/health.js'
+import { DAMAGE_LIGHT } from '../src/utils/health.js'
 import { createPlayer, DEATH_DURATION_MS, getAttackHitbox, killPlayer } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
 import { FIN_LAP_MS, getHammockBox, PUDDLE, SHARK_DEATH_MS, SLEEP_MS } from '../src/utils/roomInteractions.js'
@@ -25,16 +25,32 @@ import {
   getRestartFade,
   getRoomStates,
   getRoomTheme,
+  getRunStats,
   getVisitedRoomIds,
+  giveNextItem,
   isDrumVisible,
   isSecretMarkVisible,
+  removeTrainingTarget,
+  PICKUP_MS,
   RESTART_HOLD_MS,
   ROOM_TRANSITION_MS,
   STARTING_FORKS,
+  toggleTrainingTarget,
   updateRestartHold,
   updateRestartKey,
   updateRun,
+  VANISH_MS,
 } from '../src/utils/run.js'
+import { getBaseStats } from '../src/utils/stats.js'
+import { TRAINING_RESPAWN_MS } from '../src/utils/targets.js'
+import { ITEM_BANNERS } from '../src/data/itemBanners.js'
+import { getRoomPedestals } from '../src/utils/pedestals.js'
+import { getLayoutPoints } from '../src/utils/roomLayout.js'
+import { removeAccents } from '../src/utils/pixelFont.js'
+import { TEST_CATALOG } from './helpers/testCatalog.js'
+
+// Vida máxima da ficha do Tung (sem itens)
+const MAX_HEALTH = getBaseStats('tung-tung-sahur').maxHealth
 
 // Passo de 1/20 s (50 ms, o maior passo que o jogador aceita): deixa os testes rápidos
 const STEP = 1 / 20
@@ -107,9 +123,12 @@ function hitSecret(run, side) {
 }
 
 // Sai da run e volta: o que o jogo salva vira JSON (como na API) e a run é recriada com o que voltou
+// (o catálogo não vai para o save: a tela busca de novo na API)
 function saveAndContinue(run) {
   const progress = normalizeProgressPayload(JSON.parse(JSON.stringify(createRunSnapshot(run, 5000))))
   return createRun({
+    catalog: run.catalog,
+    items: progress.items,
     seed: progress.seed,
     floorNumber: progress.floor,
     roomId: progress.roomId,
@@ -229,6 +248,9 @@ describe('createRun', () => {
       health: MAX_HEALTH,
       deathCause: null,
       forks: 1,
+      grains: 0,
+      items: [],
+      floorHealsUsed: 0,
     })
   })
 
@@ -381,6 +403,31 @@ describe('golpes: tambor e parede secreta', () => {
     assert.equal(run.finished, true)
     assert.equal(run.floor.number, LAST_FLOOR)
     assert.equal(updateRun(run, { movement: { x: 1, y: 0 }, attackDirection: 'up' }, STEP), run)
+  })
+
+  test('as batidas no tambor recomeçam ao sair da sala e voltar', () => {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    let run = createRun({ seed, roomId, characterId: 'x' })
+    const boss = getCurrentRoom(run)
+    run = hitDrum(hitDrum(run).run).run
+    assert.equal(boss.hits, 2)
+
+    const { side } = getRoomDoors(run.floor, boss)[0]
+    run = goThrough(goThrough(run, side), OPPOSITE_SIDE[side])
+    assert.equal(run.roomId, boss.id)
+    assert.equal(boss.hits, 0)
+    run = hitDrum(run).run
+    assert.equal(boss.hits, 1, 'conta de novo a partir do 1')
+    assert.equal(run.transition, null)
+  })
+
+  test('as batidas no tambor recomeçam ao sair da run e continuar', () => {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    let run = createRun({ seed, roomId, characterId: 'x' })
+    run = hitDrum(hitDrum(run).run).run
+    const back = saveAndContinue(run)
+    assert.equal(back.roomId, roomId)
+    assert.equal(getCurrentRoom(back).hits, 0)
   })
 
   test('parede secreta: marca de perto, um golpe conta uma vez, 3 golpes abrem', () => {
@@ -750,7 +797,7 @@ describe('estado das salas no progresso: o que quebrou não volta', () => {
     const jar = run.obstacles.find((obstacle) => obstacle.kind === 'garrafao')
     run.player = createPlayer({ x: jar.box.x + jar.box.width / 2, y: jar.box.y + jar.box.height + 30 })
     run = swing(run, 'up').run
-    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0, unlocked: false, slept: false } })
+    assert.deepEqual(getRoomStates(run.floor), { [room.id]: { removed: [jar.id], hits: 0, unlocked: false, slept: false, emptied: [], drops: [], rewards: 0, plays: 0, prize: null } })
 
     const back = saveAndContinue(run)
     assert.equal(back.roomId, room.id)
@@ -953,11 +1000,11 @@ describe('salas visitadas no progresso', () => {
 })
 
 describe('ponta a ponta', () => {
-  test('300 seeds: todas as salas dos 5 andares pelas portas, adega aberta, trancadas abertas com garfo, tambor até o fim', () => {
+  test('300 seeds: todas as salas dos 5 andares pelas portas, adega aberta, trancadas abertas com garfo ou grão, tambor até o fim', () => {
     let cellars = 0
     for (let seed = 1; seed <= 300; seed++) {
-      // garfos de sobra: o teste abre toda sala trancada (no máximo 2 por andar)
-      let run = createRun({ seed, characterId: 'x', forks: 99 })
+      // garfos e grãos de sobra: o teste abre toda sala trancada (o Fliperama abre com grão)
+      let run = createRun({ seed, characterId: 'x', forks: 99, grains: 99 })
       for (let number = 1; number <= LAST_FLOOR; number++) {
         const { floor } = run
         assert.equal(floor.number, number)
@@ -1004,7 +1051,7 @@ describe('portas trancadas: gastar o garfo', () => {
     let { run, side, treasureId } = nextToTreasure()
     run = push(run, side)
     assert.equal(run.forks, 0)
-    assert.deepEqual(run.unlocking, { side, elapsedMs: 0 })
+    assert.deepEqual(run.unlocking, { side, elapsedMs: 0, lock: 'garfo' })
     assert.equal(run.transition, null, 'durante a animação a porta não deixa passar')
     // continua empurrando: a animação anda e ele não atravessa, nem gasta outro garfo
     for (let ms = 0; ms < FORK_UNLOCK_MS - 2 * STEP_MS; ms += STEP_MS) {
@@ -1199,5 +1246,222 @@ describe('rede: a faixa do andar não volta depois do sono', () => {
     run = steps(run, Math.ceil(SLEEP_MS / STEP_MS))
     assert.equal(run.sleep, null)
     assert.ok(run.banner === null || run.banner.elapsedMs >= SLEEP_MS, 'a faixa andou junto com o sono')
+  })
+})
+
+describe('atributos e itens na run', () => {
+  test('a run começa sem itens, sem alvos e com a vida máxima dos atributos', () => {
+    const run = createRun({ seed: 1, characterId: 'tung-tung-sahur' })
+    assert.deepEqual([run.items, run.targets, run.roomKills], [[], [], 0])
+    assert.deepEqual(getRunStats(run), getBaseStats('tung-tung-sahur'))
+    assert.equal(run.health, getRunStats(run).maxHealth)
+  })
+
+  test('vida salva acima da vida máxima vira a vida máxima; abaixo, fica', () => {
+    assert.equal(createRun({ seed: 1, characterId: 'x', health: 9 }).health, MAX_HEALTH)
+    assert.equal(createRun({ seed: 1, characterId: 'x', health: 3 }).health, 3)
+  })
+
+  test('tecla I: dá o próximo item do catálogo que ele ainda não tem, na ordem do catálogo', () => {
+    let run = createRun({ seed: 1, characterId: 'x', catalog: { 'cafe-duplo': {}, mucarela: {} } })
+    run = giveNextItem(run)
+    assert.deepEqual(run.items, ['cafe-duplo'])
+    run = giveNextItem(run)
+    assert.deepEqual(run.items, ['cafe-duplo', 'mucarela'])
+    assert.equal(giveNextItem(run), run, 'com todos os itens, nada muda')
+  })
+})
+
+describe('alvo de treino (F3 + T)', () => {
+  // Run na sala inicial com o alvo de treino, e o jogador logo abaixo dele (o golpe para cima acerta)
+  function runWithTarget() {
+    const run = toggleTrainingTarget(createRun({ seed: 1, characterId: 'x' }))
+    const target = run.targets[0]
+    run.player = createPlayer({ x: target.x, y: target.y + 45 })
+    return run
+  }
+
+  test('T põe o alvo numa casa livre perto do meio da sala; T de novo (ou desligar o F3) tira', () => {
+    const run = runWithTarget()
+    assert.equal(run.targets.length, 1)
+    assert.equal(run.targets[0].training, true)
+    assert.equal(run.targets[0].health, 30)
+    assert.deepEqual(toggleTrainingTarget(run).targets, [])
+    assert.deepEqual(removeTrainingTarget(run).targets, [])
+  })
+
+  test('na sala do chefe o alvo não fica em cima do tambor', () => {
+    const { seed, roomId } = findSeed(1, (room) => room.type === 'chefe')
+    const run = toggleTrainingTarget(createRun({ seed, roomId, characterId: 'x' }))
+    const drum = getDrumBox()
+    assert.ok(run.targets[0].x < drum.x || run.targets[0].x > drum.x + drum.width)
+  })
+
+  test('cada golpe tira 3 de vida do alvo, uma vez só, mesmo com a caixa ativa por vários quadros', () => {
+    const { run, activeFrames } = swing(runWithTarget(), 'up')
+    assert.ok(activeFrames > 1)
+    assert.equal(run.targets[0].health, 30 - getRunStats(run).damage)
+    assert.equal(run.targets[0].health, 27)
+    assert.deepEqual(run.targets[0].damageTexts.map((text) => text.amount), [3])
+  })
+
+  test('10 golpes abatem o alvo: conta 1 abate e ele volta com a vida cheia 1 s depois', () => {
+    let run = runWithTarget()
+    for (let hit = 0; hit < 10; hit++) run = swing(run, 'up').run
+    assert.equal(run.targets[0].dead, true)
+    assert.equal(run.roomKills, 1)
+    run = steps(run, Math.ceil(TRAINING_RESPAWN_MS / STEP_MS) + 1)
+    assert.equal(run.targets[0].dead, false)
+    assert.equal(run.targets[0].health, 30)
+    assert.equal(run.roomKills, 1)
+  })
+
+  test('o alvo não muda cleared, não vai para o progresso e sai ao trocar de sala', () => {
+    let run = swing(runWithTarget(), 'up').run
+    assert.equal(getCurrentRoom(run).cleared, true)
+    const snapshot = JSON.stringify(createRunSnapshot(run, 1000))
+    assert.ok(!snapshot.includes('treino') && !snapshot.includes('targets'))
+    run = goThrough(run, getRoomDoors(run.floor, getCurrentRoom(run))[0].side)
+    assert.deepEqual([run.targets, run.roomKills], [[], 0])
+  })
+})
+
+describe('pedestais: coleta, banner e custo do Pacto', () => {
+  // Run com o catálogo de teste, dentro da primeira sala do tipo pedido (seed a partir de 1).
+  // extra = condição a mais para a sala (ex.: ter 2 pedestais).
+  function runInRoom(floorNumber, type, fields = {}, extra = () => true) {
+    const { seed, roomId } = findSeed(floorNumber, (room) => room.type === type && extra(room))
+    return createRun({ seed, floorNumber, roomId, characterId: 'x', catalog: TEST_CATALOG, ...fields })
+  }
+
+  // Põe o jogador logo abaixo do pedestal (o primeiro, ou o de número `index`) e anda para cima até encostar
+  function walkIntoPedestal(run, index = 0) {
+    const pedestal = getRoomPedestals(run, getCurrentRoom(run))[index]
+    run.player = createPlayer({ x: pedestal.x, y: pedestal.y + 40 })
+    return steps(run, 10, { movement: { x: 0, y: -1 }, attackDirection: null })
+  }
+
+  test('encostar pega o item: entra na lista, o pedestal fica vazio, toca a coleta e aparece o banner', () => {
+    let run = runInRoom(1, 'tesouro')
+    const [pedestal] = getRoomPedestals(run, getCurrentRoom(run))
+    assert.ok(pedestal.itemId)
+    run = walkIntoPedestal(run)
+    assert.deepEqual(run.items, [pedestal.itemId])
+    assert.deepEqual(getCurrentRoom(run).emptied, ['6-2'])
+    assert.equal(getRoomPedestals(run, getCurrentRoom(run))[0].itemId, null, 'pedestal vazio')
+    assert.equal(run.banner.text, removeAccents(TEST_CATALOG[pedestal.itemId].name))
+    assert.equal(run.banner.subtitle, ITEM_BANNERS[pedestal.itemId])
+    assert.equal(run.pickup.itemId, pedestal.itemId)
+  })
+
+  test('o pedestal é sólido, cheio ou vazio, e o item não é pego duas vezes', () => {
+    let run = walkIntoPedestal(runInRoom(1, 'tesouro'))
+    const [pedestal] = getRoomPedestals(run, getCurrentRoom(run))
+    run = steps(run, 20, { movement: { x: 0, y: -1 }, attackDirection: null })
+    assert.ok(run.player.y - PLAYER_FEET_BOX.height >= pedestal.y - 1e-9, 'os pés param na borda de baixo')
+    assert.equal(run.items.length, 1)
+  })
+
+  test('o item fica PICKUP_MS sobre a cabeça do Tung e some (e segue junto na troca de sala)', () => {
+    let run = walkIntoPedestal(runInRoom(1, 'tesouro'))
+    assert.equal(PICKUP_MS, 1000)
+    run = steps(run, Math.floor(PICKUP_MS / STEP_MS) - 12) // walkIntoPedestal já andou 10 passos
+    assert.ok(run.pickup, 'ainda sobre a cabeça')
+    run = steps(run, 4)
+    assert.equal(run.pickup, null)
+  })
+
+  test('sala de escolha: pegar um item esvazia os dois pedestais e o outro item não volta', () => {
+    let run = runInRoom(1, 'tesouro', {}, (room) => getLayoutPoints(room.layoutId).items.length === 2)
+    const [first, second] = getRoomPedestals(run, getCurrentRoom(run))
+    assert.ok(first.itemId && second.itemId && first.itemId !== second.itemId)
+    run = walkIntoPedestal(run)
+    assert.deepEqual(run.items, [first.itemId])
+    assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)).map((pedestal) => pedestal.itemId), [null, null])
+    // o outro item some com uma animação, que acaba em VANISH_MS
+    assert.deepEqual(run.vanishing.map((item) => [item.pedestalId, item.itemId]), [[second.id, second.itemId]])
+    run = steps(run, Math.ceil(VANISH_MS / STEP_MS))
+    assert.deepEqual(run.vanishing, [])
+    // o outro item não está em nenhum outro pedestal da run
+    const elsewhere = Object.entries(run.pedestalItems).filter(([key, items]) => !key.endsWith(`:${run.roomId}`) && items.includes(second.itemId))
+    assert.deepEqual(elsewhere, [])
+    // salvar e continuar: os pedestais vazios não estão mais lá, e o item continua com ele
+    run = saveAndContinue(run)
+    assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)), [])
+    assert.deepEqual(run.items, [first.itemId])
+  })
+
+  test('salvar e continuar: o item continua com ele e o pedestal vazio some', () => {
+    const run = saveAndContinue(walkIntoPedestal(runInRoom(1, 'tesouro')))
+    assert.equal(run.items.length, 1)
+    assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)), [])
+  })
+
+  test('o pedestal vazio fica enquanto ele está na sala; saindo e voltando, não está mais lá', () => {
+    // Tesouro com um pedestal só (a sala de escolha tem dois)
+    let run = walkIntoPedestal(runInRoom(1, 'tesouro', {}, (room) => getLayoutPoints(room.layoutId).items.length === 1))
+    const room = getCurrentRoom(run)
+    assert.equal(getRoomPedestals(run, room).length, 1, 'ainda na sala: o pedestal vazio continua')
+    assert.equal(getRoomPedestals(run, room)[0].itemId, null)
+    const { side } = getRoomDoors(run.floor, room).find((door) => door.state === 'open')
+    run = goThrough(goThrough(run, side), OPPOSITE_SIDE[side])
+    assert.equal(run.roomId, room.id)
+    assert.deepEqual(getRoomPedestals(run, room), [])
+  })
+
+  test('Sala do Pacto: o Dente custa 1 coração de vida máxima, e a vida acima do novo máximo cai junto', () => {
+    let run = walkIntoPedestal(runInRoom(2, 'pacto'))
+    assert.deepEqual(run.items, ['dente-de-tubarao'])
+    assert.equal(getRunStats(run).maxHealth, MAX_HEALTH - 2)
+    assert.equal(run.health, MAX_HEALTH - 2)
+    // com a vida baixa, ela não muda
+    run = walkIntoPedestal(runInRoom(2, 'pacto', { health: 3 }))
+    assert.equal(run.health, 3)
+  })
+
+  test('Sala do Pacto com vários itens: cada um tem o seu custo e dá para pegar mais de um', () => {
+    // Catálogo com 2 itens de Pacto (o Caldo vira item de Pacto só neste teste)
+    const pactCatalog = {
+      ...TEST_CATALOG,
+      'caldo-da-mamae': { ...TEST_CATALOG['caldo-da-mamae'], roomTypes: ['pacto'], effect: { maxHealthCost: 2 } },
+    }
+    let run = runInRoom(2, 'pacto', { catalog: pactCatalog }, (room) => getLayoutPoints(room.layoutId).items.length >= 2)
+    const before = getRoomPedestals(run, getCurrentRoom(run))
+    assert.equal(before.filter((pedestal) => pedestal.itemId).length, 2)
+    run = walkIntoPedestal(run, 0)
+    // o outro continua no pedestal, com o custo dele, e nada some
+    const after = getRoomPedestals(run, getCurrentRoom(run))
+    assert.equal(after[0].itemId, null)
+    assert.equal(after[1].itemId, before[1].itemId)
+    assert.deepEqual(run.vanishing, [])
+    run = walkIntoPedestal(steps(run, 25), 1)
+    assert.deepEqual([...run.items].sort(), [before[0].itemId, before[1].itemId].sort())
+    assert.equal(getRunStats(run).maxHealth, MAX_HEALTH - 4, 'pagou os dois custos')
+  })
+
+  test('Sala do Pacto: não deixa pegar se a vida máxima ficar menor que 1 coração', () => {
+    const tooExpensive = { ...TEST_CATALOG, 'dente-de-tubarao': { ...TEST_CATALOG['dente-de-tubarao'], effect: { maxHealthCost: 6 } } }
+    const run = walkIntoPedestal(runInRoom(2, 'pacto', { catalog: tooExpensive }))
+    assert.deepEqual(run.items, [])
+    assert.equal(getRoomPedestals(run, getCurrentRoom(run))[0].itemId, 'dente-de-tubarao')
+  })
+
+  test('a vida máxima menor continua depois de salvar e continuar', () => {
+    const run = saveAndContinue(walkIntoPedestal(runInRoom(2, 'pacto')))
+    assert.equal(getRunStats(run).maxHealth, MAX_HEALTH - 2)
+    assert.equal(run.health, MAX_HEALTH - 2)
+  })
+
+  test('sala do chefe: o Rolo de Bronze aparece com a sala limpa (hoje, ao entrar)', () => {
+    const run = runInRoom(1, 'chefe')
+    assert.equal(getRoomPedestals(run, getCurrentRoom(run))[0].itemId, 'rolo-de-bronze')
+  })
+
+  test('tecla I também mostra o banner, e o item dado não aparece mais no pedestal da sala dele', () => {
+    let run = runInRoom(1, 'chefe')
+    for (let i = 0; i < 11; i++) run = giveNextItem(run) // na ordem do catálogo, o Rolo é o 11º
+    assert.ok(run.items.includes('rolo-de-bronze'))
+    assert.equal(run.banner.subtitle, ITEM_BANNERS['rolo-de-bronze'])
+    assert.deepEqual(getRoomPedestals(run, getCurrentRoom(run)), [])
   })
 })

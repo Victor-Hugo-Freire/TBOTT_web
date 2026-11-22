@@ -14,6 +14,6 @@
 - andares: 1, 2, 3, 4, 5 (o Fliperama pode existir em qualquer andar)
 - peso de sorteio: prêmio do sorteio: 15% de chance de sair o item (o resto: grãos, garfo ou nada)
 - condição: pagar 2 grãos por sorteio (proposta)
-- pedestal: cai do tambor num pedestal à frente dele (coluna 6, linha 3); 1 pedestal
+- pedestal: cai do tambor num pedestal à frente dele (coluna 6, linha 4, fora do tambor); o pedestal só aparece quando o Chifre sai
 - repetição: só um por partida; depois disso o prêmio maior vira 5 grãos
 - preço ou custo: 2 grãos por sorteio
