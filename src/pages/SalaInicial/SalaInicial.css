@@ -108,3 +108,233 @@
     opacity: 0;
   }
 }
+
+/* Menu de pausa compacto, inspirado em listas retro e por isso posicionado baixo na tela. */
+.sala-inicial__pausa,
+.sala-inicial__opcoes {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  background: rgba(5, 3, 3, 0.72);
+  /* A pausa e as Opções dela são só pelo teclado: o mouse atravessa até o canvas, onde é ignorado */
+  pointer-events: none;
+  backdrop-filter: blur(1px);
+}
+
+.sala-inicial__pausa {
+  place-items: end center;
+  padding: clamp(0.75rem, 2.5vw, 1.75rem);
+  padding-bottom: clamp(1.25rem, 5vh, 3.5rem);
+  cursor: none;
+  user-select: none;
+}
+
+.sala-inicial__opcoes {
+  place-items: center;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  cursor: none;
+  user-select: none;
+}
+
+.sala-inicial__pausa-painel {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 68fr) minmax(14rem, 32fr);
+  width: min(52rem, 96vw);
+  max-height: min(68vh, 38rem);
+  max-height: min(68dvh, 38rem);
+  overflow: hidden;
+  border: 3px solid #c6b18c;
+  outline: 2px solid #24150f;
+  background: rgba(24, 20, 18, 0.96);
+  color: var(--color-text-light);
+  font-family: 'Pixelify Sans', var(--font-body);
+}
+
+.sala-inicial__pausa-principal,
+.sala-inicial__inventario {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.sala-inicial__pausa-principal {
+  display: grid;
+  align-content: center;
+  border-right: 0;
+}
+
+.sala-inicial__pausa-menu {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.sala-inicial__pausa-opcao {
+  min-height: 2.75rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #d7c3a4;
+  font: 700 clamp(0.95rem, 1.7vw, 1.15rem) 'Pixelify Sans', var(--font-body);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sala-inicial__pausa-opcao:hover,
+.sala-inicial__pausa-opcao:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: #d7c3a4;
+  outline: none;
+}
+
+.sala-inicial__pausa-opcao--selecionada {
+  border-color: #e8d2b0;
+  background: rgba(232, 210, 176, 0.16);
+  color: #fff6df;
+  outline: none;
+}
+
+.sala-inicial__pausa-opcao:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.sala-inicial__pausa-erro {
+  margin: 0.65rem 0 0;
+  color: #ffd0a6;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.sala-inicial__inventario {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 2px solid rgba(198, 177, 140, 0.55);
+}
+
+.sala-inicial__inventario h3 {
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(198, 177, 140, 0.45);
+  color: #f2dfbc;
+  font-size: clamp(0.78rem, 1.6vw, 1rem);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.sala-inicial__itens {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: clamp(0.5rem, 1vw, 0.75rem);
+}
+
+.sala-inicial__item {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  justify-self: stretch;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  border: 2px solid rgba(198, 177, 140, 0.42);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.sala-inicial__item img {
+  box-sizing: border-box;
+  display: block;
+  width: 72%;
+  height: 72%;
+  max-width: 72%;
+  max-height: 72%;
+  object-fit: contain;
+  object-position: center;
+  image-rendering: pixelated;
+}
+
+.sala-inicial__itens-vazio {
+  margin: 1.25rem auto;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.sala-inicial__opcoes .opcoes--embedded {
+  width: min(44rem, 94vw);
+  max-height: 88vh;
+  max-height: 88dvh;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  border: 4px solid #c6b18c;
+  background: rgba(24, 20, 18, 0.98);
+}
+
+@media (max-width: 620px) {
+  .sala-inicial__pausa {
+    padding: 0.65rem;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .sala-inicial__pausa-painel {
+    grid-template-columns: minmax(0, 68fr) minmax(8.5rem, 32fr);
+    width: min(40rem, 96vw);
+    max-height: 46vh;
+    max-height: 46dvh;
+  }
+
+  .sala-inicial__pausa-principal,
+  .sala-inicial__inventario {
+    padding: 0.65rem;
+  }
+
+  .sala-inicial__pausa-principal {
+    border-right: 0;
+  }
+
+  .sala-inicial__pausa-menu {
+    gap: 0.12rem;
+  }
+
+  .sala-inicial__pausa-opcao {
+    min-height: 2.4rem;
+    padding-inline: 0.5rem;
+    font-size: clamp(0.78rem, 3.4vw, 0.95rem);
+  }
+
+  .sala-inicial__inventario h3 {
+    font-size: clamp(0.68rem, 2.8vw, 0.82rem);
+  }
+
+  .sala-inicial__itens {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .sala-inicial__item {
+    max-width: none;
+  }
+}
+
+@media (max-height: 480px) {
+  .sala-inicial__pausa {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .sala-inicial__pausa-painel {
+    max-height: 88vh;
+    max-height: 88dvh;
+  }
+
+  .sala-inicial__pausa-opcao {
+    min-height: 2.25rem;
+  }
+}

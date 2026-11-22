@@ -49,6 +49,71 @@ import { drawTimer } from './scene/drawTimer.js'
 import { loadSheets } from './scene/sheets.js'
 import { getHudTop, getRoomView } from './scene/view.js'
 import './SalaInicial.css'
+import Opcoes from '../Opcoes/Opcoes.jsx'
+import { ITEM_SPRITES } from '../../data/itemSprites.js'
+import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
+import { canPauseRun } from '../../utils/pause.js'
+
+function normalizePauseItemIcon(image) {
+  if (!image?.complete || image.dataset.normalized === 'true') return
+
+  const canvas = document.createElement('canvas')
+  canvas.width = image.naturalWidth
+  canvas.height = image.naturalHeight
+
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) return
+
+  context.drawImage(image, 0, 0)
+
+  let pixels
+  try {
+    pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+  } catch {
+    return
+  }
+
+  let left = canvas.width
+  let top = canvas.height
+  let right = 0
+  let bottom = 0
+
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let x = 0; x < canvas.width; x += 1) {
+      if (pixels[(y * canvas.width + x) * 4 + 3] > 8) {
+        left = Math.min(left, x)
+        top = Math.min(top, y)
+        right = Math.max(right, x + 1)
+        bottom = Math.max(bottom, y + 1)
+      }
+    }
+  }
+
+  if (right <= left || bottom <= top) return
+
+  const visibleWidth = right - left
+  const visibleHeight = bottom - top
+  const scale = 128 / Math.max(visibleWidth, visibleHeight)
+  const renderedWidth = Math.round(visibleWidth * scale)
+  const renderedHeight = Math.round(visibleHeight * scale)
+  const cropped = document.createElement('canvas')
+  cropped.width = 128
+  cropped.height = 128
+  cropped.getContext('2d')?.drawImage(
+    canvas,
+    left,
+    top,
+    visibleWidth,
+    visibleHeight,
+    Math.round((128 - renderedWidth) / 2),
+    Math.round((128 - renderedHeight) / 2),
+    renderedWidth,
+    renderedHeight,
+  )
+
+  image.dataset.normalized = 'true'
+  image.src = cropped.toDataURL('image/png')
+}
 
 // De quanto em quanto tempo o progresso é salvo na API (também é salvo ao sair da sala)
 const SAVE_INTERVAL_MS = 5000
@@ -79,12 +144,37 @@ export default function SalaInicial() {
   const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
   const retryLoadRef = useRef(null)
+  const pauseMenuItemsRef = useRef([])
+  const pauseActionRef = useRef(null)
+  const pauseResumeRef = useRef(null)
+  const leavingPauseRef = useRef(false)
   const [floorInfo, setFloorInfo] = useState(null) // { number, name } do andar atual
   // Aviso de fim: { outcome: 'victory' | 'defeat', cause, time, status: 'sending' | 'sent' | 'error', message }
   const [ending, setEnding] = useState(null)
   // Mensagem de erro se o catálogo de itens não carregou (sem ele a run não começa)
   const [loadError, setLoadError] = useState(null)
+  const [pauseView, setPauseView] = useState('closed')
+  const [pausedItems, setPausedItems] = useState([])
+  const [pauseError, setPauseError] = useState('')
+  const [isLeavingPause, setIsLeavingPause] = useState(false)
+  const [pauseMenuIndex, setPauseMenuIndex] = useState(0)
+  const pauseViewRef = useRef('closed')
+  const windowPausedRef = useRef(!document.hasFocus())
+  const pauseItemsRef = useRef([])
   const endingStatus = ending?.status
+  const endingStateRef = useRef(null)
+  const loadErrorRef = useRef(null)
+
+  // Troca entre o menu de pausa e as Opções. Ao voltar das Opções, o destaque fica em OPÇÕES
+  function setPauseState(nextView) {
+    pauseViewRef.current = nextView
+    setPauseView(nextView)
+    if (nextView === 'menu') {
+      setPauseMenuIndex(1)
+      setPauseError('')
+    }
+  }
+
 
   // Personagem escolhido na seleção: o id vai para a run (e para o ranking) e o nome para o leitor de tela.
   // O canvas desenha sempre o Tung Tung Sahur, o único com sprite (os outros virão depois)
@@ -96,8 +186,41 @@ export default function SalaInicial() {
 
   // O aviso de fim já abre com o foco no "Voltar ao menu" (e volta para ele a cada mudança do envio)
   useEffect(() => {
+    endingStateRef.current = ending
+  }, [ending])
+
+  useEffect(() => {
+    loadErrorRef.current = loadError
+  }, [loadError])
+
+  useEffect(() => {
     if (endingStatus) menuButtonRef.current?.focus()
   }, [endingStatus])
+
+  useEffect(() => {
+    if (pauseView !== 'menu') return
+
+    function handlePauseMenuKey(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
+
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        if (event.repeat || isLeavingPause) return
+        pauseMenuItemsRef.current[pauseMenuIndex]?.click()
+        return
+      }
+
+      const action = getMenuNavigationAction(event.key)
+      if (action !== 'up' && action !== 'down') return
+      event.preventDefault()
+      if (event.repeat) return
+      const direction = action === 'down' ? 1 : -1
+      setPauseMenuIndex((current) => (current + direction + 3) % 3)
+    }
+
+    window.addEventListener('keydown', handlePauseMenuKey)
+    return () => window.removeEventListener('keydown', handlePauseMenuKey)
+  }, [pauseView, pauseMenuIndex, isLeavingPause])
 
   useEffect(() => {
     roomRef.current?.focus()
@@ -122,7 +245,6 @@ export default function SalaInicial() {
     // apaga o que já estava salvo (F5, botão Avançar do navegador, endereço digitado)
     let canSave = false
     let isCancelled = false
-    let sendingResult = false // o POST /api/runs do fim da run está em andamento
     let saving = null // salvamento em andamento (o fim da run espera por ele)
     let saveAgain = false
     let resultSent = false
@@ -209,6 +331,7 @@ export default function SalaInicial() {
       })
       elapsedMs = progress.elapsedMs
       enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)
+      pauseItemsRef.current = snapshotPauseItems()
 
       // Run que já acabou (o jogador saiu antes de o tempo chegar ao ranking, pelo Voltar do navegador ou F5):
       // não deixa jogar de novo nem envia sozinho (o primeiro envio pode ainda estar a caminho e o tempo
@@ -264,12 +387,34 @@ export default function SalaInicial() {
       }
     }
 
+    pauseActionRef.current = async () => {
+      if (leavingPauseRef.current) return
+      leavingPauseRef.current = true
+      setIsLeavingPause(true)
+      setPauseError('')
+      try {
+        // Sem o progresso lido (canSave false), não salva nada nesta visita: só sai.
+        // O PUT é feito aqui, e não pelo saveProgress (que só avisa no console), para o erro aparecer no menu.
+        if (canSave) {
+          if (saving) await saving
+          const snapshot = createRunSnapshot(run, elapsedMs)
+          await apiRequest('/api/progress', { method: 'PUT', credentials: 'include', body: JSON.stringify(snapshot) })
+        }
+        navigate(ROUTES.menuPrincipal, { replace: true })
+      } catch (error) {
+        leavingPauseRef.current = false
+        setIsLeavingPause(false)
+        setPauseError(error?.status === 401
+          ? 'Sua sessão expirou. Entre novamente antes de sair.'
+          : error?.message || 'Não foi possível salvar o progresso. Tente sair novamente.')
+      }
+    }
+
     // Fim da run (vitória no andar 5 ou morte): salva uma última vez e envia o resultado.
     // O último PUT leva finished: true. Se o envio falhar, o Continue reabre este aviso para enviar de novo.
     async function finishRun() {
       outcome = run.death ? 'defeat' : 'victory'
       deathCause = run.death?.cause ?? null
-      sendingResult = true
       setEnding({ outcome, cause: deathCause, time: formatRunTime(elapsedMs), status: 'sending' })
       if (saving) await saving
       if (canSave) await putProgress()
@@ -281,7 +426,6 @@ export default function SalaInicial() {
     // e mostraria um Continue que leva a uma partida já encerrada
     async function sendRunResult() {
       const result = { outcome, cause: deathCause, time: formatRunTime(elapsedMs) }
-      sendingResult = true
       setEnding({ ...result, status: 'sending' })
       try {
         const body = { characterId: run.characterId, durationMs: Math.max(1, Math.round(elapsedMs)), status: outcome }
@@ -290,8 +434,6 @@ export default function SalaInicial() {
       } catch (error) {
         if (isCancelled) return
         setEnding({ ...result, status: 'error', message: error?.message || 'Não foi possível enviar o resultado da run.' })
-      } finally {
-        sendingResult = false
       }
     }
     retryRef.current = sendRunResult
@@ -320,10 +462,33 @@ export default function SalaInicial() {
 
       if (shouldReturnToMenu(event.key)) {
         event.preventDefault()
-        pressedKeys.clear()
-        if (!sendingResult) navigate(ROUTES.menuPrincipal)
+        if (event.repeat) return
+        // Nas Opções, o Esc é do botão de voltar delas. Saindo para o menu (salvando), o Esc não reabre o jogo.
+        if (pauseViewRef.current === 'options' || leavingPauseRef.current) return
+        if (pauseViewRef.current === 'menu') {
+          clearPressedKeys()
+          pauseViewRef.current = 'closed'
+          setPauseView('closed')
+          previousTime = undefined
+          isPaused = windowPausedRef.current
+          return
+        }
+        if (run && canPauseRun(run) && !endingStateRef.current && !loadErrorRef.current) {
+          clearPressedKeys()
+          pauseItemsRef.current = snapshotPauseItems()
+          if (pauseViewRef.current === 'closed') {
+            pauseViewRef.current = 'menu'
+            setPauseView('menu')
+            setPausedItems(pauseItemsRef.current)
+            setPauseMenuIndex(0)
+          }
+          previousTime = undefined
+          isPaused = true
+        }
         return
       }
+
+      if (pauseViewRef.current !== 'closed') return
 
       // import.meta.env.DEV é false no build: este trecho e o drawDebug saem do pacote
       if (import.meta.env.DEV && event.code === 'F3') {
@@ -377,7 +542,21 @@ export default function SalaInicial() {
       restartHeld = updateRestartKey(restartHeld, 'blur')
     }
 
-    // Só os botões do aviso de fim da run aceitam o mouse
+    pauseResumeRef.current = () => {
+      clearPressedKeys()
+      previousTime = undefined
+    }
+
+    function snapshotPauseItems() {
+      return (Array.isArray(run?.items) ? run.items : []).map((itemId) => {
+        const item = run?.catalog?.[itemId]
+        const sprite = ITEM_SPRITES[itemId]
+        const icon = item?.icon || sprite?.icon
+        return icon ? { id: itemId, name: item?.name || itemId, icon } : null
+      }).filter(Boolean)
+    }
+
+    // Só os botões do aviso de fim da run aceitam o mouse (a pausa ignora o mouse pelo pointer-events do CSS)
     function blockMouse(event) {
       if (endingRef.current?.contains(event.target) && event.target.closest('button')) return
       event.preventDefault()
@@ -385,11 +564,24 @@ export default function SalaInicial() {
 
     // Janela sem foco (outra aba, outro programa): o contador para e não conta esse tempo
     function handleBlur() {
+      windowPausedRef.current = true
+      clearPressedKeys()
+      if (run && canPauseRun(run) && !endingStateRef.current && !loadErrorRef.current && pauseViewRef.current === 'closed') {
+        pauseItemsRef.current = snapshotPauseItems()
+        if (pauseViewRef.current === 'closed') {
+          pauseViewRef.current = 'menu'
+          setPauseView('menu')
+          setPausedItems(pauseItemsRef.current)
+          setPauseMenuIndex(0)
+        }
+      }
       isPaused = true
+      previousTime = undefined
     }
 
     function handleFocus() {
-      isPaused = false
+      windowPausedRef.current = false
+      isPaused = pauseViewRef.current !== 'closed' || !document.hasFocus()
       previousTime = undefined
     }
 
@@ -399,17 +591,20 @@ export default function SalaInicial() {
 
       if (run) {
         const stepMs = Math.min(deltaMs, MAX_STEP_MS)
-        enterMs += stepMs
-        // O contador para com a janela sem foco, quando o personagem morre e no fim da run
-        if (!isPaused && !run.finished && !run.death) elapsedMs += deltaMs
-        run = updateRun(
-          run,
-          { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
-          stepMs / 1000,
-        )
+        isPaused = pauseViewRef.current !== 'closed' || windowPausedRef.current
+        if (!isPaused) {
+          enterMs += stepMs
+          // O contador para com a pausa visual, a janela sem foco, a morte e o fim da run
+          if (!run.finished && !run.death) elapsedMs += deltaMs
+          run = updateRun(
+            run,
+            { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
+            stepMs / 1000,
+          )
+        }
 
         // Segurar R escurece a tela e, ao completar, recomeça a run (não vale na morte nem depois do fim)
-        const holdingRestart = restartHeld && !run.finished && !run.death
+        const holdingRestart = !isPaused && restartHeld && !run.finished && !run.death
         restartHoldMs = updateRestartHold(restartHoldMs, holdingRestart, stepMs)
         if (holdingRestart && restartHoldMs >= RESTART_HOLD_MS) restartRun()
 
@@ -557,14 +752,13 @@ export default function SalaInicial() {
     window.addEventListener('resize', resize)
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('blur', clearPressedKeys)
     window.addEventListener('blur', handleBlur)
     window.addEventListener('focus', handleFocus)
     BLOCKED_MOUSE_EVENTS.forEach((name) => window.addEventListener(name, blockMouse))
     void loadGame()
     // Parado na janela sem foco, não há o que salvar
     const saveTimer = window.setInterval(() => {
-      if (!isPaused) void saveProgress()
+      if (!isPaused) void saveProgress().catch(() => {})
     }, SAVE_INTERVAL_MS)
     animationFrame = window.requestAnimationFrame(update)
 
@@ -572,7 +766,6 @@ export default function SalaInicial() {
       window.removeEventListener('resize', resize)
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('blur', clearPressedKeys)
       window.removeEventListener('blur', handleBlur)
       window.removeEventListener('focus', handleFocus)
       BLOCKED_MOUSE_EVENTS.forEach((name) => window.removeEventListener(name, blockMouse))
@@ -609,6 +802,68 @@ export default function SalaInicial() {
         role="img"
         aria-label={floorInfo ? `Andar ${floorInfo.number}, ${floorInfo.name}, com ${characterName}` : `Sala com ${characterName}`}
       />
+
+      {pauseView === 'menu' && (
+        <div className="sala-inicial__pausa" role="dialog" aria-modal="true" aria-label="Menu de pausa">
+          <section className="sala-inicial__pausa-painel">
+            <section className="sala-inicial__inventario" aria-labelledby="pausa-itens-titulo">
+              <h3 id="pausa-itens-titulo">ITENS COLETADOS</h3>
+              {pausedItems.length > 0 ? (
+                <div className="sala-inicial__itens">
+                  {pausedItems.map((item, index) => item.icon ? (
+                      <figure className="sala-inicial__item" key={`${item.id}-${index}`} aria-label={item.name || item.id}>
+                        <img
+                          src={item.icon}
+                          alt={item.name || item.id}
+                          draggable="false"
+                          onLoad={(event) => normalizePauseItemIcon(event.currentTarget)}
+                        />
+                      </figure>
+                    ) : null)}
+                </div>
+              ) : (
+                <p className="sala-inicial__itens-vazio">Nenhum item coletado nesta run.</p>
+              )}
+            </section>
+
+            <div className="sala-inicial__pausa-principal">
+              <nav className="sala-inicial__pausa-menu" aria-label="Opções de pausa">
+                {[
+                  { label: 'CONTINUAR', action: 'resume' },
+                  { label: 'OPÇÕES', action: 'options' },
+                  { label: 'SAIR PARA O MENU', action: 'leave' },
+                ].map(({ label, action }, index) => (
+                  <button
+                    key={action}
+                    ref={(element) => { pauseMenuItemsRef.current[index] = element }}
+                    type="button"
+                    className={`sala-inicial__pausa-opcao${pauseMenuIndex === index ? ' sala-inicial__pausa-opcao--selecionada' : ''}`}
+                    onClick={() => {
+                      if (action === 'resume') {
+                        pauseResumeRef.current?.()
+                        pauseViewRef.current = 'closed'
+                        setPauseView('closed')
+                      }
+                      if (action === 'options') setPauseState('options')
+                      if (action === 'leave') void pauseActionRef.current?.()
+                    }}
+                    disabled={isLeavingPause}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+              {pauseError && <p className="sala-inicial__pausa-erro" role="alert">{pauseError}</p>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {pauseView === 'options' && (
+        <div className="sala-inicial__opcoes" role="dialog" aria-modal="true" aria-label="Opções">
+          <Opcoes embedded onClose={() => setPauseState('menu')} />
+        </div>
+      )}
 
       {/* Erro ao carregar o catálogo. Usa o visual e o ref do aviso de fim: os dois nunca aparecem juntos
           (sem catálogo a run não existe), e o ref deixa o mouse clicar nos botões */}

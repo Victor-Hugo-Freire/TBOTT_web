@@ -16,7 +16,8 @@ const VOLUME_ITEMS = [
   { item: 'effects', name: 'effectsVolume', id: 'volume-efeitos', label: 'Sound effects' },
 ]
 
-export default function Opcoes() {
+// embedded: aberta dentro do menu de pausa (sem a seta de voltar e sem o usuário); onClose volta para a pausa
+export default function Opcoes({ embedded = false, onClose }) {
   const navigate = useNavigate()
   const { setMusicVolume, setEffectsVolume } = useAudio()
   const backRef = useRef(null)
@@ -123,12 +124,17 @@ export default function Opcoes() {
       return
     }
 
+    if (embedded) {
+      onClose?.()
+      return
+    }
+
     navigate(ROUTES.menuPrincipal)
   }
 
   return (
-    <main className="opcoes" aria-label="Options">
-      <title>Options | The Binding of Tung Tung</title>
+    <main className={`opcoes${embedded ? ' opcoes--embedded' : ''}`} aria-label="Options">
+      {!embedded && <title>Options | The Binding of Tung Tung</title>}
 
       <BotaoVoltar
         ref={backRef}
@@ -136,7 +142,7 @@ export default function Opcoes() {
         onClick={handleBack}
       />
 
-      <Login className="opcoes__usuario" ref={userRef} />
+      {!embedded && <Login className="opcoes__usuario" ref={userRef} />}
 
       <section className="opcoes__painel" aria-labelledby="opcoes-titulo">
         <h1 id="opcoes-titulo">{screen === 'controls' ? 'Controls' : 'Options'}</h1>
