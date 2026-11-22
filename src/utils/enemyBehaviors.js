@@ -47,7 +47,7 @@ export function setAnimation(enemy, animation) {
 
 // A animação atual chegou ao quadro que solta o efeito dela (emits na folha: o caroço, a pizza, o vapor, a fumaça)
 // e ainda não soltou? Quem chama solta o efeito e marca emitted: true.
-function reachedEmitFrame(enemy) {
+export function reachedEmitFrame(enemy) {
   const { durations, emits } = getEnemySprite(enemy.enemyId).animations[enemy.animation]
   if (!emits || enemy.emitted) return false
   const frame = getTimedFrame(durations, enemy.animationMs)
@@ -60,12 +60,12 @@ function getAnimationMs(enemy, animation) {
 }
 
 // A animação atual chegou ao fim? (as que repetem, como "andando", só acabam quando o comportamento troca)
-function isAnimationOver(enemy) {
+export function isAnimationOver(enemy) {
   return enemy.animationMs >= getAnimationMs(enemy, enemy.animation)
 }
 
 // Está num quadro de acerto (hitFrames) da animação atual?
-function isHitFrame(enemy) {
+export function isHitFrame(enemy) {
   const { durations, hitFrames = [] } = getEnemySprite(enemy.enemyId).animations[enemy.animation]
   return hitFrames.includes(getTimedFrame(durations, enemy.animationMs))
 }
@@ -89,7 +89,7 @@ export function getDirectionTo(enemy, point) {
 
 // Vira o inimigo para a direção: espelhado quando ela aponta para a esquerda, e "de lado" (as linhas -lado da
 // folha, quando existem) quando ela é mais horizontal que vertical
-function face(enemy, direction) {
+export function face(enemy, direction) {
   if (direction.x === 0 && direction.y === 0) return enemy
   return { ...enemy, facingLeft: direction.x < 0, side: Math.abs(direction.x) > Math.abs(direction.y) }
 }
@@ -143,7 +143,7 @@ export function settleOnFloor(enemy, world) {
 }
 
 // Anda até o Tung a `speed` u/s, desviando dos obstáculos pelo caminho da grade (enemyPath.js)
-function chase(enemy, world, speed) {
+export function chase(enemy, world, speed) {
   const point = getChasePoint(enemy, world.player, world.chaseMap, world.pathSolids)
   return moveEnemy(enemy, getDirectionTo(enemy, point), speed, world)
 }
@@ -163,7 +163,7 @@ export function getIdleAnimation(enemy) {
 }
 
 // Fica parado `ms` (updateEnemies conta o tempo) e depois volta a agir
-function rest(enemy, ms) {
+export function rest(enemy, ms) {
   return { ...setAnimation(enemy, getIdleAnimation(enemy)), waitMs: ms }
 }
 

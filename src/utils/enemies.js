@@ -1,5 +1,6 @@
 import { BOSS_BASE_HEIGHT, BOSS_BASE_WIDTH_SHARE, BOSS_BODIES, BOSS_CONTACT_DEPTH, BOSS_SPEEDS } from '../data/bossBehavior.js'
 import { CONTACT_DEPTH, CONTACT_WIDTH_SHARE, ENEMY_BODIES, FLYING_ENEMIES, STAGE, START_WAIT_MS } from '../data/enemyBehavior.js'
+import { BOSS_BEHAVIORS } from './bossBehaviors.js'
 import { overlaps } from './collision.js'
 import { ENEMY_BEHAVIORS, explodeIfLit, getEnemySprite, getIdleAnimation, setAnimation, settleOnFloor } from './enemyBehaviors.js'
 import { createChaseMap, getHazardBoxes } from './enemyPath.js'
@@ -74,6 +75,7 @@ export function createBoss(data, col, row) {
     id: 'chefe',
     boss: true,
     name: data.name,
+    contactDamage: data.damage, // o dano de encostar; damage muda durante a investida (veja bossBehaviors.js)
     speed: BOSS_SPEEDS[data.id],
     attacks: Array.isArray(data.attacks) ? data.attacks : [], // [{ id, name, damage }]: o id é o nome da animação
     base: { width: Math.round(body.width * BOSS_BASE_WIDTH_SHARE), height: BOSS_BASE_HEIGHT },
@@ -146,7 +148,7 @@ export function updateEnemies(targets, world) {
     const enemy = { ...target, animationMs: target.animationMs + stepMs }
     // O piso (esteira, líquido, grudento) vale depois de agir, também para quem está esperando
     if (enemy.waitMs > 0) return settleOnFloor(setAnimation({ ...enemy, waitMs: Math.max(0, enemy.waitMs - stepMs) }, getIdleAnimation(enemy)), world)
-    const behavior = ENEMY_BEHAVIORS[enemy.enemyId]
+    const behavior = ENEMY_BEHAVIORS[enemy.enemyId] ?? BOSS_BEHAVIORS[enemy.enemyId]
     return settleOnFloor(behavior ? behavior(enemy, world) : enemy, world)
   })
   return next.map((target) => (world.shields.includes(target.id) && isTargetable(target) ? { ...target, shielded: true } : target))

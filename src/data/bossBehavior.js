@@ -51,3 +51,13 @@ export const VULNERABLE_ANIMATIONS = ['esfriando', 'tropeco-vulneravel', 'tonta'
 
 // A Muçarela prende o chefe só por este tempo (nos inimigos, o tempo do catálogo)
 export const BOSS_STUN_MS = 300
+
+// ---------- comportamento de cada chefe (bossBehaviors.js). Distâncias em u, tempos em ms, velocidades em u/s. ----------
+// Os tempos de aviso e de recuperação de cada ataque saem das folhas (bossSprites.js); os danos, do catálogo (attacks).
+
+// Cinquecento Turbo: anda atrás do Tung; perto (honkRange), buzina: a onda de som machuca até honkRadius dos pés dele,
+// nos quadros de acerto (honkScale: o desenho, 284 u de largura na escala 1, do tamanho dessa área). Depois de andar
+// walkMs, ou logo depois de buzinar, acelera parado (o aviso, 520 ms) e investe a chargeSpeed, ricocheteando nas paredes;
+// na batida número bounces + 1 ele para e abre o capô para esfriar (a janela de bater, 840 ms). Na investida, encostar
+// nele tira o dano da investida (catálogo), e não o de encostar.
+export const CINQUECENTO = { walkMs: 1500, honkRange: 210, honkRadius: 190, honkScale: 1.35, chargeSpeed: 620, bounces: 2, maxChargeMs: 4000, restMs: 500 }
