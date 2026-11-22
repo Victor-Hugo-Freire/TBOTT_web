@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAudio } from '../../context/useAudio.js'
 import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
 import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
@@ -17,6 +18,7 @@ const VOLUME_ITEMS = [
 
 export default function Opcoes() {
   const navigate = useNavigate()
+  const { setMusicVolume, setEffectsVolume } = useAudio()
   const backRef = useRef(null)
   const itemToFocusRef = useRef(OPTION_ITEMS[0])
   const userRef = useRef(null)
@@ -32,6 +34,8 @@ export default function Opcoes() {
     const updatedOptions = { ...options, [name]: value }
     setOptions(updatedOptions)
     setStatusMessage('')
+    if (name === 'musicVolume') setMusicVolume(value)
+    if (name === 'effectsVolume') setEffectsVolume(value)
     try {
       window.localStorage.setItem(OPTIONS_STORAGE_KEY, JSON.stringify(updatedOptions))
       setStorageError('')
@@ -155,7 +159,9 @@ export default function Opcoes() {
                       max="100"
                       step="1"
                       value={options[name]}
-                      onChange={(event) => updateOption(name, Number(event.target.value))}
+                      onChange={(event) => {
+                        updateOption(name, Number(event.target.value))
+                      }}
                     />
                     <output htmlFor={id}>{options[name]}%</output>
                   </span>

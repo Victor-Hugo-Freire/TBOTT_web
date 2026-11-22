@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Inicial from '../pages/Inicial/Inicial.jsx'
 import MenuPrincipal from '../pages/MenuPrincipal/MenuPrincipal.jsx'
@@ -10,6 +11,10 @@ import Entrar from '../pages/Entrar/Entrar.jsx'
 import RotaProtegida from './RotaProtegida.jsx'
 import { ROUTES } from './paths.js'
 
+const ZzfxExperimental = import.meta.env.DEV
+  ? lazy(() => import('../pages/ZzfxExperimental/ZzfxExperimental.jsx'))
+  : null
+
 // Para adicionar uma tela: crie a pasta dela em src/pages (com nome em
 // português, como Inicial), coloque o endereço em paths.js e registre a rota aqui.
 export default function AppRoutes() {
@@ -18,6 +23,16 @@ export default function AppRoutes() {
       {/* Telas públicas */}
       <Route path={ROUTES.inicial} element={<Inicial />} />
       <Route path={ROUTES.entrar} element={<Entrar />} />
+      {ZzfxExperimental && (
+        <Route
+          path={ROUTES.zzfxExperimental}
+          element={(
+            <Suspense fallback={<div>Carregando experimento de áudio...</div>}>
+              <ZzfxExperimental />
+            </Suspense>
+          )}
+        />
+      )}
       {/* Telas que exigem login: sem sessão, RotaProtegida leva para a tela de entrar */}
       <Route element={<RotaProtegida />}>
         <Route path={ROUTES.menuPrincipal} element={<MenuPrincipal />} />

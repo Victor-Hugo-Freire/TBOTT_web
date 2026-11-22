@@ -9,4 +9,5 @@ export const ROUTES = {
   ranking: '/ranking',
   opcoes: '/opcoes',
   perfil: '/perfil',
+  zzfxExperimental: '/__experimentos/zzfx',
 }
