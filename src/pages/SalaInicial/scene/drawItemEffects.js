@@ -66,11 +66,20 @@ export function drawPuddles(ctx, puddles) {
 
 // Efeitos que tocam uma vez (estalo, notas, mordida, fios de queijo, faísca, lascas, impacto) e os dos inimigos
 // (explosão, impacto; as estrelas de atordoado repetem, loop), por cima de tudo
+// hold: depois de tocar, fica no último quadro e apaga no fim (a fumaça da Vespina, que fica na sala)
+const HOLD_FADE_MS = 400
+
 export function drawFlashes(ctx, flashes) {
   for (const flash of flashes) {
     const sprite = getFlashSprite(flash)
-    const frame = getEffectSpriteFrame(sprite, flash.elapsedMs, Boolean(flash.loop))
+    let frame = getEffectSpriteFrame(sprite, flash.elapsedMs, Boolean(flash.loop))
+    ctx.save()
+    if (flash.hold && frame === -1) {
+      frame = Object.values(sprite.animations)[0].frames - 1
+      ctx.globalAlpha = Math.min(1, (flash.durationMs - flash.elapsedMs) / HOLD_FADE_MS)
+    }
     drawEffectSpriteFrame(ctx, sprite, frame, flash.x, flash.y, flash.scale, flash.angle)
+    ctx.restore()
   }
 }
 

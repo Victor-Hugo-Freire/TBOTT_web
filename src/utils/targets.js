@@ -57,8 +57,10 @@ export function isTargetable(target) {
 }
 
 // Tira `amount` pontos de vida e mostra o número. Com 0 de vida o alvo morre; morto, não leva mais dano.
+// Com o escudo de vapor da Moka (shielded), o dano não passa: o escudo some no lugar.
 export function damageTarget(target, amount) {
   if (!isTargetable(target)) return target
+  if (target.shielded) return { ...target, shielded: false }
   const health = Math.max(0, target.health - amount)
   const damageTexts = [...target.damageTexts, { amount, ageMs: 0 }]
   return { ...target, health, dead: health === 0, deadMs: 0, hurtMs: 0, damageTexts }

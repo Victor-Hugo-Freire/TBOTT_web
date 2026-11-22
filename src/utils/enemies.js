@@ -7,7 +7,7 @@ import { createRandom, mixSeed, pick } from './random.js'
 import { getCellPoint, getLayoutPoints } from './roomLayout.js'
 import { getFeetBox } from './roomMovement.js'
 import { getTimedFrame, getTotalDuration } from './spriteAnimation.js'
-import { createTarget } from './targets.js'
+import { createTarget, isTargetable } from './targets.js'
 
 // Inimigos das salas (issue #46). Cada inimigo é um alvo de targets.js (vida, lento, preso, empurrão, morte), com
 // os dados do catálogo da API (enemyId, damage em meios corações, speed em u/s) e a animação que está tocando.
@@ -85,13 +85,16 @@ export function areEnemiesDefeated(targets) {
 // Um quadro dos inimigos: a animação anda e cada um age pelo seu comportamento (enemyBehaviors.js).
 // Preso (Muçarela) ou sendo empurrado, ele não age e a animação para; esperando (waitMs), fica parado.
 // Depois, o piso age nele (settleOnFloor): o embalo do líquido e a esteira.
+// No fim, o escudo de vapor que a Moka soltou neste quadro chega nos aliados (shielded: anula o próximo dano).
 // world = o que eles enxergam e onde deixam o que fizeram (veja enemyBehaviors.js). O alvo de treino não muda.
 export function updateEnemies(targets, world) {
   const stepMs = world.deltaSeconds * 1000
   // O caminho até o Tung desviando dos obstáculos e dos perigos do chão: um mapa só por quadro, para todos
   world.pathSolids = [...world.solids, ...getHazardBoxes(world.floorObstacles ?? [])]
   world.chaseMap = createChaseMap(world.pathSolids, world.player)
-  return targets.map((target) => {
+  world.enemies = targets
+  world.shields = []
+  const next = targets.map((target) => {
     if (!target.enemyId) return target
     // Morto com o pavio aceso, o Peperoncino explode
     if (target.dead) return target.enemyId === 'peperoncino-kamikaze' ? explodeIfLit(target, world) : target
@@ -102,9 +105,10 @@ export function updateEnemies(targets, world) {
     const behavior = ENEMY_BEHAVIORS[enemy.enemyId]
     return settleOnFloor(behavior ? behavior(enemy, world) : enemy, world)
   })
+  return next.map((target) => (world.shields.includes(target.id) && isTargetable(target) ? { ...target, shielded: true } : target))
 }
 
-// Os rastros no chão (o gelo do Pinguino) envelhecem e somem depois de `ms`
+// Os rastros no chão (o gelo do Pinguino e o queijo quente do Fenicottero) envelhecem e somem depois de `ms`
 export function updateEnemyFloor(floor, stepMs) {
   const next = []
   for (const trail of floor) {

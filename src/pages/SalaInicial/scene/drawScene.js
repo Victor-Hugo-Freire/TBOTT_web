@@ -14,7 +14,7 @@ import {
 } from '../../../utils/run.js'
 import { drawDoors, drawSecretMark } from './drawDoors.js'
 import { drawCollecting, drawDrops, drawNotice } from './drawDrops.js'
-import { drawEnemy, drawEnemyFloor } from './drawEnemies.js'
+import { drawEnemy, drawEnemyFloor, drawEnemyShots, drawEnemyShotsFloor } from './drawEnemies.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
 import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
@@ -53,7 +53,8 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     flashes: run.flashes,
     effects: run.effects,
     targets: run.targets, // os inimigos da sala atual (o alvo de treino é desenhado pelo F3)
-    enemyFloor: run.enemyFloor, // o gelo do Pinguino no chão
+    enemyFloor: run.enemyFloor, // o gelo do Pinguino e o queijo quente no chão
+    enemyShots: run.enemyShots, // caroços, pizzas e anéis de vapor
     visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
   }
   const { transition } = run
@@ -84,6 +85,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       notice: null,
       targets: [], // os inimigos da sala nova só aparecem quando ela termina de entrar
       enemyFloor: [],
+      enemyShots: [],
     })
   const progress = transition.elapsedMs / transition.durationMs
 
@@ -125,7 +127,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
   const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
   const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
-  const { targets, enemyFloor } = options // os inimigos e os rastros deles no chão
+  const { targets, enemyFloor, enemyShots } = options // os inimigos, os rastros deles no chão e os projéteis
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -134,7 +136,8 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
   drawPuddles(ctx, puddles) // poças de molho da Concha, no chão
-  drawEnemyFloor(ctx, enemyFloor) // gelo do Pinguino, no chão
+  drawEnemyFloor(ctx, enemyFloor) // gelo do Pinguino e queijo quente, no chão
+  drawEnemyShotsFloor(ctx, enemyShots) // sombras dos projéteis, marca da pizza e anel de vapor, no chão
   const arcadeSpinMs = arcadeSpin?.roomId === room.id ? arcadeSpin.elapsedMs : null
   drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle, arcadeSpinMs })
   drawDrops(ctx, room.drops, timeMs, reduceMotion) // grãos, garfos e corações no chão (embaixo de quem anda)
@@ -163,7 +166,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
     sprites.push({ feetY: pedestal.y, draw: () => drawPedestal(ctx, pedestal, { timeMs, reduceMotion, leaving }) })
   }
   for (const target of targets) {
-    if (target.enemyId) sprites.push({ feetY: target.y, draw: () => drawEnemy(ctx, target, reduceMotion) })
+    if (target.enemyId) sprites.push({ feetY: target.y, draw: () => drawEnemy(ctx, target, reduceMotion, timeMs) })
   }
   if (player) {
     const drawTung = () => {
@@ -181,6 +184,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
     sprites.push({ feetY: player.y, draw: drawTung })
   }
   sprites.sort((a, b) => a.feetY - b.feetY).forEach((sprite) => sprite.draw())
+  drawEnemyShots(ctx, enemyShots) // o caroço e a pizza voando, na frente de todos
 
   // Cacos do garrafão voando, poeira da batida do tambor no chão e o "TUNG" acima dele:
   // desenhados por último, o jogador não os cobre

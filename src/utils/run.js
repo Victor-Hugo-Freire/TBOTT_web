@@ -32,6 +32,7 @@ import {
   updateEnemies,
   updateEnemyFloor,
 } from './enemies.js'
+import { updateEnemyShots } from './enemyShots.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
 import {
@@ -114,6 +115,7 @@ export const VANISH_MS = 600 // numa sala de escolha, o item que não foi pego s
 // O que machuca no piso: a chapa quente e os cacos do garrafão quebrado. A causa vai para o aviso de morte (veja health.js).
 const HOT_PLATE_CAUSE = 'chapa'
 const SHARDS_CAUSE = 'cacos'
+const HOT_CHEESE_CAUSE = 'fenicottero-fornarino' // o queijo quente que a pizza do Fenicottero deixa no chão
 
 // Tambor caindo do céu na sala do chefe: cai em DRUM_FALL_MS (cada vez mais rápido) de DRUM_FALL_HEIGHT u de altura
 // e levanta poeira até DRUM_DROP_MS. Enquanto cai, não dá para bater nele.
@@ -383,7 +385,8 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     // Coisas dos efeitos dos itens que ficam na sala (itemEffects.js): somem ao trocar de sala
     shards: [], // lascas do Parmesão voando
     puddles: [], // poças da Concha
-    enemyFloor: [], // rastros dos inimigos no chão (o gelo do Pinguino): obstáculos de piso que somem com o tempo
+    enemyFloor: [], // rastros dos inimigos no chão (gelo do Pinguino, queijo quente): obstáculos de piso que somem com o tempo
+    enemyShots: [], // projéteis dos inimigos voando (enemyShots.js)
     flashes: [], // efeitos visuais que tocam uma vez (estalo, notas, mordida, faísca...)
     effects: { ...run.effects, shieldHits: 0 }, // o escudo do Caldo é de cada sala
     collecting: [], // o que acabou de ser pego, tocando a animação "coleta" (veja advanceCollecting)
@@ -627,9 +630,10 @@ function updateRoom(run, input, deltaSeconds) {
   let hazard = null
   let hazardDamage = DAMAGE_LIGHT
   const touchedEnemy = findTouchingEnemy(run.targets, player)
-  // Voando, a chapa e os cacos não o machucam
+  // Voando, a chapa, os cacos e o queijo quente não o machucam
   if (!stats.flying && touchesHot(run.obstacles, player)) hazard = HOT_PLATE_CAUSE
   else if (!stats.flying && isOnShards(run.obstacles, player)) hazard = SHARDS_CAUSE
+  else if (!stats.flying && touchesHot(run.enemyFloor, player)) hazard = HOT_CHEESE_CAUSE
   else if (touchedEnemy) {
     hazard = touchedEnemy.enemyId
     hazardDamage = touchedEnemy.damage
@@ -700,10 +704,12 @@ function updateRoom(run, input, deltaSeconds) {
   const stepMs = deltaSeconds * 1000
   // Os alvos também batem nas portas (as zonas delas avançam sobre o piso): empurrado, ninguém para dentro do vão
   const targetSolids = [...solids, ...Object.values(DOOR_HIT_ZONES)]
-  // Os inimigos agem (enemyBehaviors.js) e deixam no "mundo" o que fizeram: dano fora do contato, efeitos e rastros
-  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [] }
+  // Os inimigos agem (enemyBehaviors.js) e deixam no "mundo" o que fizeram: dano fora do contato, efeitos, rastros
+  // e projéteis novos. Depois os projéteis que já voavam andam (enemyShots.js) e também deixam dano e queijo.
+  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [] }
   world.floorObstacles = [...obstacles, ...run.enemyFloor] // o piso vale para os inimigos também
   const targets = updateEnemies(updateTargets(run.targets, deltaSeconds, targetSolids), world)
+  const enemyShots = [...updateEnemyShots(run.enemyShots, world), ...world.shots]
   for (const hit of world.hits) {
     const result = damagePlayer(run, player, health, effects, hit.damage, hit.cause, stats)
     player = result.player
@@ -724,7 +730,8 @@ function updateRoom(run, input, deltaSeconds) {
     effects: updateEffectTimers(effects, stepMs),
     targets,
     flashes: [...updateFlashes(run.flashes, stepMs, targets), ...world.flashes], // o efeito em cima de um alvo vai junto com ele
-    enemyFloor: [...updateEnemyFloor(run.enemyFloor, stepMs), ...world.floor], // o gelo do Pinguino no chão
+    enemyFloor: [...updateEnemyFloor(run.enemyFloor, stepMs), ...world.floor], // o gelo do Pinguino e o queijo quente
+    enemyShots, // caroços, pizzas e anéis de vapor voando
     // A seta está segurada agora? (a Batuta só conta o golpe de uma seta apertada de novo, e não segurada)
     attackHeld: input.attackDirection !== null,
   }

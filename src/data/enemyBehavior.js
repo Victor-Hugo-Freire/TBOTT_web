@@ -31,8 +31,9 @@ export const HAZARD_DAMAGE = 1
 export const HAZARD_COOLDOWN_MS = 1000
 export const HAZARD_AVOID_MARGIN = 16
 
-// Inimigos que voam: o piso (esteira, líquido, grudento) e os perigos do chão não os afetam. A Vespina tem rodas
-// de lambreta (anda no chão) e o Fenicottero é um forno num pé só: só a Zanzarina voa.
+// Inimigos que voam: passam por cima dos obstáculos (só as paredes e as portas os param) e o piso (esteira,
+// líquido, grudento) e os perigos do chão não os afetam. A Vespina tem rodas de lambreta (anda no chão) e o
+// Fenicottero é um forno num pé só: só a Zanzarina voa.
 export const FLYING_ENEMIES = ['zanzarina-tarantella']
 
 // ---------- inimigos de corpo a corpo (etapa 2). Distâncias em u, tempos em ms, velocidades em u/s. ----------
@@ -55,3 +56,28 @@ export const PEPERONCINO = { fuseRange: 120, fuseMs: 800, litSpeedMultiplier: 1.
 
 // Pinguino Sorbettino: perto, se joga de barriga e desliza em linha reta, deixando um rastro de gelo escorregadio
 export const PINGUINO = { slideRange: 480, slideSpeed: 460, maxSlideMs: 1300, restMs: 700, trailSpacing: 60, trailMs: 4000 }
+
+// ---------- os que atiram e voam (etapa 3) ----------
+
+// Pistacchio Sputacchio: com o Tung a até shootRange e nada no meio, cospe um caroço (seedSpeed u/s) que voa reto
+// até acertar o Tung ou bater no que bloqueia
+export const PISTACCHIO = { shootRange: 520, seedSpeed: 380, restMs: 1100 }
+
+// Fenicottero Fornarino: lança uma pizza em arco onde o Tung está (ela voa flightMs por cima de tudo, e a marca no
+// chão mostra onde vai cair); onde cai, fica queijo quente por cheeseMs. Com o Tung perto demais (minRange), ele
+// se afasta antes de lançar.
+export const FENICOTTERO = { throwRange: 650, minRange: 180, flightMs: 1000, arcHeight: 160, cheeseMs: 4000, restMs: 1500 }
+
+// Moka Scudiera: com um aliado sem escudo na sala, apita e põe nele um escudo de vapor, que anula o próximo dano
+// (e descansa shieldRestMs); senão, chega a até attackRange do Tung e solta um anel de vapor que cresce até ringRadius.
+// ringScale: o desenho do anel (193 u de largura na escala 1) cresce até mostrar essa área.
+export const MOKA = { attackRange: 150, ringRadius: 170, ringScale: 1.75, restMs: 900, shieldRestMs: 1500 }
+
+// Vespina Lambrettina: com o Tung a até attackRange e o caminho livre, acelera parada (a fumaça fica smokeMs na
+// sala) e mergulha a diveSpeed, virando um pouco atrás dele (diveTurn, em radianos por segundo); depois faz uma
+// curva fechada (curveTurn) e mergulha de novo, `dives` vezes ao todo
+export const VESPINA = { attackRange: 380, diveSpeed: 560, diveTurn: 1.5, curveSpeed: 300, curveTurn: 6, dives: 2, smokeMs: 2500, restMs: 800 }
+
+// Zanzarina Tarantella: voa até o Tung dançando (balança para os lados até `sway` da direção, num vaivém a cada
+// swayMs) e, perto (diveRange), mergulha com o ferrão, cobrindo diveDistance nos quadros de acerto
+export const ZANZARINA = { diveRange: 220, diveDistance: 240, sway: 0.8, swayMs: 900, restMs: 600 }

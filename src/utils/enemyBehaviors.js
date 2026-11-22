@@ -1,11 +1,15 @@
-import { CANNOLO, FORMAGGINO, HAZARD_COOLDOWN_MS, HAZARD_DAMAGE, PEPERONCINO, PINGUINO, POLPETTA } from '../data/enemyBehavior.js'
+import { CANNOLO, FENICOTTERO, FORMAGGINO, HAZARD_COOLDOWN_MS, HAZARD_DAMAGE, MOKA, PEPERONCINO, PINGUINO } from '../data/enemyBehavior.js'
+import { PISTACCHIO, POLPETTA, VESPINA, ZANZARINA } from '../data/enemyBehavior.js'
 import { EFFECT_SPRITES } from '../data/effectSprites.js'
 import { ENEMY_SPRITES } from '../data/enemySprites.js'
 import { moveAndCollide } from './collision.js'
+import { DOOR_HIT_ZONES } from './doors.js'
 import { getChasePoint, hasClearPath } from './enemyPath.js'
+import { createPizza, createSeed, createSteamRing } from './enemyShots.js'
+import { ROOM_WALLS } from './roomMovement.js'
 import { getFloorEffect, getSlipMovement, isOnShards, stopBlockedAxes, touchesHot } from './roomObstacles.js'
 import { getTimedFrame, getTotalDuration } from './spriteAnimation.js'
-import { damageTarget, getBaseBox } from './targets.js'
+import { damageTarget, getBaseBox, isTargetable } from './targets.js'
 
 // Comportamento de cada inimigo: uma função por inimigo, chamada a cada quadro por updateEnemies (enemies.js),
 // só com o inimigo vivo e solto (nem preso, nem sendo empurrado, nem esperando).
@@ -18,15 +22,30 @@ import { damageTarget, getBaseBox } from './targets.js'
 //   deltaSeconds: o tempo do quadro; chaseMap: o mapa para chegar ao Tung desviando dos obstáculos (enemyPath.js);
 //   floorObstacles: os obstáculos da sala e o gelo do Pinguino, para o piso valer também nos inimigos;
 //   pathSolids: o que o caminho não atravessa (solids mais os perigos do chão, que ele evita);
+// - enemies: todos os alvos da sala no começo do quadro (a Moka procura neles um aliado para proteger);
 // - hits: dano no Tung que não é de encostar ({ damage, cause }, ex.: a explosão do Peperoncino);
-// - flashes: efeitos visuais que tocam uma vez (explosão, impacto, estrelas); floor: rastros novos no chão.
+// - flashes: efeitos visuais que tocam uma vez (explosão, impacto, estrelas); floor: rastros novos no chão;
+// - shots: projéteis novos (enemyShots.js); shields: ids dos aliados que a Moka acabou de proteger.
 
 // ---------- ajudantes ----------
 
-// Troca de animação (o tempo dela volta a 0). Pedir a mesma animação não reinicia nada.
+// Quem voa só bate nas paredes e nas portas: passa por cima dos obstáculos e dos pedestais
+const AIR_SOLIDS = [...ROOM_WALLS, ...Object.values(DOOR_HIT_ZONES)]
+
+// Troca de animação (o tempo dela volta a 0, e ela ainda não soltou o efeito dela). Pedir a mesma animação não
+// reinicia nada.
 export function setAnimation(enemy, animation) {
   if (enemy.animation === animation) return enemy
-  return { ...enemy, animation, animationMs: 0 }
+  return { ...enemy, animation, animationMs: 0, emitted: false }
+}
+
+// A animação atual chegou ao quadro que solta o efeito dela (emits na folha: o caroço, a pizza, o vapor, a fumaça)
+// e ainda não soltou? Quem chama solta o efeito e marca emitted: true.
+function reachedEmitFrame(enemy) {
+  const { durations, emits } = ENEMY_SPRITES[enemy.enemyId].animations[enemy.animation]
+  if (!emits || enemy.emitted) return false
+  const frame = getTimedFrame(durations, enemy.animationMs)
+  return frame === -1 || frame >= emits.frame // -1: a animação já acabou (quadro grande demais)
 }
 
 // Duração de uma animação do inimigo: a soma dos quadros
@@ -91,7 +110,7 @@ export function moveEnemy(enemy, direction, speed, world) {
   const box = getBaseBox(enemy)
   const dx = slipping.movement.x * distance
   const dy = slipping.movement.y * distance
-  const moved = moveAndCollide(box, dx, dy, world.solids)
+  const moved = moveAndCollide(box, dx, dy, enemy.flying ? AIR_SOLIDS : world.solids)
   const blocked = moved.x !== box.x + dx || moved.y !== box.y + dy
   const next = { ...face(enemy, direction), x: moved.x + box.width / 2, y: moved.y + box.height, blocked, moved: true }
   return { ...next, slip: stopBlockedAxes(slipping.slip, enemy, next, world.deltaSeconds) }
@@ -276,11 +295,166 @@ function updatePinguino(enemy, world) {
   return chase(setAnimation(enemy, 'andando'), world, enemy.speed)
 }
 
-// Comportamento de cada inimigo. Quem não está aqui fica parado (os que atiram e voam vêm na etapa 3).
+// ---------- Pistacchio Sputacchio: com a linha livre, abre a casca e cospe um caroço ----------
+
+function updatePistacchio(enemy, world) {
+  if (enemy.animation === 'atacando') {
+    // O caroço sai no quadro do emits, mirando onde o Tung está agora
+    if (reachedEmitFrame(enemy)) {
+      world.shots.push(createSeed(enemy, world.player))
+      enemy = { ...enemy, emitted: true }
+    }
+    return isAnimationOver(enemy) ? rest(enemy, PISTACCHIO.restMs) : enemy
+  }
+  const to = getDirectionTo(enemy, world.player)
+  // O caroço passa por cima dos perigos do chão, mas não atravessa obstáculo: basta a linha estar livre deles
+  if (to.distance <= PISTACCHIO.shootRange && hasClearPath(enemy, world.player, world.solids)) {
+    return face(setAnimation(enemy, 'atacando'), to)
+  }
+  return chase(setAnimation(enemy, 'andando'), world, enemy.speed)
+}
+
+// ---------- Fenicottero Fornarino: lança uma pizza em arco, que deixa queijo quente onde cai ----------
+
+function updateFenicottero(enemy, world) {
+  if (enemy.animation === 'atacando') {
+    // A boca do forno acende (o aviso) e a pizza sai no quadro do emits, para onde o Tung está agora
+    if (reachedEmitFrame(enemy)) {
+      world.shots.push(createPizza(enemy, world.player))
+      enemy = { ...enemy, emitted: true }
+    }
+    return isAnimationOver(enemy) ? rest(enemy, FENICOTTERO.restMs) : enemy
+  }
+  const to = getDirectionTo(enemy, world.player)
+  // Perto demais, o queijo cairia nele: anda para longe do Tung (até bater em alguma coisa)
+  if (to.distance < FENICOTTERO.minRange && !enemy.blocked) {
+    return moveEnemy(setAnimation(enemy, 'andando'), { x: -to.x, y: -to.y }, enemy.speed, world)
+  }
+  // A pizza voa por cima de tudo: não precisa da linha livre
+  if (to.distance <= FENICOTTERO.throwRange) return face(setAnimation(enemy, 'atacando'), to)
+  return chase(setAnimation(enemy, 'andando'), world, enemy.speed)
+}
+
+// ---------- Moka Scudiera: protege um aliado com um escudo de vapor; sem aliado para proteger, solta o anel ----------
+
+// O aliado mais perto da Moka que ainda não tem escudo (um inimigo vivo e à vista, que não seja ela), ou null
+function findAllyToShield(moka, enemies) {
+  let best = null
+  for (const ally of enemies) {
+    if (!ally.enemyId || ally.id === moka.id || ally.shielded || !isTargetable(ally)) continue
+    if (!best || getDirectionTo(moka, ally).distance < getDirectionTo(moka, best).distance) best = ally
+  }
+  return best
+}
+
+function updateMoka(enemy, world) {
+  if (enemy.animation === 'escudo') {
+    // O vapor chega no aliado no quadro do emits (updateEnemies põe o escudo nele)
+    if (reachedEmitFrame(enemy)) {
+      world.shields.push(enemy.allyId)
+      enemy = { ...enemy, emitted: true }
+    }
+    return isAnimationOver(enemy) ? rest(enemy, MOKA.shieldRestMs) : enemy
+  }
+  if (enemy.animation === 'atacando') {
+    // A tampa pula e o anel de vapor sai no quadro do emits
+    if (reachedEmitFrame(enemy)) {
+      world.shots.push(createSteamRing(enemy))
+      enemy = { ...enemy, emitted: true }
+    }
+    return isAnimationOver(enemy) ? rest(enemy, MOKA.restMs) : enemy
+  }
+  // Proteger vem antes de atacar ("matar primeiro, antes que proteja os outros")
+  const ally = findAllyToShield(enemy, world.enemies)
+  if (ally) return { ...face(setAnimation(enemy, 'escudo'), getDirectionTo(enemy, ally)), allyId: ally.id }
+  const to = getDirectionTo(enemy, world.player)
+  if (to.distance <= MOKA.attackRange) return face(setAnimation(enemy, 'atacando'), to)
+  return chase(setAnimation(enemy, 'andando'), world, enemy.speed)
+}
+
+// ---------- Vespina Lambrettina: acelera soltando fumaça, mergulha, faz uma curva fechada e mergulha de novo ----------
+
+const SMOKE_SCALE = 1.4 // o desenho da fumaça (88 u de largura na escala 1) do tamanho da lambreta
+
+// Gira a direção `aim` para o lado de `to`, no máximo `maxAngle` radianos
+function turnToward(aim, to, maxAngle) {
+  const current = Math.atan2(aim.y, aim.x)
+  let turn = Math.atan2(to.y, to.x) - current
+  // Pelo lado mais curto: virar 350° para a esquerda é o mesmo que virar 10° para a direita
+  if (turn > Math.PI) turn -= 2 * Math.PI
+  if (turn < -Math.PI) turn += 2 * Math.PI
+  const angle = current + Math.max(-maxAngle, Math.min(maxAngle, turn))
+  return { x: Math.cos(angle), y: Math.sin(angle) }
+}
+
+// Anda na direção guardada (aim) a `speed`, virando para o Tung até `turnRate` radianos por segundo
+function steer(enemy, world, speed, turnRate) {
+  const aim = turnToward(enemy.aim, getDirectionTo(enemy, world.player), turnRate * world.deltaSeconds)
+  return moveEnemy({ ...enemy, aim }, aim, speed, world)
+}
+
+function updateVespina(enemy, world) {
+  const to = getDirectionTo(enemy, world.player)
+  if (enemy.animation === 'acelerando') {
+    // Acelera parada, virada para o Tung (o aviso). A fumaça sai do escapamento, atrás dela, e fica na sala.
+    enemy = face(enemy, to)
+    if (reachedEmitFrame(enemy)) {
+      const smoke = createEnemyFlash('fumaca', enemy.x - to.x * 50, enemy.y - 30)
+      world.flashes.push({ ...smoke, scale: SMOKE_SCALE, durationMs: VESPINA.smokeMs, hold: true })
+      enemy = { ...enemy, emitted: true }
+    }
+    if (!isAnimationOver(enemy)) return enemy
+    return { ...setAnimation(enemy, 'atacando'), aim: to, divesLeft: VESPINA.dives }
+  }
+  if (enemy.animation === 'atacando') {
+    // O mergulho com a ferroada: rápido, virando pouco. Bateu em alguma coisa, para.
+    const moved = steer(enemy, world, VESPINA.diveSpeed, VESPINA.diveTurn)
+    if (moved.blocked) return rest(moved, VESPINA.restMs)
+    if (!isAnimationOver(moved)) return moved
+    if (moved.divesLeft > 1) return { ...setAnimation(moved, 'curva'), divesLeft: moved.divesLeft - 1 }
+    return rest(moved, VESPINA.restMs)
+  }
+  if (enemy.animation === 'curva') {
+    // A curva fechada: mais devagar e virando muito; no fim, mergulha de novo
+    const moved = steer(enemy, world, VESPINA.curveSpeed, VESPINA.curveTurn)
+    return isAnimationOver(moved) ? setAnimation(moved, 'atacando') : moved
+  }
+  if (canReach(enemy, world, VESPINA.attackRange)) return face(setAnimation(enemy, 'acelerando'), to)
+  return chase(setAnimation(enemy, 'andando'), world, enemy.speed)
+}
+
+// ---------- Zanzarina Tarantella: voa dançando até o Tung e mergulha com o ferrão ----------
+
+function updateZanzarina(enemy, world) {
+  if (enemy.animation === 'atacando') {
+    // O mergulho acontece só nos quadros de acerto, na direção guardada, e cobre diveDistance (como o salto do Formaggino)
+    if (isHitFrame(enemy)) {
+      const speed = (ZANZARINA.diveDistance / getHitWindowMs(enemy, 'atacando')) * 1000
+      enemy = moveEnemy(enemy, enemy.aim, speed, world)
+    }
+    return isAnimationOver(enemy) ? rest(enemy, ZANZARINA.restMs) : enemy
+  }
+  const to = getDirectionTo(enemy, world.player)
+  if (to.distance <= ZANZARINA.diveRange) return { ...face(setAnimation(enemy, 'atacando'), to), aim: to }
+  // A dança: voa direto para o Tung (por cima dos obstáculos), balançando para os lados
+  enemy = setAnimation(enemy, 'andando')
+  const sway = Math.sin((enemy.animationMs / ZANZARINA.swayMs) * 2 * Math.PI) * ZANZARINA.sway
+  const x = to.x - to.y * sway
+  const y = to.y + to.x * sway
+  const length = Math.hypot(x, y)
+  return moveEnemy(enemy, { x: x / length, y: y / length }, enemy.speed, world)
+}
+
+// Comportamento de cada inimigo
 export const ENEMY_BEHAVIORS = {
   'formaggino-saltellino': updateFormaggino,
   'cannolo-carica': updateCannolo,
   'polpetta-sotterranea': updatePolpetta,
   'peperoncino-kamikaze': updatePeperoncino,
   'pinguino-sorbettino': updatePinguino,
+  'pistacchio-sputacchio': updatePistacchio,
+  'fenicottero-fornarino': updateFenicottero,
+  'moka-scudiera': updateMoka,
+  'vespina-lambrettina': updateVespina,
+  'zanzarina-tarantella': updateZanzarina,
 }
