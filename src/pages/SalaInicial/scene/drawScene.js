@@ -9,6 +9,7 @@ import {
   getDrumFall,
   getRoomObstacles,
   getRoomTheme,
+  getStageCurtain,
   isDrumVisible,
   isSecretMarkVisible,
 } from '../../../utils/run.js'
@@ -55,6 +56,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     targets: run.targets, // os inimigos da sala atual (o alvo de treino é desenhado pelo F3)
     enemyFloor: run.enemyFloor, // o gelo do Pinguino e o queijo quente no chão
     enemyShots: run.enemyShots, // caroços, pizzas e anéis de vapor
+    stage: run.stage, // a luta das ondas do Palco (a cortina nas portas)
     visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
   }
   const { transition } = run
@@ -86,6 +88,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
       targets: [], // os inimigos da sala nova só aparecem quando ela termina de entrar
       enemyFloor: [],
       enemyShots: [],
+      stage: null,
     })
   const progress = transition.elapsedMs / transition.durationMs
 
@@ -127,7 +130,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
   const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
   const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
-  const { targets, enemyFloor, enemyShots } = options // os inimigos, os rastros deles no chão e os projéteis
+  const { targets, enemyFloor, enemyShots, stage } = options // os inimigos, os rastros deles no chão, os projéteis e o Palco
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
   // (a animação desenha a dela).
   const pulledByShark = death?.cause === TRALALERO_CAUSE
@@ -142,7 +145,9 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawRoomScenery(ctx, room.type, { finMs, hideFin: pulledByShark || fellInPuddle, arcadeSpinMs })
   drawDrops(ctx, room.drops, timeMs, reduceMotion) // grãos, garfos e corações no chão (embaixo de quem anda)
 
-  const doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
+  let doors = applyUnlocking(getRoomDoors(floor, room), unlocking)
+  // Palco em luta: a cortina de veludo fecha (ou abre) o vão das portas
+  if (room.type === 'palco' && stage) doors = doors.map((door) => ({ ...door, curtain: getStageCurtain(stage) }))
   drawDoors(ctx, doors, ROOM_THEMES[theme])
   const secretDoor = room.secret ? doors.find((door) => door.side === room.secret.side) : null
   if (showSecretMark && secretDoor?.state === 'hidden') drawSecretMark(ctx, secretDoor.side)

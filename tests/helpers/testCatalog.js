@@ -108,7 +108,7 @@ export const TREASURE_ITEMS = ['cafe-duplo', 'concha-longa', 'mucarela', 'palito
 const ENEMIES = [
   { id: 'formaggino-saltellino', name: 'Formaggino Saltellino', health: 6, damage: 1, speed: 150, behavior: 'perseguir', minFloor: 1 },
   { id: 'pistacchio-sputacchio', name: 'Pistacchio Sputacchio', health: 6, damage: 1, speed: 90, behavior: 'atirar', minFloor: 1 },
-  { id: 'zanzarina-tarantella', name: 'Zanzarina Tarantella', health: 3, damage: 1, speed: 200, behavior: 'vagar', minFloor: 1 },
+  { id: 'zanzarina-tarantella', name: 'Zanzarina Tarantella', health: 5, damage: 1, speed: 200, behavior: 'vagar', minFloor: 1 },
   { id: 'cannolo-carica', name: 'Cannolo Carica', health: 9, damage: 1, speed: 120, behavior: 'investir', minFloor: 2 },
   { id: 'pinguino-sorbettino', name: 'Pinguino Sorbettino', health: 9, damage: 1, speed: 140, behavior: 'investir', minFloor: 2 },
   { id: 'polpetta-sotterranea', name: 'Polpetta Sotterranea', health: 9, damage: 1, speed: 100, behavior: 'emboscar', minFloor: 2 },

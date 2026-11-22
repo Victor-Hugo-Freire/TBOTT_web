@@ -1,4 +1,4 @@
-import { CONTACT_DEPTH, CONTACT_WIDTH_SHARE, ENEMY_BODIES, FLYING_ENEMIES, START_WAIT_MS } from '../data/enemyBehavior.js'
+import { CONTACT_DEPTH, CONTACT_WIDTH_SHARE, ENEMY_BODIES, FLYING_ENEMIES, STAGE, START_WAIT_MS } from '../data/enemyBehavior.js'
 import { ENEMY_SPRITES } from '../data/enemySprites.js'
 import { overlaps } from './collision.js'
 import { ENEMY_BEHAVIORS, explodeIfLit, getIdleAnimation, setAnimation, settleOnFloor } from './enemyBehaviors.js'
@@ -62,6 +62,25 @@ export function createRoomEnemies(seed, floorNumber, room, enemyCatalog) {
   return pickRoomEnemies(seed, floorNumber, room, enemyCatalog).map(({ enemyId, col, row }) =>
     createEnemy(enemyCatalog[enemyId], col, row),
   )
+}
+
+const STAGE_SEED = 7200 // separa o sorteio das ondas do Palco do sorteio das salas comuns
+
+// Os inimigos da onda `wave` (0 a 3) do Palco, nas casas "i" do layout dele (STAGE.waves diz quantos). Os tipos são
+// sorteados pela seed + andar + onda, entre os que podem aparecer no andar (minFloor). Cada onda começa numa casa
+// diferente, para não nascerem sempre no mesmo lugar, e o id leva a onda (não repete o de quem morreu na anterior).
+export function createWaveEnemies(seed, floorNumber, room, wave, enemyCatalog) {
+  const ids = Object.keys(enemyCatalog).filter((id) => enemyCatalog[id].minFloor <= floorNumber)
+  if (ids.length === 0) return []
+  const random = createRandom(mixSeed(mixSeed(seed, STAGE_SEED + floorNumber), wave))
+  const cells = getLayoutPoints(room.layoutId).enemies
+  const enemies = []
+  for (let k = 0; k < STAGE.waves[wave]; k++) {
+    const { col, row } = cells[(wave + k) % cells.length]
+    const enemy = createEnemy(enemyCatalog[pick(random, ids)], col, row)
+    enemies.push({ ...enemy, id: `onda${wave + 1}-${enemy.id}` })
+  }
+  return enemies
 }
 
 // Área de contato no chão, em volta dos pés: encostar nela machuca

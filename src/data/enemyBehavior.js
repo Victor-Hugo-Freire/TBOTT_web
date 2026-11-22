@@ -81,3 +81,9 @@ export const VESPINA = { attackRange: 380, diveSpeed: 560, diveTurn: 1.5, curveS
 // Zanzarina Tarantella: voa até o Tung dançando (balança para os lados até `sway` da direção, num vaivém a cada
 // swayMs) e, perto (diveRange), mergulha com o ferrão, cobrindo diveDistance nos quadros de acerto
 export const ZANZARINA = { diveRange: 220, diveDistance: 240, sway: 0.8, swayMs: 900, restMs: 600 }
+
+// ---------- Palco (etapa 4) ----------
+// Só entra com a vida cheia. Pegar a Batuta fecha a cortina sobre as portas (em curtainMs) e começam as ondas:
+// `waves` diz quantos inimigos vêm em cada uma. A 1ª entra startMs depois de pegar o item; as outras, wavePauseMs
+// depois do último abate da anterior (dá tempo para a animação de morte acabar). Vencer a última reabre a cortina.
+export const STAGE = { waves: [2, 2, 3, 3], curtainMs: 600, startMs: 1000, wavePauseMs: 1500 }

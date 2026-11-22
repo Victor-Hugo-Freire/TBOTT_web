@@ -13,11 +13,13 @@ import { getFeetBox } from './roomMovement.js'
 //   que der para pagar, cada um com o seu custo.
 // - Na Loja, 3 pedestais no balcão vendem por grãos: garfo, o item da Loja (ou um coração, se ele já saiu) e coração.
 // - No Fliperama, o pedestal à frente do tambor recebe o item que sair na jogada (veja arcade.js).
-// Cada item vem do catálogo da API: o campo roomTypes diz em que sala ele aparece. O Palco só quando houver inimigos.
+// - No Palco, pegar a Batuta começa a luta das ondas (run.js).
+// Cada item vem do catálogo da API: o campo roomTypes diz em que sala ele aparece.
 
 // Salas com pedestal de item e a imagem do pedestal de cada uma (PEDESTAL_SPRITES, em roomSprites.js).
-// A sala do God não tem pedestal próprio: usa o comum.
-export const PEDESTAL_VARIANTS = { tesouro: 'base', chefe: 'base', god: 'base', adega: 'adega', pacto: 'pacto' }
+// A sala do God e o Palco não têm pedestal próprio: usam o comum. O Palco fica por último: assim o sorteio dos
+// itens das outras salas não muda (cada tipo embaralha a sua lista nesta ordem).
+export const PEDESTAL_VARIANTS = { tesouro: 'base', chefe: 'base', god: 'base', adega: 'adega', pacto: 'pacto', palco: 'base' }
 
 // Salas de escolha: pegar um item esvazia todos os pedestais da sala
 export const CHOICE_ROOM_TYPES = ['tesouro', 'god']

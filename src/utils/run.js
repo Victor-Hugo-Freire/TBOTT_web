@@ -1,4 +1,5 @@
 import { ARCADE_DOOR_PRICE, ARCADE_PLAY_PRICE, ARCADE_SPIN_MS, NOTICE_MS } from '../data/economy.js'
+import { STAGE } from '../data/enemyBehavior.js'
 import { ITEM_BANNERS } from '../data/itemBanners.js'
 import { ARCADE_PRIZE_CELL, isTouchingMachine, rollArcadePrize } from './arcade.js'
 import { overlaps } from './collision.js'
@@ -27,11 +28,13 @@ import {
 import {
   areEnemiesDefeated,
   createRoomEnemies,
+  createWaveEnemies,
   findTouchingEnemy,
   pickRoomEnemies,
   updateEnemies,
   updateEnemyFloor,
 } from './enemies.js'
+import { createEnemyFlash } from './enemyBehaviors.js'
 import { updateEnemyShots } from './enemyShots.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { applyDamage, DAMAGE_LIGHT, normalizeHealth } from './health.js'
@@ -279,7 +282,56 @@ function takeFromPedestal(run, room, pedestals, pedestal, firstTouch, maxHealth)
       vanishing.push({ roomId: room.id, pedestalId: other.id, itemId: other.itemId, elapsedMs: 0 })
     }
   }
-  return { ...giveItem(paid, pedestal.itemId), vanishing, emptiedHere }
+  const taken = { ...giveItem(paid, pedestal.itemId), vanishing, emptiedHere }
+  // Palco: pegar a Batuta fecha a cortina sobre as portas e começam as ondas
+  if (room.type === 'palco') {
+    room.cleared = false
+    return { ...taken, stage: startStage(false) }
+  }
+  return taken
+}
+
+// ---------- Palco ----------
+// run.stage = a luta do Palco: { wave, waitMs, curtainMs, won }, ou null fora dela.
+// - wave: a onda atual (0 a STAGE.waves.length - 1); waitMs: ms até ela entrar (0 = ela já está na sala);
+// - curtainMs: há quanto tempo a cortina começou a fechar (ou a abrir, depois de vencer: won = true).
+// O save não guarda nada novo: com o item já pego (room.emptied) e a sala ainda não limpa, a luta não acabou.
+
+// A luta começa: a cortina fecha e a 1ª onda entra STAGE.startMs depois. closed = a cortina já começa fechada
+// (ao continuar a run no meio da luta).
+function startStage(closed) {
+  return { wave: 0, waitMs: STAGE.startMs, curtainMs: closed ? STAGE.curtainMs : 0, won: false }
+}
+
+// Quanto a cortina do Palco cobre as portas: de 0 (aberta) a 1 (fechada)
+export function getStageCurtain(stage) {
+  const progress = Math.min(1, stage.curtainMs / STAGE.curtainMs)
+  return stage.won ? 1 - progress : progress
+}
+
+// A luta do Palco começou e não acabou? (a Batuta já saiu do pedestal e a sala ainda não está limpa)
+function isStageFightPending(room) {
+  return room.type === 'palco' && room.emptied.length > 0 && !room.cleared
+}
+
+// Um quadro da luta: a cortina anda e, acabada a pausa, a onda entra (uma nuvem onde cada inimigo nasce); sem
+// inimigo vivo, vem a próxima. Vencida a última, a sala fica limpa (as portas abrem), sai a recompensa e a cortina
+// abre; quando ela termina de abrir, a luta acaba (stage = null).
+function updateStage(run, room, stepMs) {
+  const stage = { ...run.stage, curtainMs: run.stage.curtainMs + stepMs }
+  if (stage.won) return { ...run, stage: stage.curtainMs >= STAGE.curtainMs ? null : stage }
+  if (stage.waitMs > 0) {
+    stage.waitMs = Math.max(0, stage.waitMs - stepMs)
+    if (stage.waitMs > 0) return { ...run, stage }
+    const enemies = createWaveEnemies(run.seed, run.floor.number, room, stage.wave, run.enemyCatalog)
+    const clouds = enemies.map((enemy) => createEnemyFlash('poof', enemy.x, enemy.y - enemy.height / 2))
+    const others = run.targets.filter((target) => !target.enemyId) // os mortos da onda anterior saem; o alvo de treino fica
+    return { ...run, stage, targets: [...others, ...enemies], flashes: [...run.flashes, ...clouds] }
+  }
+  if (run.targets.some((target) => target.enemyId && !target.dead)) return { ...run, stage }
+  if (stage.wave + 1 < STAGE.waves.length) return { ...run, stage: { ...stage, wave: stage.wave + 1, waitMs: STAGE.wavePauseMs } }
+  room.cleared = true
+  return giveRoomReward({ ...run, stage: { ...stage, won: true, curtainMs: 0 } })
 }
 
 // Fliperama: encostar no tambor (uma jogada por encostada: para jogar de novo, ele se afasta e volta) paga
@@ -360,7 +412,9 @@ export function isSecretMarkVisible(run) {
 function enterRoom(run, floor, room, position, direction = 'down') {
   room.visited = true
   const enemies = room.cleared ? [] : createRoomEnemies(run.seed, floor.number, room, run.enemyCatalog)
-  if (enemies.length === 0) room.cleared = true
+  // Palco no meio da luta (a run continuou dali): as ondas recomeçam da 1ª, com a cortina já fechada
+  const stagePending = isStageFightPending(room)
+  if (enemies.length === 0 && !stagePending) room.cleared = true
   if (room.type === 'chefe') room.hits = 0
   let drumDrop = null
   if (room.type === 'chefe' && !room.drumDropped) {
@@ -380,6 +434,7 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     unlocking: null, // porta trancada abrindo agora: { side, elapsedMs } (veja "Porta trancada" em updateRoom)
     // Alvos da sala (targets.js): os inimigos e, no F3, o alvo de treino. Saem ao trocar de sala.
     targets: enemies,
+    stage: stagePending ? startStage(true) : null, // a luta das ondas do Palco (veja updateStage)
     swing: createSwing(), // o golpe atual: alvos que ele já acertou e os efeitos de item que valem nele
     roomKills: 0, // abates nesta sala
     // Coisas dos efeitos dos itens que ficam na sala (itemEffects.js): somem ao trocar de sala
@@ -745,8 +800,10 @@ function updateRoom(run, input, deltaSeconds) {
   next = dropLuckyGrains(next, room, killed)
   next = onKills({ ...next, roomKills: run.roomKills + killed.length }, killed.length)
 
-  // O último inimigo morreu: a sala fica limpa (as portas abrem) e pode soltar a recompensa
-  if (!room.cleared && areEnemiesDefeated(next.targets)) {
+  // O último inimigo morreu: a sala fica limpa (as portas abrem) e pode soltar a recompensa.
+  // No Palco, quem decide é a luta das ondas.
+  if (next.stage) next = updateStage(next, room, stepMs)
+  else if (!room.cleared && areEnemiesDefeated(next.targets)) {
     room.cleared = true
     next = giveRoomReward(next)
   }
@@ -798,9 +855,13 @@ function updateRoom(run, input, deltaSeconds) {
   const side = getExitSide(player, input.movement, doors)
   if (side) {
     const toRoomId = doors.find((door) => door.side === side).targetId
+    const target = findRoom(run.floor, toRoomId)
+    // Palco com a Batuta no pedestal: só entra com a vida cheia. O aviso só sai de novo depois de sumir.
+    if (target.type === 'palco' && target.emptied.length === 0 && next.health < stats.maxHealth) {
+      return next.notice ? next : showNotice(next, 'Só com a vida cheia')
+    }
     // A sala nova sem inimigos já fica limpa: assim as portas dela aparecem abertas enquanto ela desliza para
     // dentro. Com inimigos, elas aparecem fechadas (o enterRoom cria os inimigos no fim da transição).
-    const target = findRoom(run.floor, toRoomId)
     target.visited = true
     if (pickRoomEnemies(run.seed, run.floor.number, target, run.enemyCatalog).length === 0) target.cleared = true
     return {

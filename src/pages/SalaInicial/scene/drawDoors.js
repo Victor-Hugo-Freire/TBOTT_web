@@ -94,7 +94,8 @@ export function drawSecretMark(ctx, side) {
   ctx.restore()
 }
 
-function drawDoor(ctx, { side, kind, state, lock, unlockMs = 0 }, palette) {
+// curtain = a cortina do Palco durante a luta das ondas: de 0 (aberta) a 1 (fechada), ou null fora dela
+function drawDoor(ctx, { side, kind, state, lock, unlockMs = 0, curtain = null }, palette) {
   // A adega escondida não tem porta: de perto aparece só a marca (drawSecretMark)
   if (kind === 'adega' && state === 'hidden') return
   const style = DOOR_STYLES[kind] || DOOR_STYLES.comum
@@ -103,7 +104,7 @@ function drawDoor(ctx, { side, kind, state, lock, unlockMs = 0 }, palette) {
   moveToDoor(ctx, side)
   paintRect(ctx, '#0a0604', -3, -3, DOOR_WIDTH + 6, depth + 3) // contorno escuro em volta da porta
   if (kind === 'adega') drawCellarDoor(ctx, side, state, palette, depth)
-  else drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs)
+  else drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs, curtain)
   ctx.restore()
   if (style.icon) drawDoorIcon(ctx, side, ICONS[style.icon])
   // A tranca fica fora da rotação, sempre em pé, e some quando as folhas começam a abrir: a chapa do garfo ou, no
@@ -197,7 +198,8 @@ function moveToDoor(ctx, side) {
 
 // Porta com batente de pedra, verga e duas folhas. Trancada ('locked') ela é desenhada fechada (a chapa do garfo
 // vai por cima, em drawDoor); abrindo ('unlocking'), as folhas se abrem depois que o garfo tira o nó.
-function drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs) {
+// No Palco em luta (curtain não é null), as folhas ficam abertas e a cortina de veludo fecha o vão.
+function drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs, curtain) {
   const frame = style.frame || palette.doorFrame
   const leaf = style.leaf || palette.doorLeaf
   const trim = style.trim || palette.doorTrim
@@ -220,7 +222,10 @@ function drawFramedDoor(ctx, kind, state, style, palette, depth, unlockMs) {
   if (state === 'open' && kind === 'pacto') inside = '#04101a'
   paintRect(ctx, inside, FRAME, LINTEL, OPENING_WIDTH, opening)
 
-  if (state === 'open') drawOpenLeaves(ctx, kind, leaf, opening)
+  if (curtain !== null) {
+    drawOpenLeaves(ctx, kind, leaf, opening)
+    drawStageCurtain(ctx, opening, curtain)
+  } else if (state === 'open') drawOpenLeaves(ctx, kind, leaf, opening)
   else if (state === 'unlocking' && unlockMs >= FORK_KNOT_MS) {
     drawOpeningLeaves(ctx, leaf, opening, Math.min(1, (unlockMs - FORK_KNOT_MS) / FORK_LEAVES_MS))
   } else if (kind === 'chefe') drawBossGate(ctx, opening)
@@ -291,6 +296,17 @@ function drawBossGate(ctx, opening) {
   }
   paintRect(ctx, '#3a3a3e', FRAME, LINTEL + opening * 0.5, OPENING_WIDTH, 6)
   paintRect(ctx, '#7a7a82', FRAME, LINTEL + opening * 0.5, OPENING_WIDTH, 1)
+}
+
+// Cortina de veludo do Palco no vão (as cores da cortina do palco, drawSpecialRooms.js): cada metade sai de um lado
+// e cobre `closed` (0 a 1) da sua metade do vão, presa num varão dourado embaixo da verga
+function drawStageCurtain(ctx, opening, closed) {
+  const width = HALF_LEAF * closed
+  for (const x of [FRAME, DOOR_WIDTH - FRAME - width]) {
+    paintRect(ctx, '#8a1a2a', x, LINTEL, width, opening)
+    for (let k = 4; k < width - 4; k += 12) paintRect(ctx, '#b02a3a', x + k, LINTEL, 5, opening, 0.6) // as pregas
+  }
+  paintRect(ctx, '#e0b040', FRAME, LINTEL, OPENING_WIDTH, 4)
 }
 
 // Fechada: duas folhas de tábuas, com faixas de ferro e fechadura (menos nas portas noBands)
