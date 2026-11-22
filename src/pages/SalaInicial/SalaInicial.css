@@ -117,7 +117,8 @@
   z-index: 20;
   display: grid;
   background: rgba(5, 3, 3, 0.72);
-  cursor: default;
+  /* A pausa e as Opções dela são só pelo teclado: o mouse atravessa até o canvas, onde é ignorado */
+  pointer-events: none;
   backdrop-filter: blur(1px);
 }
 

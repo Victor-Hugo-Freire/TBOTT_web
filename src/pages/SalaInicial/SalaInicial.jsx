@@ -144,7 +144,6 @@ export default function SalaInicial() {
   const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
   const retryLoadRef = useRef(null)
-  const pauseMenuRef = useRef(null)
   const pauseMenuItemsRef = useRef([])
   const pauseActionRef = useRef(null)
   const pauseResumeRef = useRef(null)
@@ -166,12 +165,12 @@ export default function SalaInicial() {
   const endingStateRef = useRef(null)
   const loadErrorRef = useRef(null)
 
-  function setPauseState(nextView, items = pausedItems) {
+  // Troca entre o menu de pausa e as Opções. Ao voltar das Opções, o destaque fica em OPÇÕES
+  function setPauseState(nextView) {
     pauseViewRef.current = nextView
     setPauseView(nextView)
     if (nextView === 'menu') {
-      setPausedItems(items)
-      setPauseMenuIndex(0)
+      setPauseMenuIndex(1)
       setPauseError('')
     }
   }
@@ -246,7 +245,7 @@ export default function SalaInicial() {
     // apaga o que já estava salvo (F5, botão Avançar do navegador, endereço digitado)
     let canSave = false
     let isCancelled = false
-      let saving = null // salvamento em andamento (o fim da run espera por ele)
+    let saving = null // salvamento em andamento (o fim da run espera por ele)
     let saveAgain = false
     let resultSent = false
     let outcome = 'victory' // resultado da run que acabou: 'victory' (tambor do andar 5) ou 'defeat' (morreu)
@@ -331,6 +330,7 @@ export default function SalaInicial() {
         floorHealsUsed: progress.floorHealsUsed,
       })
       elapsedMs = progress.elapsedMs
+      enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)
       pauseItemsRef.current = snapshotPauseItems()
 
       // Run que já acabou (o jogador saiu antes de o tempo chegar ao ranking, pelo Voltar do navegador ou F5):
@@ -361,8 +361,12 @@ export default function SalaInicial() {
     }
 
     async function putProgress() {
-      const snapshot = createRunSnapshot(run, elapsedMs)
-      await apiRequest('/api/progress', { method: 'PUT', credentials: 'include', body: JSON.stringify(snapshot) })
+      try {
+        const snapshot = createRunSnapshot(run, elapsedMs)
+        await apiRequest('/api/progress', { method: 'PUT', credentials: 'include', body: JSON.stringify(snapshot) })
+      } catch (error) {
+        if (error?.status !== 401) console.warn('Não foi possível salvar o progresso.', error)
+      }
     }
 
     // Salva uma requisição por vez: se pedirem outra durante o envio, ela roda logo depois.
@@ -375,12 +379,7 @@ export default function SalaInicial() {
       }
 
       saving = putProgress()
-      try {
-        await saving
-      } catch (error) {
-        saving = null
-        throw error
-      }
+      await saving
       saving = null
       if (saveAgain) {
         saveAgain = false
@@ -394,11 +393,13 @@ export default function SalaInicial() {
       setIsLeavingPause(true)
       setPauseError('')
       try {
-        if (!canSave || !run) throw new Error('Não foi possível identificar a partida para salvar.')
-        if (saving) await saving
-        await saveProgress()
-        isCancelled = true
-        clearPressedKeys()
+        // Sem o progresso lido (canSave false), não salva nada nesta visita: só sai.
+        // O PUT é feito aqui, e não pelo saveProgress (que só avisa no console), para o erro aparecer no menu.
+        if (canSave) {
+          if (saving) await saving
+          const snapshot = createRunSnapshot(run, elapsedMs)
+          await apiRequest('/api/progress', { method: 'PUT', credentials: 'include', body: JSON.stringify(snapshot) })
+        }
         navigate(ROUTES.menuPrincipal, { replace: true })
       } catch (error) {
         leavingPauseRef.current = false
@@ -433,8 +434,6 @@ export default function SalaInicial() {
       } catch (error) {
         if (isCancelled) return
         setEnding({ ...result, status: 'error', message: error?.message || 'Não foi possível enviar o resultado da run.' })
-      } finally {
-        // O estado visual já foi atualizado pelo status de envio.
       }
     }
     retryRef.current = sendRunResult
@@ -464,7 +463,8 @@ export default function SalaInicial() {
       if (shouldReturnToMenu(event.key)) {
         event.preventDefault()
         if (event.repeat) return
-        if (pauseViewRef.current === 'options') return
+        // Nas Opções, o Esc é do botão de voltar delas. Saindo para o menu (salvando), o Esc não reabre o jogo.
+        if (pauseViewRef.current === 'options' || leavingPauseRef.current) return
         if (pauseViewRef.current === 'menu') {
           clearPressedKeys()
           pauseViewRef.current = 'closed'
@@ -556,14 +556,10 @@ export default function SalaInicial() {
       }).filter(Boolean)
     }
 
-    // Só os botões do aviso de fim da run aceitam o mouse
-    // Enquanto a pausa ou suas opções estão abertas, qualquer interação do mouse é ignorada.
+    // Só os botões do aviso de fim da run aceitam o mouse (a pausa ignora o mouse pelo pointer-events do CSS)
     function blockMouse(event) {
       if (endingRef.current?.contains(event.target) && event.target.closest('button')) return
-      if (pauseViewRef.current !== 'closed') {
-        event.preventDefault()
-        if (event.cancelable) event.stopPropagation()
-      }
+      event.preventDefault()
     }
 
     // Janela sem foco (outra aba, outro programa): o contador para e não conta esse tempo
@@ -680,8 +676,8 @@ export default function SalaInicial() {
       // Enquanto a faixa de um item pego aparece, a caixa espera (as duas ficariam uma em cima da outra).
       const room = getCurrentRoom(run)
       const itemBannerOn = Boolean(run.banner?.subtitle)
-      const pedestais = run.transition || run.death || itemBannerOn ? [] : getRoomPedestals(run, room)
-      const nearby = findNearbyPedestal(pedestais, run.player)
+      const pedestals = run.transition || run.death || itemBannerOn ? [] : getRoomPedestals(run, room)
+      const nearby = findNearbyPedestal(pedestals, run.player)
       if (nearby) {
         drawItemInfo(ctx, {
           item: getPedestalInfo(run, nearby),
@@ -776,7 +772,7 @@ export default function SalaInicial() {
       window.clearInterval(saveTimer)
       window.cancelAnimationFrame(animationFrame)
       isCancelled = true
-      if (!isCancelled) void saveProgress() // ao sair da sala (depois do fim da run, não salva)
+      void saveProgress() // ao sair da sala (depois do fim da run, não salva)
     }
   }, [navigate, selectedCharacter.id])
 
@@ -809,7 +805,7 @@ export default function SalaInicial() {
 
       {pauseView === 'menu' && (
         <div className="sala-inicial__pausa" role="dialog" aria-modal="true" aria-label="Menu de pausa">
-          <section className="sala-inicial__pausa-painel" ref={pauseMenuRef}>
+          <section className="sala-inicial__pausa-painel">
             <section className="sala-inicial__inventario" aria-labelledby="pausa-itens-titulo">
               <h3 id="pausa-itens-titulo">ITENS COLETADOS</h3>
               {pausedItems.length > 0 ? (
@@ -842,8 +838,7 @@ export default function SalaInicial() {
                     ref={(element) => { pauseMenuItemsRef.current[index] = element }}
                     type="button"
                     className={`sala-inicial__pausa-opcao${pauseMenuIndex === index ? ' sala-inicial__pausa-opcao--selecionada' : ''}`}
-                    onClick={(event) => {
-                      if (event.detail !== 0) return
+                    onClick={() => {
                       if (action === 'resume') {
                         pauseResumeRef.current?.()
                         pauseViewRef.current = 'closed'
@@ -866,7 +861,7 @@ export default function SalaInicial() {
 
       {pauseView === 'options' && (
         <div className="sala-inicial__opcoes" role="dialog" aria-modal="true" aria-label="Opções">
-          <Opcoes embedded enableKeyboard onClose={() => setPauseState('menu')} />
+          <Opcoes embedded onClose={() => setPauseState('menu')} />
         </div>
       )}
 

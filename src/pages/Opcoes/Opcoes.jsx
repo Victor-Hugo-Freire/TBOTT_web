@@ -16,7 +16,8 @@ const VOLUME_ITEMS = [
   { item: 'effects', name: 'effectsVolume', id: 'volume-efeitos', label: 'Sound effects' },
 ]
 
-export default function Opcoes({ embedded = false, enableKeyboard = true, onClose }) {
+// embedded: aberta dentro do menu de pausa (sem a seta de voltar e sem o usuário); onClose volta para a pausa
+export default function Opcoes({ embedded = false, onClose }) {
   const navigate = useNavigate()
   const { setMusicVolume, setEffectsVolume } = useAudio()
   const backRef = useRef(null)
@@ -54,8 +55,6 @@ export default function Opcoes({ embedded = false, enableKeyboard = true, onClos
   }, [])
 
   useEffect(() => {
-    if (!enableKeyboard) return
-
     // Ao voltar de Controls, o foco volta para o botão Controls
     itemRefs.get(screen === 'options' ? itemToFocusRef.current : 'back')?.focus()
 
@@ -92,7 +91,7 @@ export default function Opcoes({ embedded = false, enableKeyboard = true, onClos
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [screen, itemRefs, enableKeyboard])
+  }, [screen, itemRefs])
 
   async function toggleFullscreen() {
     setStatusMessage('')
