@@ -32,6 +32,7 @@ import {
   createRoomEnemies,
   createWaveEnemies,
   findTouchingEnemy,
+  getEnemyContactBox,
   pickRoomEnemies,
   updateEnemies,
   updateEnemyFloor,
@@ -72,6 +73,7 @@ import {
   hitObstacles,
   isOnShards,
   pushPlayer,
+  ROLL_DAMAGE,
   stopBlockedAxes,
   toShards,
   touchesHot,
@@ -99,7 +101,7 @@ import {
   updateShards,
   spendShield,
 } from './itemEffects.js'
-import { createTrainingTarget, findNewKills, updateTargets } from './targets.js'
+import { createTrainingTarget, damageTarget, findNewKills, isTargetable, updateTargets } from './targets.js'
 
 // Estado da run: o andar, a sala atual, o jogador, as transições, a faixa e os contadores.
 // Funções puras no estilo de player.js (sem React, sem canvas), para testar com node:test.
@@ -127,6 +129,9 @@ const HOT_CHEESE_CAUSE = 'fenicottero-fornarino' // o queijo quente que a pizza 
 // e levanta poeira até DRUM_DROP_MS. Enquanto cai, não dá para bater nele.
 export const DRUM_FALL_MS = 550
 export const DRUM_DROP_MS = 950
+// Depois que o chefe morre, o tambor (e o pedestal do Rolo) esperam este tempo para aparecer: a morte dos chefes
+// dura 1,38 s e o corpo apaga em 0,3 s, então o tambor cai logo depois que ele some
+export const DRUM_AFTER_BOSS_MS = 2000
 const DRUM_FALL_HEIGHT = 700
 const NO_INPUT = { movement: { x: 0, y: 0 }, attackDirection: null }
 
@@ -297,6 +302,24 @@ function takeFromPedestal(run, room, pedestals, pedestal, firstTouch, maxHealth)
   return taken
 }
 
+// Obstáculo rolando (barril, roda de parmesão) que encosta num alvo vivo do chão (inimigo, chefe ou o alvo de
+// treino): o alvo leva ROLL_DAMAGE e o obstáculo quebra ali. Cada obstáculo acerta um alvo só. Quem voa e a Polpetta
+// escondida ficam de fora (o obstáculo passa por baixo). Devolve { obstacles, targets } novos.
+export function rollIntoTargets(obstacles, targets) {
+  const nextTargets = [...targets]
+  const nextObstacles = obstacles.map((obstacle) => {
+    if (!obstacle.rolling || obstacle.removed) return obstacle
+    for (let index = 0; index < nextTargets.length; index++) {
+      const target = nextTargets[index]
+      if (!isTargetable(target) || target.flying || !overlaps(obstacle.box, getEnemyContactBox(target))) continue
+      nextTargets[index] = damageTarget(target, ROLL_DAMAGE)
+      return { ...obstacle, removed: true }
+    }
+    return obstacle
+  })
+  return { obstacles: nextObstacles, targets: nextTargets }
+}
+
 // ---------- Chefe ----------
 
 // A sala tem luta ao entrar? A do chefe, se o andar tem chefe (run.bosses); as outras, se sortearam inimigos.
@@ -305,14 +328,19 @@ function hasFight(run, room) {
   return pickRoomEnemies(run.seed, run.floor.number, room, run.enemyCatalog).length > 0
 }
 
-// O chefe morreu (a sala já ficou limpa e deu a recompensa):
-// - o tambor cai do céu e passa a bloquear (getRoomObstacles só o traz com a sala limpa);
-// - a sala ao lado vira a do Tung Tung God se ele não perdeu vida na sala, senão o Pacto (setPactRoomType);
-// - o pedestal do Rolo de Bronze aparece sozinho (getRoomPedestals espera a sala limpa).
-// Se o Tung estiver onde o tambor ou o pedestal aparecem, ele vai para a casa livre mais perto (senão ficaria preso).
-function defeatBoss(run, room) {
-  room.drumDropped = true
+// O chefe morreu (a sala já ficou limpa: as portas abrem). A sala do chefe não dá a recompensa de sala limpa: o prêmio
+// dela é o item do pedestal. A sala ao lado vira a do Tung Tung God se ele não perdeu vida na sala, senão o Pacto
+// (setPactRoomType). O tambor e o pedestal esperam DRUM_AFTER_BOSS_MS (drumWaitMs, veja dropDrum).
+function defeatBoss(run) {
   setPactRoomType(run.floor, run.hurtInRoom ? 'pacto' : 'god')
+  return { ...run, drumWaitMs: DRUM_AFTER_BOSS_MS }
+}
+
+// O tambor cai do céu e passa a bloquear (getRoomObstacles só o traz com a sala limpa), e o pedestal do Rolo de Bronze
+// aparece (getRoomPedestals espera o tambor cair). Se o Tung estiver onde eles aparecem, ele vai para a casa livre
+// mais perto (senão ficaria preso dentro deles).
+function dropDrum(run, room) {
+  room.drumDropped = true
   const drum = getRoomObstacles(run.floor, room).filter((obstacle) => obstacle.mechanic === 'tambor')
   const next = { ...run, drumDrop: { elapsedMs: 0 }, obstacles: [...run.obstacles, ...drum] }
 
@@ -475,6 +503,7 @@ function enterRoom(run, floor, room, position, direction = 'down') {
   return armRoomShield({
     ...run,
     drumDrop, // { elapsedMs } enquanto o tambor cai do céu (veja getDrumFall), senão null
+    drumWaitMs: 0, // ms até o tambor cair, depois que o chefe morre (veja defeatBoss); sair da sala antes faz ele cair ao voltar
     floor,
     roomId: room.id,
     player: { ...createPlayer(position), direction },
@@ -735,7 +764,8 @@ function updateRoom(run, input, deltaSeconds) {
   const { movement } = slipping
   // Os pedestais são sólidos, como os obstáculos
   const pedestals = getRoomPedestals(run, room)
-  const solids = getRoomSolids(run.obstacles, getPedestalSolids(pedestals))
+  const pedestalBoxes = getPedestalSolids(pedestals)
+  const solids = getRoomSolids(run.obstacles, pedestalBoxes)
 
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
     solids,
@@ -803,14 +833,15 @@ function updateRoom(run, input, deltaSeconds) {
   let obstacles = run.obstacles
   const hitbox = getAttackHitbox(player)
   if (hitbox) {
-    obstacles = hitObstacles(obstacles, hitbox, player.attack.direction)
+    // O golpe não atravessa obstáculo: o que está atrás de outro (ou de um pedestal) não quebra nem rola
+    obstacles = hitObstacles(obstacles, hitbox, player.attack.direction, player, pedestalBoxes)
     // A caixa do golpe fica vários quadros em cima do alvo, mas cada golpe conta uma vez só
     if (!swingCounted && hitsTarget(room, obstacles, hitbox, player, Boolean(run.drumDrop))) {
       room.hits += 1
       swingCounted = true
     }
   }
-  obstacles = updateRollingObstacles(obstacles, deltaSeconds)
+  obstacles = updateRollingObstacles(obstacles, deltaSeconds, pedestalBoxes) // o que rola quebra também no pedestal
   obstacles = updateBreakingObstacles(obstacles, deltaSeconds)
 
   // Tambor caindo do céu: o tempo da animação anda até DRUM_DROP_MS, e aí ela acaba
@@ -831,7 +862,10 @@ function updateRoom(run, input, deltaSeconds) {
   // e projéteis novos. Depois os projéteis que já voavam andam (enemyShots.js) e também deixam dano e queijo.
   const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [] }
   world.floorObstacles = [...obstacles, ...run.enemyFloor] // o piso vale para os inimigos também
-  const targets = updateEnemies(updateTargets(run.targets, deltaSeconds, targetSolids), world)
+  // O barril (ou a roda) rolando que encosta num inimigo tira ROLL_DAMAGE dele e quebra ali
+  const rolled = rollIntoTargets(obstacles, updateEnemies(updateTargets(run.targets, deltaSeconds, targetSolids), world))
+  obstacles = rolled.obstacles
+  const { targets } = rolled
   const enemyShots = [...updateEnemyShots(run.enemyShots, world), ...world.shots]
   for (const hit of world.hits) {
     const result = damagePlayer(run, player, health, effects, hit.damage, hit.cause, stats)
@@ -863,20 +897,25 @@ function updateRoom(run, input, deltaSeconds) {
   next = addBumpFlashes(next)
   if (swingEnded) next = endSwing(next)
   if (newSwing) next = startSwing(next, !run.attackHeld, stats)
-  if (hitbox) next = hitWithSwing(next, hitbox, stats)
+  if (hitbox) next = hitWithSwing(next, hitbox, stats, solids) // o golpe não acerta quem está atrás de obstáculo
   next = updateShards(next, deltaSeconds, solids)
   next = updatePuddles(next, stepMs)
   const killed = findNewKills(run.targets, next.targets)
   next = dropLuckyGrains(next, room, killed)
   next = onKills({ ...next, roomKills: run.roomKills + killed.length }, killed.length)
 
-  // O último inimigo (ou o chefe) morreu: a sala fica limpa (as portas abrem) e pode soltar a recompensa.
-  // No Palco, quem decide é a luta das ondas.
+  // Chefe morto: o tambor espera DRUM_AFTER_BOSS_MS e cai do céu
+  if (next.drumWaitMs > 0) {
+    next.drumWaitMs = Math.max(0, next.drumWaitMs - stepMs)
+    if (next.drumWaitMs === 0) next = dropDrum(next, room)
+  }
+
+  // O último inimigo morreu: a sala fica limpa (as portas abrem) e pode soltar a recompensa.
+  // O chefe não dá recompensa de sala limpa (defeatBoss). No Palco, quem decide é a luta das ondas.
   if (next.stage) next = updateStage(next, room, stepMs)
   else if (!room.cleared && areEnemiesDefeated(next.targets)) {
     room.cleared = true
-    next = giveRoomReward(next)
-    if (room.type === 'chefe') next = defeatBoss(next, room)
+    next = room.type === 'chefe' ? defeatBoss(next) : giveRoomReward(next)
   }
 
   if (death) return next // morto não atravessa porta nem passa de andar

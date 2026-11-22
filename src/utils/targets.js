@@ -1,5 +1,5 @@
 import { BOSS_STUN_MS } from '../data/bossBehavior.js'
-import { moveAndCollide, overlaps } from './collision.js'
+import { isLineBlocked, moveAndCollide, overlaps } from './collision.js'
 
 // Alvo: tudo o que o golpe e os efeitos dos itens podem acertar. Hoje é só o alvo de treino (F3 + T, só no
 // npm run dev); na issue dos inimigos, cada inimigo vai ser um alvo também, e os efeitos passam a valer neles.
@@ -170,12 +170,16 @@ export function updateTargets(targets, deltaSeconds, solids) {
 
 // Posições (na lista) dos alvos vivos que a caixa do golpe (hitbox) toca e que ainda não levaram dano DESTE golpe
 // (hitIds). Assim cada alvo é acertado uma vez por golpe, mesmo com a caixa ativa por vários quadros.
+// O golpe não atravessa obstáculo: com `origin` (os pés de quem bate), o alvo só conta se a linha até os pés dele não
+// passa por dentro de nenhum dos `solids` (obstáculos e pedestais). Quem voa está no ar, por cima deles: sempre conta.
 // Quem chama aplica o dano e os efeitos dos itens (itemEffects.js).
-export function findSwingHits(targets, hitbox, hitIds) {
+export function findSwingHits(targets, hitbox, hitIds, origin = null, solids = []) {
   const indexes = []
   for (let index = 0; index < targets.length; index++) {
     const target = targets[index]
-    if (isTargetable(target) && !hitIds.includes(target.id) && overlaps(hitbox, getTargetBox(target))) indexes.push(index)
+    if (!isTargetable(target) || hitIds.includes(target.id) || !overlaps(hitbox, getTargetBox(target))) continue
+    if (origin && !target.flying && isLineBlocked(origin, target, solids)) continue
+    indexes.push(index)
   }
   return indexes
 }

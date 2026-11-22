@@ -15,7 +15,7 @@ import { normalizeProgressPayload } from '../src/utils/progress.js'
 import { getCellPoint, getLayout, getLayoutPoints } from '../src/utils/roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 import { overlaps } from '../src/utils/collision.js'
-import { createRun, createRunSnapshot, getCurrentRoom, getDrumBox, isDrumVisible, updateRun } from '../src/utils/run.js'
+import { createRun, createRunSnapshot, DRUM_AFTER_BOSS_MS, getCurrentRoom, getDrumBox, isDrumVisible, updateRun } from '../src/utils/run.js'
 import { damageTarget, stunTarget } from '../src/utils/targets.js'
 import { TEST_BOSSES, TEST_CATALOG, TEST_ENEMIES } from './helpers/testCatalog.js'
 
@@ -67,6 +67,12 @@ function getBoss(run) {
 function killBoss(run) {
   run = { ...run, targets: run.targets.map((target) => (target.boss ? damageTarget(target, 999) : target)) }
   return updateRun(run, IDLE, STEP)
+}
+
+// Espera o tambor começar a cair (DRUM_AFTER_BOSS_MS depois da morte do chefe)
+function waitDrum(run) {
+  while (!getCurrentRoom(run).drumDropped) run = updateRun(run, IDLE, STEP)
+  return run
 }
 
 // Encosta no chefe por um quadro (os pés dentro da área de contato dele)
@@ -201,17 +207,46 @@ describe('luta na sala do chefe', () => {
     assert.equal(run.health, 6 - TEST_BOSSES[run.bosses[0]].damage)
   })
 
-  test('o chefe morre: a sala fica limpa, as portas abrem, o tambor cai, o Rolo aparece e sai a recompensa', () => {
-    let run = killBoss(bossRun(1, 1))
+  test('o chefe morre: a sala fica limpa e as portas abrem, sem recompensa de sala limpa', () => {
+    const run = killBoss(bossRun(1, 1))
     const room = getCurrentRoom(run)
     assert.equal(room.cleared, true)
     assert.ok(getRoomDoors(run.floor, room).every((door) => door.state === 'open'))
+    assert.equal(room.rewards, 0, 'o prêmio da sala do chefe é só o item')
+    assert.deepEqual(room.drops, [])
+  })
+
+  test('o tambor e o pedestal do Rolo esperam DRUM_AFTER_BOSS_MS depois da morte do chefe', () => {
+    let run = killBoss(bossRun(1, 1))
+    const room = getCurrentRoom(run)
+    run = steps(run, DRUM_AFTER_BOSS_MS / 50 - 2)
+    assert.equal(run.drumDrop, null, 'a morte do chefe ainda está tocando')
+    assert.ok(!run.obstacles.some((obstacle) => obstacle.mechanic === 'tambor'))
+    assert.deepEqual(getRoomPedestals(run, room), [])
+    run = waitDrum(run)
     assert.ok(run.drumDrop, 'o tambor está caindo')
     assert.ok(run.obstacles.some((obstacle) => obstacle.mechanic === 'tambor'))
-    assert.equal(room.rewards, 1)
     assert.deepEqual(getRoomPedestals(run, room).map((pedestal) => pedestal.itemId), ['rolo-de-bronze'])
     run = steps(run, 40)
     assert.equal(run.drumDrop, null, 'o tambor terminou de cair')
+  })
+
+  test('sair da sala antes de o tambor cair: ele cai ao voltar', () => {
+    const [side, neighborId] = Object.entries(bossRoomOf(generateFloor(1, 1)).neighbors).find(([, id]) => id)
+    let run = killBoss(bossRun(1, 1, { clearedRoomIds: [neighborId] })) // a vizinha sem inimigos: dá para voltar
+    const room = getCurrentRoom(run)
+    run.player = createPlayer(DOOR_EDGES[side])
+    run = updateRun(run, { movement: SIDE_VECTORS[side], attackDirection: null }, STEP)
+    while (run.transition) run = updateRun(run, IDLE, STEP)
+    assert.notEqual(run.roomId, room.id)
+    assert.equal(run.drumWaitMs, 0)
+    assert.equal(room.drumDropped, false)
+    const back = { up: 'down', down: 'up', left: 'right', right: 'left' }[side]
+    run.player = createPlayer(DOOR_EDGES[back])
+    run = updateRun(run, { movement: SIDE_VECTORS[back], attackDirection: null }, STEP)
+    while (run.transition) run = updateRun(run, IDLE, STEP)
+    assert.equal(run.roomId, room.id)
+    assert.ok(run.drumDrop, 'o tambor cai ao entrar')
   })
 
   test('sem catálogo de chefes a sala do chefe fica limpa ao entrar (como antes da luta)', () => {
@@ -225,7 +260,7 @@ describe('luta na sala do chefe', () => {
     let run = bossRun(1, 1)
     const drum = getDrumBox()
     run.player = createPlayer({ x: drum.x + drum.width / 2, y: drum.y + drum.height - 2 })
-    run = killBoss(run)
+    run = waitDrum(killBoss(run))
     assert.ok(!overlaps(getFeetBox(run.player), drum), 'ele não ficou preso dentro do tambor')
   })
 
@@ -247,7 +282,7 @@ describe('luta na sala do chefe', () => {
   test('andar 5: o tambor só aparece com o Tralalero morto e as 3 batidas terminam a run', () => {
     let run = bossRun(1, LAST_FLOOR)
     assert.equal(getBoss(run).enemyId, 'tralalero-tralala')
-    run = killBoss(run)
+    run = waitDrum(killBoss(run))
     while (run.drumDrop) run = updateRun(run, IDLE, STEP)
     const drum = getDrumBox()
     for (let hit = 0; hit < 3; hit++) {

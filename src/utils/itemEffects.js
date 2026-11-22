@@ -265,10 +265,10 @@ function getSwingDamage(run, target, stats, withElixir) {
 }
 
 // A caixa do golpe (hitbox) acertou os alvos que ela toca agora (cada um uma vez por golpe), com os efeitos
-// dos itens que valem em cada acerto
-export function hitWithSwing(run, hitbox, stats) {
+// dos itens que valem em cada acerto. solids = os obstáculos e os pedestais da sala: o golpe não os atravessa.
+export function hitWithSwing(run, hitbox, stats, solids = []) {
   run = fireShards(run, hitbox)
-  const indexes = findSwingHits(run.targets, hitbox, run.swing.hitIds)
+  const indexes = findSwingHits(run.targets, hitbox, run.swing.hitIds, run.player, solids)
   if (indexes.length === 0) return run
   const targets = [...run.targets]
   const flashes = [...run.flashes]
