@@ -1,0 +1,104 @@
+.zzfx-experimental {
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--color-background);
+  color: var(--color-text-light);
+}
+
+.zzfx-experimental header,
+.zzfx-experimental__status,
+.zzfx-experimental__instructions,
+.zzfx-experimental__panel {
+  max-width: 980px;
+  margin-inline: auto;
+}
+
+.zzfx-experimental__eyebrow {
+  color: var(--color-text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.zzfx-experimental__status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-block: 20px;
+  padding: 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.zzfx-experimental__grid {
+  max-width: 980px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.zzfx-experimental__panel {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-background-panel);
+}
+
+.zzfx-experimental__preset-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.zzfx-experimental button,
+.zzfx-experimental input {
+  font: inherit;
+}
+
+.zzfx-experimental button {
+  min-height: 36px;
+  margin: 4px 0;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-light);
+  cursor: pointer;
+}
+
+.zzfx-experimental button.is-selected,
+.zzfx-experimental__play {
+  background: #8c6a3d;
+}
+
+.zzfx-experimental label {
+  display: block;
+  margin-block: 10px;
+}
+
+.zzfx-experimental input[type='range'] {
+  width: 100%;
+}
+
+.zzfx-experimental pre {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  background: #090909;
+  font-size: 12px;
+}
+
+.zzfx-experimental__instructions {
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .zzfx-experimental__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .zzfx-experimental__status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

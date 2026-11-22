@@ -57,6 +57,11 @@ export function AudioProvider({ children }) {
     return isMuted
   }, [manager])
 
+  const registerEffect = useCallback((...args) => manager.registerEffect(...args), [manager])
+  const registerMusic = useCallback((...args) => manager.registerMusic(...args), [manager])
+  const unregisterEffect = useCallback((...args) => manager.unregisterEffect(...args), [manager])
+  const unregisterMusic = useCallback((...args) => manager.unregisterMusic(...args), [manager])
+
   const playMusic = useCallback((name, options) => {
     const result = manager.playMusic(name, options)
     setActiveMusicName(manager.activeMusicName)
@@ -75,10 +80,10 @@ export function AudioProvider({ children }) {
     musicVolume,
     effectsVolume,
     unlock,
-    registerEffect: (...args) => manager.registerEffect(...args),
-    registerMusic: (...args) => manager.registerMusic(...args),
-    unregisterEffect: (...args) => manager.unregisterEffect(...args),
-    unregisterMusic: (...args) => manager.unregisterMusic(...args),
+    registerEffect,
+    registerMusic,
+    unregisterEffect,
+    unregisterMusic,
     playEffect: (...args) => manager.playEffect(...args),
     stopEffect: (...args) => manager.stopEffect(...args),
     stopAllEffects: (...args) => manager.stopAllEffects(...args),
@@ -88,7 +93,7 @@ export function AudioProvider({ children }) {
     setMusicVolume,
     setMuted,
     toggleMute,
-  }), [state, muted, activeMusicName, musicVolume, effectsVolume, unlock, playMusic, stopMusic, setEffectsVolume, setMusicVolume, setMuted, toggleMute, manager])
+  }), [state, muted, activeMusicName, musicVolume, effectsVolume, unlock, registerEffect, registerMusic, unregisterEffect, unregisterMusic, playMusic, stopMusic, setEffectsVolume, setMusicVolume, setMuted, toggleMute, manager])
 
   return <AudioManagerContext.Provider value={value}>{children}</AudioManagerContext.Provider>
 }
