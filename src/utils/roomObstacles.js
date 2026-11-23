@@ -1,4 +1,5 @@
 import { isLineBlocked, overlaps } from './collision.js'
+import { CELL_HEIGHT, CELL_WIDTH } from './roomLayout.js'
 import { getFeetBox, moveRoomPlayer, ROOM_FLOOR, ROOM_PLAYER_SPEED, ROOM_WALLS } from './roomMovement.js'
 
 // As 7 mecânicas dos obstáculos da sala, em funções puras (sem React, sem canvas), para testar.
@@ -54,14 +55,27 @@ export function hitObstacles(obstacles, hitbox, direction, origin = null, extraB
   })
 }
 
+// O que o golpe não atravessa: os obstáculos que bloqueiam (sem os quebrados e os que estão rolando) e as caixas
+// extras (os pedestais). Cada obstáculo conta com o tamanho da casa dele, e não com a caixa sólida: a caixa sólida
+// (84 x 60) é menor que a casa (105 x 74) para sobrar passagem entre vizinhos, mas o desenho (92 x 92) cobre a casa
+// inteira. Com a caixa sólida, o golpe passava pela folga e pela quina (o caso da mesa do andar 3).
+export function getSwingBlockers(obstacles, extraBoxes = []) {
+  const boxes = []
+  for (const obstacle of obstacles) {
+    if (!obstacle.blocking || obstacle.removed || obstacle.rolling) continue
+    const { box } = obstacle
+    const width = Math.max(box.width, CELL_WIDTH)
+    const height = Math.max(box.height, CELL_HEIGHT)
+    boxes.push({ x: box.x + box.width / 2 - width / 2, y: box.y + box.height / 2 - height / 2, width, height })
+  }
+  return [...boxes, ...extraBoxes]
+}
+
 // Há outro obstáculo que bloqueia (ou uma das caixas extras) entre os pés do Tung e o meio deste obstáculo?
 function isBehindOther(obstacle, obstacles, origin, extraBoxes) {
-  const boxes = [...extraBoxes]
-  for (const other of obstacles) {
-    if (other !== obstacle && other.blocking && !other.removed && !other.rolling) boxes.push(other.box)
-  }
+  const others = obstacles.filter((other) => other !== obstacle)
   const middle = { x: obstacle.box.x + obstacle.box.width / 2, y: obstacle.box.y + obstacle.box.height / 2 }
-  return isLineBlocked(origin, middle, boxes)
+  return isLineBlocked(origin, middle, getSwingBlockers(others, extraBoxes))
 }
 
 // A caixa saiu do piso? (bateu na parede)

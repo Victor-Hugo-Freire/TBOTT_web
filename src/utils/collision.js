@@ -7,17 +7,23 @@ export function overlaps(a, b) {
 }
 
 const LINE_STEP = 8 // u entre os pontos que isLineBlocked confere (bem menor que qualquer obstáculo)
+// Os pontos a até LINE_END_MARGIN u das pontas não contam: quem está encostado num obstáculo pode estar com os pés na
+// folga da casa dele (até 10,5 u); um obstáculo de verdade no meio do caminho tem dezenas de u e continua bloqueando
+const LINE_END_MARGIN = 16
 
-// A linha reta de `from` até `to` passa por dentro de alguma das caixas? Confere um ponto a cada LINE_STEP u.
-// As pontas não contam (são os pés de quem bate e de quem leva), e passar rente à borda também não.
-// Serve para o golpe não atravessar obstáculo.
+// A linha reta de `from` até `to` passa por dentro de alguma das caixas? Confere um ponto a cada LINE_STEP u, menos
+// perto das pontas (são os pés de quem bate e de quem leva). Casas vizinhas não deixam fresta entre elas: o ponto na
+// borda comum é de uma delas. Serve para o golpe não atravessar obstáculo.
 export function isLineBlocked(from, to, boxes) {
-  const steps = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / LINE_STEP)
+  const length = Math.hypot(to.x - from.x, to.y - from.y)
+  const steps = Math.ceil(length / LINE_STEP)
   for (let step = 1; step < steps; step++) {
+    const distanceFromStart = (length * step) / steps
+    if (distanceFromStart < LINE_END_MARGIN || length - distanceFromStart < LINE_END_MARGIN) continue
     const x = from.x + ((to.x - from.x) * step) / steps
     const y = from.y + ((to.y - from.y) * step) / steps
     for (const box of boxes) {
-      if (x > box.x && x < box.x + box.width && y > box.y && y < box.y + box.height) return true
+      if (x >= box.x && x < box.x + box.width && y >= box.y && y < box.y + box.height) return true
     }
   }
   return false

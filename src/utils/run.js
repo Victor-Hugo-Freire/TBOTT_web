@@ -70,6 +70,7 @@ import {
   getFloorEffect,
   getRoomSolids,
   getSlipMovement,
+  getSwingBlockers,
   hitObstacles,
   isOnShards,
   pushPlayer,
@@ -897,7 +898,8 @@ function updateRoom(run, input, deltaSeconds) {
   next = addBumpFlashes(next)
   if (swingEnded) next = endSwing(next)
   if (newSwing) next = startSwing(next, !run.attackHeld, stats)
-  if (hitbox) next = hitWithSwing(next, hitbox, stats, solids) // o golpe não acerta quem está atrás de obstáculo
+  // O golpe não acerta quem está atrás de obstáculo (cada obstáculo conta com o tamanho da casa, veja getSwingBlockers)
+  if (hitbox) next = hitWithSwing(next, hitbox, stats, getSwingBlockers(run.obstacles, pedestalBoxes))
   next = updateShards(next, deltaSeconds, solids)
   next = updatePuddles(next, stepMs)
   const killed = findNewKills(run.targets, next.targets)
