@@ -78,6 +78,8 @@ export function createBoss(data, col, row) {
     contactDamage: data.damage, // o dano de encostar; damage muda durante a investida (veja bossBehaviors.js)
     speed: BOSS_SPEEDS[data.id],
     attacks: Array.isArray(data.attacks) ? data.attacks : [], // [{ id, name, damage }]: o id é o nome da animação
+    phase: 1, // a fase em que ele já entrou (a troca de fase toca a animação de transição, veja bossBehaviors.js)
+    attackCount: 0, // quantos ataques de longe ele já fez (os chefes que revezam ataques seguem a ordem)
     base: { width: Math.round(body.width * BOSS_BASE_WIDTH_SHARE), height: BOSS_BASE_HEIGHT },
   }
 }

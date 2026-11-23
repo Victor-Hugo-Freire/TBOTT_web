@@ -61,3 +61,35 @@ export const BOSS_STUN_MS = 300
 // na batida número bounces + 1 ele para e abre o capô para esfriar (a janela de bater, 840 ms). Na investida, encostar
 // nele tira o dano da investida (catálogo), e não o de encostar.
 export const CINQUECENTO = { walkMs: 1500, honkRange: 210, honkRadius: 190, honkScale: 1.35, chargeSpeed: 620, bounces: 2, maxChargeMs: 4000, restMs: 500 }
+
+// Tralalero Tralala (andar 5), 3 fases (marcas em BOSS_PHASES):
+// - fase 1: anda atrás do Tung; perto (biteRange), morde (acerta quem está a até biteRange nos quadros de acerto).
+//   Depois de andar walkMs, faz a investida tripla: `dashes` avanços em linha reta a chargeSpeed (cada um até dashMs
+//   ou até bater), com o aviso antes de cada um; no fim tropeça (a janela de bater, 720 ms);
+// - fase 2 (os óculos escuros): ganha o canto (`notes` notas musicais em leque, abertas noteSpread radianos, a
+//   noteSpeed u/s, que somem em noteMs) e a pauta: uma pauta musical no chão, na fileira do Tung, saindo do lado dele
+//   até staffLength u para o lado do Tung; nos quadros de acerto, machuca quem está nela (staffHeight u de altura).
+//   staffScale: o desenho da pauta (284 u de largura na escala 1) do tamanho de staffLength;
+// - fase 3: tudo fica phase3Speed vezes mais rápido (e os descansos mais curtos) e ele ganha o mergulho: some no chão
+//   e a barbatana persegue o Tung a finSpeed (até finMaxMs); chegando a emergeRange, ele sai mordendo (como a mordida,
+//   com o dano do mergulho).
+// Os ataques de longe revezam na ordem da fase (veja TRALALERO_ATTACKS em bossBehaviors.js).
+export const TRALALERO = {
+  walkMs: 1400,
+  biteRange: 175,
+  chargeSpeed: 680,
+  dashMs: 650,
+  dashes: 3,
+  notes: 3,
+  noteSpread: 0.35,
+  noteSpeed: 330,
+  noteMs: 2500,
+  staffLength: 455,
+  staffHeight: 56,
+  staffScale: 1.6,
+  finSpeed: 300,
+  finMaxMs: 2500,
+  emergeRange: 40,
+  phase3Speed: 1.3,
+  restMs: 600,
+}

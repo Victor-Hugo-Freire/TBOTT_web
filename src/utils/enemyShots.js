@@ -1,10 +1,12 @@
+import { TRALALERO } from '../data/bossBehavior.js'
 import { EFFECT_SPRITES } from '../data/effectSprites.js'
 import { FENICOTTERO, MOKA, PISTACCHIO } from '../data/enemyBehavior.js'
 import { overlaps } from './collision.js'
 import { getFeetBox } from './roomMovement.js'
 import { getTotalDuration } from './spriteAnimation.js'
 
-// Projéteis dos inimigos: o caroço do Pistacchio, a pizza do Fenicottero e o anel de vapor da Moka.
+// Projéteis dos inimigos: o caroço do Pistacchio, a pizza do Fenicottero e o anel de vapor da Moka. Dos chefes: as
+// notas musicais do Tralalero.
 // Cada projétil guarda o ponto do chão embaixo dele (x, y): é esse ponto que acerta os pés do Tung e bate no que
 // bloqueia, como a sombra de uma bola. A altura (height) é só para o desenho.
 // Ficam em run.enemyShots e somem ao trocar de sala. Funções puras, para testar com node:test.
@@ -52,6 +54,13 @@ export function createPizza(enemy, target) {
   }
 }
 
+// Nota musical do canto do Tralalero: sai dos pés dele e voa reto na direção `angle` (radianos). Voa no ar, por cima
+// dos obstáculos, e some depois de TRALALERO.noteMs. damage = o dano do canto (catálogo).
+export function createNote(boss, angle, damage) {
+  const speed = TRALALERO.noteSpeed
+  return { kind: 'nota', x: boss.x, y: boss.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, ageMs: 0, damage, cause: boss.enemyId }
+}
+
 // Anel de vapor: cresce em volta dos pés da Moka
 export function createSteamRing(enemy) {
   return { kind: 'anel', x: enemy.x, y: enemy.y, radius: 0, ageMs: 0, hit: false, damage: enemy.damage, cause: enemy.enemyId }
@@ -74,6 +83,18 @@ function updateSeed(seed, world, feet) {
   }
   if (world.solids.some((solid) => overlaps(box, solid))) return null
   return { ...seed, x, y, ageMs: seed.ageMs + world.deltaSeconds * 1000 }
+}
+
+// A nota anda (por cima dos obstáculos); acertou os pés do Tung (dano) ou o tempo dela acabou, some
+function updateNote(note, world, feet) {
+  const x = note.x + note.vx * world.deltaSeconds
+  const y = note.y + note.vy * world.deltaSeconds
+  const ageMs = note.ageMs + world.deltaSeconds * 1000
+  if (overlaps(boxAround(x, y, SEED_BOX), feet)) {
+    world.hits.push({ damage: note.damage, cause: note.cause })
+    return null
+  }
+  return ageMs >= TRALALERO.noteMs ? null : { ...note, x, y, ageMs }
 }
 
 // A pizza anda em arco (por cima de tudo). Ao cair, acerta o Tung se ele estiver no lugar e deixa o queijo quente.
@@ -117,6 +138,7 @@ export function updateEnemyShots(shots, world) {
     if (shot.kind === 'caroco') moved = updateSeed(shot, world, feet)
     if (shot.kind === 'pizza') moved = updatePizza(shot, world, feet)
     if (shot.kind === 'anel') moved = updateRing(shot, world)
+    if (shot.kind === 'nota') moved = updateNote(shot, world, feet)
     if (moved) next.push(moved)
   }
   return next

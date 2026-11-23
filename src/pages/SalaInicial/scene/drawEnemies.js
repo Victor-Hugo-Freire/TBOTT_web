@@ -13,6 +13,8 @@ const SEED_SCALE = 1.3 // caroço
 const PIZZA_SCALE = 1.3 // pizza
 const MARK_SCALE = 1.95 // marca no chão (62 u na escala 1) do tamanho do queijo que a pizza vai deixar
 const BOSS_SHADOW_SCALE = 2.5 // a sombra do chefe: 2,5x a do Tung (61 u), mais ou menos a largura da base dele
+const NOTE_SCALE = 1.3 // nota musical do Tralalero (34 x 43 u na escala 1)
+const NOTE_HEIGHT = 60 // a nota voa nesta altura acima da sombra dela
 
 // Um inimigo (ou o chefe) na sala: a sombra, as pernas (atrás) e o tronco (na frente), com os pés em (enemy.x, enemy.y).
 // A folha é de frente; virado para a esquerda, o desenho é espelhado em volta dos pés.
@@ -27,8 +29,9 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
 
   ctx.save()
   ctx.globalAlpha = pose.alpha // no fim da morte, ele e a sombra apagam juntos
-  if (enemy.boss) drawScaledShadow(ctx, enemy.x, enemy.y, BOSS_SHADOW_SCALE)
-  else if (!enemy.hidden) drawShadow(ctx, enemy) // escondida no molho, a Polpetta não tem sombra
+  // Escondidos (a Polpetta no molho, o Tralalero debaixo do chão, só a barbatana) não têm sombra
+  if (enemy.boss && !enemy.hidden) drawScaledShadow(ctx, enemy.x, enemy.y, BOSS_SHADOW_SCALE)
+  else if (!enemy.hidden) drawShadow(ctx, enemy)
   ctx.translate(enemy.x, enemy.y)
   if (enemy.facingLeft) ctx.scale(-1, 1)
   drawFrame(ctx, { ...sprite, path: sprite.layers.pernas }, row, pose.frame, 0, 0)
@@ -92,6 +95,10 @@ export function drawEnemyShots(ctx, shots) {
     if (shot.kind === 'pizza') {
       const sprite = EFFECT_SPRITES['pizza-lancada']
       drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, shot.ageMs, true), shot.x, shot.y - shot.height, PIZZA_SCALE)
+    }
+    if (shot.kind === 'nota') {
+      const sprite = EFFECT_SPRITES['nota-musical']
+      drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, shot.ageMs, true), shot.x, shot.y - NOTE_HEIGHT, NOTE_SCALE)
     }
   }
 }

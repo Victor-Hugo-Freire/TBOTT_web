@@ -154,7 +154,9 @@ function canReach(enemy, world, range) {
 }
 
 // Animação parada. O Pinguino mostra as bolas de sorvete que ainda tem (3, 2 ou 1): cada golpe derruba uma.
+// O Tralalero, da fase 2 em diante, fica parado de óculos escuros.
 export function getIdleAnimation(enemy) {
+  if (enemy.enemyId === 'tralalero-tralala') return enemy.phase >= 2 ? 'parado-fase2' : 'parado'
   if (enemy.enemyId !== 'pinguino-sorbettino') return 'parado'
   const balls = Math.ceil((enemy.health / enemy.maxHealth) * 3)
   if (balls >= 3) return 'parado'
