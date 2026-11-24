@@ -26,6 +26,8 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   if (!pose) return // a animação de morte já acabou: ele sumiu
   const sprite = getEnemySprite(enemy.enemyId)
   const { row } = sprite.animations[pose.animation]
+  // O Tralalero de óculos (fase 2 em diante) usa a folha com os óculos em todos os quadros
+  const layers = enemy.glasses && sprite.glassesLayers ? sprite.glassesLayers : sprite.layers
 
   ctx.save()
   ctx.globalAlpha = pose.alpha // no fim da morte, ele e a sombra apagam juntos
@@ -34,8 +36,8 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   else if (!enemy.hidden) drawShadow(ctx, enemy)
   ctx.translate(enemy.x, enemy.y)
   if (enemy.facingLeft) ctx.scale(-1, 1)
-  drawFrame(ctx, { ...sprite, path: sprite.layers.pernas }, row, pose.frame, 0, 0)
-  drawFrame(ctx, { ...sprite, path: sprite.layers.tronco }, row, pose.frame, 0, 0)
+  drawFrame(ctx, { ...sprite, path: layers.pernas }, row, pose.frame, 0, 0)
+  drawFrame(ctx, { ...sprite, path: layers.tronco }, row, pose.frame, 0, 0)
   ctx.restore()
 
   if (enemy.shielded && !enemy.dead) {

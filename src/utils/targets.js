@@ -53,10 +53,10 @@ export function getBaseBox(target) {
   return { x: target.x - size.width / 2, y: target.y - size.height, width: size.width, height: size.height }
 }
 
-// Dá para acertar o alvo? Morto não, e escondido também não (a Polpetta debaixo do molho): nenhum golpe, lasca,
-// raio, onda, poça ou empurrão chega nele
+// Dá para acertar o alvo? Morto não, escondido também não (a Polpetta debaixo do molho) e invencível também não (o
+// Tralalero trocando de fase): nenhum golpe, lasca, raio, onda, poça ou empurrão chega nele
 export function isTargetable(target) {
-  return !target.dead && !target.hidden
+  return !target.dead && !target.hidden && !target.invincible
 }
 
 // Tira `amount` pontos de vida e mostra o número. Com 0 de vida o alvo morre; morto, não leva mais dano.

@@ -23,6 +23,8 @@ const characters = [...Object.values(ENEMY_SPRITES), ...Object.values(BOSS_SPRIT
 const items = [...Object.values(ITEM_SPRITES), ...Object.values(CONSUMABLE_SPRITES)]
 const sheets = [
   ...characters.flatMap((sprite) => Object.values(sprite.layers).map((src) => ({ ...sprite, path: src }))),
+  // A folha de óculos do Tralalero (fase 2) usa a mesma grade da folha normal
+  ...characters.flatMap((sprite) => Object.values(sprite.glassesLayers ?? {}).map((src) => ({ ...sprite, path: src }))),
   ...items.flatMap((item) => [item, ...Object.values(item.variants)]),
   ...Object.values(EFFECT_SPRITES),
 ]
@@ -127,6 +129,12 @@ describe('sprites de inimigos, chefes, itens, efeitos, salas e HUD', () => {
       assert.equal(anchors.hurtHead.length, hurt.framesPerRow)
       assert.deepEqual(anchors.walk[0].head, [0, 0]) // o deslocamento é em relação ao quadro 0, onde a camada foi desenhada
     }
+  })
+
+  test('a folha de óculos do Tralalero tem o mesmo tamanho da normal (as mesmas linhas e quadros)', () => {
+    const { layers, glassesLayers } = BOSS_SPRITES['tralalero-tralala']
+    assert.deepEqual(pngSize(glassesLayers.pernas), pngSize(layers.pernas))
+    assert.deepEqual(pngSize(glassesLayers.tronco), pngSize(layers.tronco))
   })
 
   test('as folhas @1x (scale 3) são desenhadas 3x maiores; as outras, no tamanho do arquivo', () => {

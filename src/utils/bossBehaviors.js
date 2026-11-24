@@ -10,6 +10,7 @@ import {
   createEnemyFlash,
   face,
   getDirectionTo,
+  getIdleAnimation,
   isAnimationOver,
   isHitFrame,
   moveEnemy,
@@ -121,9 +122,11 @@ function getTralaleroSpeed(fish, speed) {
   return fish.phase >= 3 ? speed * TRALALERO.phase3Speed : speed
 }
 
+// O descanso do Tralalero é contado por ele mesmo (restMs), e não pelo waitMs dos inimigos (que nem chama o
+// comportamento): assim, descansando, ele também percebe na hora que chegou numa marca da barra e troca de fase
 function restTralalero(fish) {
   const ms = fish.phase >= 3 ? TRALALERO.restMs / TRALALERO.phase3Speed : TRALALERO.restMs
-  return rest(fish, ms)
+  return { ...setAnimation(fish, getIdleAnimation(fish)), restMs: ms }
 }
 
 // A pauta: no chão, na fileira em que o Tung está agora, saindo do lado do Tralalero para o lado do Tung, com
@@ -206,19 +209,24 @@ function updateStaff(fish, world) {
 function updateTralalero(fish, world) {
   const to = getDirectionTo(fish, world.player)
 
-  // Chegou numa marca da barra: na fase 2 ele para e põe os óculos escuros (a transição); na 3 só fica mais rápido
+  // Chegou numa marca da barra: ele para, fica invencível e toca a troca de fase. Na fase 2 ela é desenhada na folha
+  // normal (ele põe os óculos); na fase 3, na folha de óculos (os tênis piscam e brilham). Qualquer ataque para.
   const phase = getBossPhase(fish)
   if (phase > fish.phase) {
-    const changed = { ...fish, phase, staff: null, biteHit: false, staffHit: false }
-    if (fish.phase === 1) return face(setAnimation({ ...changed, hidden: false }, 'transicao-fase2'), to)
-    return changed
+    const changed = { ...fish, phase, hidden: false, invincible: true, staff: null, biteHit: false, staffHit: false }
+    return face(setAnimation(changed, 'transicao-fase2'), to)
   }
 
+  // Descansando, parado
+  if (fish.restMs > 0) return { ...fish, restMs: Math.max(0, fish.restMs - world.deltaSeconds * 1000) }
+
   const { animation } = fish
-  if (animation === 'transicao-fase2' || animation === 'tropeco-vulneravel') {
-    // Pondo os óculos, ou tropeçando depois da investida tripla (a janela de bater nele)
-    return isAnimationOver(fish) ? restTralalero(fish) : fish
+  if (animation === 'transicao-fase2') {
+    // No fim da troca ele já está de óculos (dali em diante, a folha de óculos) e volta a levar dano
+    return isAnimationOver(fish) ? restTralalero({ ...fish, invincible: false, glasses: true }) : fish
   }
+  // Tropeçando depois da investida tripla (a janela de bater nele)
+  if (animation === 'tropeco-vulneravel') return isAnimationOver(fish) ? restTralalero(fish) : fish
   if (animation === 'preparando-investida' || animation === 'investida') return updateTralaleroCharge(fish, world, to)
   if (animation === 'atacando') return updateBite(fish, world)
   if (animation === 'canto-tralala') return updateSong(fish, world)

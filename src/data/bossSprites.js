@@ -279,6 +279,13 @@ export const BOSS_SPRITES = {
       pernas: '/sprites/bosses/tralalero-tralala/tralalero-tralala-pernas.png',
       tronco: '/sprites/bosses/tralalero-tralala/tralalero-tralala-tronco.png',
     },
+    // Folha da fase 2: as mesmas linhas e quadros, com os óculos escuros e os tênis brilhando em todos eles (na folha
+    // normal, só parado-fase2 e o fim de transicao-fase2 têm óculos). Gerada por _novo/ferramentas/gerar_tralalero_fase2.py.
+    // O jogo desenha com ela depois que ele põe os óculos (glasses, veja bossBehaviors.js).
+    glassesLayers: {
+      pernas: '/sprites/bosses/tralalero-tralala/tralalero-tralala-fase2-pernas.png',
+      tronco: '/sprites/bosses/tralalero-tralala/tralalero-tralala-fase2-tronco.png',
+    },
     scale: 3,
     frameWidth: 280,
     frameHeight: 280,

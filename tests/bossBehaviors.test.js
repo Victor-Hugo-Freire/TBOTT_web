@@ -6,7 +6,7 @@ import { createRoomBoss, findTouchingEnemy, updateEnemies } from '../src/utils/e
 import { updateEnemyShots } from '../src/utils/enemyShots.js'
 import { generateFloor } from '../src/utils/floorGenerator.js'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
-import { isTargetable } from '../src/utils/targets.js'
+import { damageTarget, isTargetable } from '../src/utils/targets.js'
 import { TEST_BOSSES } from './helpers/testCatalog.js'
 
 const STEP = 1 / 50 // 20 ms
@@ -202,5 +202,53 @@ describe('Tralalero Tralala', () => {
     const slowWalk = Math.hypot(slow.x - start.x, slow.y - start.y)
     const fastWalk = Math.hypot(fast.x - start.x, fast.y - start.y)
     assert.ok(Math.abs(fastWalk / slowWalk - TRALALERO.phase3Speed) < 0.05, `${fastWalk} / ${slowWalk}`)
+  })
+})
+
+describe('Tralalero Tralala: troca de fase', () => {
+  const far = (fish) => ({ x: fish.x + 400, y: fish.y })
+
+  test('na troca para a fase 2 ele fica invencível; no fim, já de óculos, volta a levar dano', () => {
+    let fish = { ...spawn('tralalero-tralala'), health: 90 }
+    fish = simulate(fish, far(fish), STEP_MS).boss
+    assert.equal(fish.animation, 'transicao-fase2')
+    assert.equal(fish.invincible, true)
+    assert.equal(isTargetable(fish), false)
+    assert.equal(damageTarget(fish, 30).health, 90, 'o golpe não tira vida na troca')
+    assert.notEqual(fish.glasses, true, 'a troca para a fase 2 é desenhada na folha normal: ele põe os óculos')
+    fish = simulate(fish, far(fish), 2000, (one) => one.animation !== 'transicao-fase2').boss
+    assert.equal(fish.invincible, false)
+    assert.equal(fish.glasses, true, 'dali em diante, a folha de óculos')
+    assert.equal(isTargetable(fish), true)
+  })
+
+  test('a troca para a fase 3 também toca, já de óculos, e também é invencível', () => {
+    let fish = { ...tralaleroReady(2, 0), glasses: true, health: 45 }
+    fish = simulate(fish, far(fish), STEP_MS).boss
+    assert.equal(fish.animation, 'transicao-fase2')
+    assert.equal(fish.phase, 3)
+    assert.equal(fish.invincible, true)
+    assert.equal(fish.glasses, true)
+    fish = simulate(fish, far(fish), 2000, (one) => one.animation !== 'transicao-fase2').boss
+    assert.equal(fish.invincible, false)
+  })
+
+  test('descansando, ele percebe na hora que chegou na marca', () => {
+    let fish = spawn('tralalero-tralala')
+    const near = { x: fish.x + 120, y: fish.y }
+    fish = simulate(fish, near, 2000, (one) => one.restMs > 0).boss // mordeu e foi descansar
+    assert.ok(fish.restMs > 0)
+    fish = simulate({ ...fish, health: 90 }, near, STEP_MS).boss
+    assert.equal(fish.animation, 'transicao-fase2')
+  })
+
+  test('passar das duas marcas de uma vez: uma troca só, já na fase 3', () => {
+    let fish = { ...spawn('tralalero-tralala'), health: 40 }
+    fish = simulate(fish, far(fish), STEP_MS).boss
+    assert.equal(fish.animation, 'transicao-fase2')
+    assert.equal(fish.phase, 3)
+    fish = simulate(fish, far(fish), 2000, (one) => one.animation !== 'transicao-fase2').boss
+    assert.equal(fish.glasses, true)
+    assert.equal(simulate(fish, far(fish), 200).boss.animation === 'transicao-fase2', false, 'não toca a troca de novo')
   })
 })

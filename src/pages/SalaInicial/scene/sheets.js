@@ -28,6 +28,11 @@ export function loadSheets() {
   for (const enemy of [...Object.values(ENEMY_SPRITES), ...Object.values(BOSS_SPRITES)]) {
     getImage(enemy.layers.pernas)
     getImage(enemy.layers.tronco)
+    // O Tralalero tem a folha de óculos da fase 2: pedida já, para não piscar sem desenho quando ele põe os óculos
+    if (enemy.glassesLayers) {
+      getImage(enemy.glassesLayers.pernas)
+      getImage(enemy.glassesLayers.tronco)
+    }
   }
   return sheets
 }
