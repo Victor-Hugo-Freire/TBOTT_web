@@ -28,7 +28,8 @@ export function loadSheets() {
   for (const enemy of [...Object.values(ENEMY_SPRITES), ...Object.values(BOSS_SPRITES)]) {
     getImage(enemy.layers.pernas)
     getImage(enemy.layers.tronco)
-    // As versões das folhas de alguns chefes (uma por fase): pedidas já, para não piscarem sem desenho na troca de fase
+    // As versões das folhas de alguns chefes (uma por fase) e do Pinguino (uma por bola perdida): pedidas já, para não
+    // piscarem sem desenho na troca
     for (const variant of Object.values(enemy.variantLayers ?? {})) {
       getImage(variant.pernas)
       getImage(variant.tronco)

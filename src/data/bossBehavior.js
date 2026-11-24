@@ -54,6 +54,8 @@ export const BOSS_STUN_MS = 300
 
 // ---------- comportamento de cada chefe (bossBehaviors.js). Distâncias em u, tempos em ms, velocidades em u/s. ----------
 // Os tempos de aviso e de recuperação de cada ataque saem das folhas (bossSprites.js); os danos, do catálogo (attacks).
+// Os projéteis ficaram ~1,5x mais rápidos (pedido do Victor, 2026-11-23: estavam muito devagar): notas, bananas,
+// gotas, a queda das bombas e as raízes.
 
 // Cinquecento Turbo: anda atrás do Tung; perto (honkRange), buzina: a onda de som machuca até honkRadius dos pés dele,
 // nos quadros de acerto (honkScale: o desenho, 284 u de largura na escala 1, do tamanho dessa área). Antes da buzina,
@@ -64,7 +66,7 @@ export const BOSS_STUN_MS = 300
 // nele tira o dano da investida (catálogo), e não o de encostar.
 export const CINQUECENTO = {
   walkMs: 1500,
-  honkRange: 210,
+  honkRange: 190, // começa a buzinar com o Tung a esta distância: nunca mais longe que honkRadius (a onda não chegaria)
   honkRadius: 190,
   honkScale: 1.35,
   honkWarnMs: 400,
@@ -84,7 +86,7 @@ export const CHIMPANZINI = {
   walkMs: 1300,
   phase2WalkMs: 650,
   throwRange: 650,
-  bananaSpeed: 460,
+  bananaSpeed: 650,
   bananaRange: 520,
   bananaArc: 110,
   peelMs: 8000,
@@ -105,14 +107,65 @@ export const NONNA = { walkMs: 1600, slamRange: 200, slamReach: 50, slamRadius: 
 // de cada pisão (os dois ataques revezam), solta as raízes: rootCount raízes brotam em linha na direção do Tung, uma a
 // cada rootSpacing u e rootStepMs ms; cada uma machuca quem está em cima dela enquanto brota (a folha da raiz, 360 ms).
 // A linha acerta uma vez só.
-export const PATAPIM = { walkMs: 1500, stompRange: 220, stompRadius: 230, stompScale: 2, rootCount: 7, rootSpacing: 80, rootStepMs: 70, restMs: 600 }
+export const PATAPIM = { walkMs: 1500, stompRange: 220, stompRadius: 230, stompScale: 2, rootCount: 7, rootSpacing: 80, rootStepMs: 45, restMs: 600 }
+
+// Chefes que voam: passam por cima dos obstáculos (só as paredes e as portas os param) e o piso não os afeta
+export const FLYING_BOSSES = ['bombardiro-crocodilo']
+
+// Ballerina Cappuccina (andares 3 e 4): anda atrás do Tung e, depois de andar walkMs, reveza dois ataques:
+// - pirueta: gira na direção do Tung a spinSpeed, ricocheteando nas paredes; na batida número bounces + 1 (ou depois de
+//   maxSpinMs) fica tonta por dizzyMs (a janela de bater nela);
+// - gotas de café: `drops` gotas em círculo em volta dela, a dropSpeed, que voam por cima de tudo e somem em dropMs.
+export const BALLERINA = { walkMs: 1300, spinSpeed: 560, bounces: 2, maxSpinMs: 3500, dizzyMs: 1200, drops: 8, dropSpeed: 450, dropMs: 1600, restMs: 600 }
+
+// Bombardiro Crocodilo (andares 3 e 4): voa e fica pairando a hoverRange do Tung. Depois de voar walkMs, bombardeia,
+// revezando 4 padrões (pedido do Victor, 2026-11-23: a luta estava fácil, eram sempre 3 bombas em linha). Em todos, a
+// marca aparece no chão (o aviso) e a bomba cai nela bombFallMs depois; a explosão machuca até blastRadius
+// (blastScale: o desenho, 142 u na escala 1, do tamanho da área):
+// - linha: lineBombs marcas em linha atravessando o Tung, na direção do voo, a bombSpacing u uma da outra;
+// - cruz: uma no Tung e crossArm em cada braço de um "+", a bombSpacing u (escapa-se pela diagonal);
+// - rasante: voa em linha reta por cima do Tung a raidSpeed (até raidMs ou bater na parede), soltando uma bomba a
+//   cada raidSpacing u voados: as marcas ficam no caminho e explodem uma depois da outra;
+// - cerco: ringBombs marcas em volta do Tung, a ringRadius, e uma no meio, que cai ringDelayMs depois das outras
+//   (fica no meio até o anel explodir e sai antes da do meio).
+// A cada bombingsBeforeLanding bombardeios, pousa para abastecer por landMs (a janela de bater nele).
+export const BOMBARDIRO = {
+  walkMs: 1100,
+  hoverRange: 260,
+  bombFallMs: 700,
+  blastRadius: 85,
+  blastScale: 1.3,
+  bombSpacing: 130,
+  lineBombs: 5,
+  crossArm: 2,
+  raidSpeed: 520,
+  raidSpacing: 110,
+  raidMs: 1800,
+  ringBombs: 8,
+  ringRadius: 190,
+  ringDelayMs: 500,
+  bombingsBeforeLanding: 3,
+  landMs: 1400,
+  restMs: 400,
+}
+
+// Cappuccino Assassino (andares 3 e 4): anda atrás do Tung; perto (slashRange, o mesmo número para começar e para
+// acertar), dá o corte de katana.
+// - Sem nenhum clone vivo, logo depois de um corte (ou depois de andar walkMs), faz os clones (pedidos do Victor,
+//   2026-11-23): 4 cópias dele aparecem na fumaça, uma no meio de cada lado da sala (direita, cima, esquerda e baixo),
+//   a cloneWallMargin u das paredes (assim não ficam nas portas). Cada uma tem cloneHealth de vida, anda atrás do Tung
+//   e dá o corte com o dano dos clones; ao cair, some numa fumaça. Morrem junto com ele.
+// - Com clones vivos e o Tung além de teleportRange, depois de andar walkMs, se teleporta: vira fumaça, some e
+//   reaparece behindDistance u atrás do Tung, já dando o corte.
+export const CAPPUCCINO = { walkMs: 1500, behindDistance: 110, slashRange: 170, slashScale: 1.2, teleportRange: 300, cloneHealth: 4, cloneWallMargin: 120, restMs: 600 }
 
 // Tralalero Tralala (andar 5), 3 fases (marcas em BOSS_PHASES):
 // - fase 1: anda atrás do Tung; perto (biteRange), morde (acerta quem está a até biteRange nos quadros de acerto).
 //   Depois de andar walkMs, faz a investida tripla: `dashes` avanços em linha reta a chargeSpeed (cada um até dashMs
 //   ou até bater), com o aviso antes de cada um; no fim tropeça (a janela de bater, 720 ms);
 // - fase 2 (os óculos escuros): ganha o canto (`notes` notas musicais em leque, abertas noteSpread radianos, a
-//   noteSpeed u/s, que somem em noteMs) e a pauta: uma pauta musical no chão, na fileira do Tung, saindo do lado dele
+//   noteSpeed u/s, que somem em noteMs; songVolleys rajadas seguidas, uma a cada canto-tralala, mirando o Tung de
+//   novo a cada uma: pedido do Victor, 2026-11-23) e a pauta: uma pauta musical no chão, na fileira do Tung, saindo do lado dele
 //   até staffLength u para o lado do Tung; nos quadros de acerto, machuca quem está nela (staffHeight u de altura).
 //   staffScale: o desenho da pauta (284 u de largura na escala 1) do tamanho de staffLength;
 // - fase 3: tudo fica phase3Speed vezes mais rápido (e os descansos mais curtos) e ele ganha o mergulho: some no chão
@@ -127,8 +180,9 @@ export const TRALALERO = {
   dashes: 3,
   notes: 3,
   noteSpread: 0.35,
-  noteSpeed: 330,
+  noteSpeed: 500,
   noteMs: 2500,
+  songVolleys: 3,
   staffLength: 455,
   staffHeight: 56,
   staffScale: 1.6,

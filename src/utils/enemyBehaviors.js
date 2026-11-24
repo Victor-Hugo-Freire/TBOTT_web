@@ -154,15 +154,30 @@ function canReach(enemy, world, range) {
   return getDirectionTo(enemy, world.player).distance <= range && hasClearPath(enemy, world.player, world.pathSolids)
 }
 
+// Quantas bolas de sorvete o Pinguino ainda tem (3, 2 ou 1): cada terço da vida que ele perde derruba uma
+function countScoops(enemy) {
+  return Math.max(1, Math.ceil((enemy.health / enemy.maxHealth) * 3))
+}
+
 // Animação parada. O Pinguino mostra as bolas de sorvete que ainda tem (3, 2 ou 1): cada golpe derruba uma.
 // O Tralalero, da fase 2 em diante, fica parado de óculos escuros.
 export function getIdleAnimation(enemy) {
   if (enemy.enemyId === 'tralalero-tralala') return enemy.phase >= 2 ? 'parado-fase2' : 'parado'
   if (enemy.enemyId !== 'pinguino-sorbettino') return 'parado'
-  const balls = Math.ceil((enemy.health / enemy.maxHealth) * 3)
+  const balls = countScoops(enemy)
   if (balls >= 3) return 'parado'
   if (balls === 2) return 'parado-2'
   return 'parado-1'
+}
+
+// A versão da folha que o inimigo usa agora (variantLayers em enemySprites.js e bossSprites.js), ou null para a
+// normal. O Pinguino usa a das bolas que ainda tem, em todas as animações; o chefe numa fase com outra aparência
+// guarda a dele em layerVariant (bossBehaviors.js).
+export function getLayerVariant(enemy) {
+  if (enemy.enemyId !== 'pinguino-sorbettino') return enemy.layerVariant ?? null
+  const balls = countScoops(enemy)
+  if (balls >= 3) return null
+  return balls === 2 ? 'bolas2' : 'bolas1'
 }
 
 // Fica parado `ms` (updateEnemies conta o tempo) e depois volta a agir

@@ -2,7 +2,7 @@ import { PATAPIM } from '../../../data/bossBehavior.js'
 import { EFFECT_SPRITES } from '../../../data/effectSprites.js'
 import { MOKA } from '../../../data/enemyBehavior.js'
 import { getEnemyPose } from '../../../utils/enemies.js'
-import { getEnemySprite } from '../../../utils/enemyBehaviors.js'
+import { getEnemySprite, getLayerVariant } from '../../../utils/enemyBehaviors.js'
 import { ROOT_MS, SEED_HEIGHT } from '../../../utils/enemyShots.js'
 import { drawEffectSpriteFrame, getEffectSpriteFrame } from './drawItemEffects.js'
 import { drawShadow } from './drawShadow.js'
@@ -20,6 +20,12 @@ const BANANA_SCALE = 1.2 // banana-bumerangue do Chimpanzini (57 x 57 u na escal
 const BANANA_HEIGHT = 70 // a banana voa nesta altura acima da sombra dela
 const ROOT_SCALE = 1.2 // raiz do Patapim (68 x 80 u na escala 1)
 const ROOT_LIFT = 40 // o meio do desenho da raiz fica acima do ponto do chão de onde ela brota
+const DROP_SCALE = 1.2 // gota de café da Ballerina (28 x 34 u na escala 1)
+const DROP_HEIGHT = 50 // a gota voa nesta altura acima da sombra dela
+const BOMB_SCALE = 1.3 // bomba do Bombardiro (40 x 51 u na escala 1)
+const BOMB_FALL_HEIGHT = 500 // a bomba começa a cair desta altura acima da marca
+const BOMB_MARK_SCALE = 1.9 // a marca no chão (91 u na escala 1) do tamanho da explosão (2 x blastRadius)
+const CLONE_ALPHA = 0.6 // os clones do Cappuccino são cópias meio transparentes dele (como os fantasmas da folha)
 
 // Um inimigo (ou o chefe) na sala: a sombra, as pernas (atrás) e o tronco (na frente), com os pés em (enemy.x, enemy.y).
 // A folha é de frente; virado para a esquerda, o desenho é espelhado em volta dos pés.
@@ -32,13 +38,14 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   const sprite = getEnemySprite(enemy.enemyId)
   const { row } = sprite.animations[pose.animation]
   // O chefe numa fase com outra aparência (o Tralalero de óculos, o Chimpanzini descascado, a Nonna com menos camadas)
-  // usa a versão da folha dessa fase (variantLayers, em bossSprites.js)
-  const layers = (enemy.layerVariant && sprite.variantLayers?.[enemy.layerVariant]) || sprite.layers
+  // e o Pinguino com menos bolas usam a versão da folha (variantLayers, em bossSprites.js e enemySprites.js)
+  const variant = getLayerVariant(enemy)
+  const layers = (variant && sprite.variantLayers?.[variant]) || sprite.layers
 
   ctx.save()
-  ctx.globalAlpha = pose.alpha // no fim da morte, ele e a sombra apagam juntos
+  ctx.globalAlpha = pose.alpha * (enemy.clone ? CLONE_ALPHA : 1) // no fim da morte, ele e a sombra apagam juntos
   // Escondidos (a Polpetta no molho, o Tralalero debaixo do chão, só a barbatana) não têm sombra
-  if (enemy.boss && !enemy.hidden) drawScaledShadow(ctx, enemy.x, enemy.y, BOSS_SHADOW_SCALE)
+  if ((enemy.boss || enemy.clone) && !enemy.hidden) drawScaledShadow(ctx, enemy.x, enemy.y, BOSS_SHADOW_SCALE)
   else if (!enemy.hidden) drawShadow(ctx, enemy)
   ctx.translate(enemy.x, enemy.y)
   if (enemy.facingLeft) ctx.scale(-1, 1)
@@ -89,6 +96,11 @@ export function drawEnemyShotsFloor(ctx, shots) {
       const mark = EFFECT_SPRITES['marca-chao']
       drawEffectSpriteFrame(ctx, mark, getEffectSpriteFrame(mark, shot.ageMs, true), shot.to.x, shot.to.y, MARK_SCALE)
     }
+    if (shot.kind === 'bomba') {
+      // A marca de onde a bomba vai cair, do tamanho da explosão
+      const mark = EFFECT_SPRITES['marca-chao']
+      drawEffectSpriteFrame(ctx, mark, getEffectSpriteFrame(mark, shot.ageMs, true), shot.x, shot.y, BOMB_MARK_SCALE)
+    }
     if (shot.kind === 'raizes') continue // as raízes saem do chão: não têm sombra
     drawScaledShadow(ctx, shot.x, shot.y, 0.5)
   }
@@ -112,6 +124,16 @@ export function drawEnemyShots(ctx, shots) {
     if (shot.kind === 'banana') {
       const sprite = EFFECT_SPRITES['banana-bumerangue']
       drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, shot.ageMs, true), shot.x, shot.y - BANANA_HEIGHT, BANANA_SCALE)
+    }
+    if (shot.kind === 'gota') {
+      const sprite = EFFECT_SPRITES['gota-cafe']
+      drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, shot.ageMs, true), shot.x, shot.y - DROP_HEIGHT, DROP_SCALE)
+    }
+    if (shot.kind === 'bomba') {
+      // A bomba cai do alto até a marca, cada vez mais rápido
+      const t = Math.min(1, shot.ageMs / shot.fallMs)
+      const sprite = EFFECT_SPRITES.bomba
+      drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, shot.ageMs, true), shot.x, shot.y - BOMB_FALL_HEIGHT * (1 - t * t), BOMB_SCALE)
     }
     if (shot.kind === 'raizes') {
       // Cada raiz brota rootStepMs depois da anterior e toca a folha dela uma vez

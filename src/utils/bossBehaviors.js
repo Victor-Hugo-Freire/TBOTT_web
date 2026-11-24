@@ -1,8 +1,8 @@
-import { CHIMPANZINI, CINQUECENTO, NONNA, PATAPIM, TRALALERO } from '../data/bossBehavior.js'
+import { BALLERINA, BOMBARDIRO, CAPPUCCINO, CHIMPANZINI, CINQUECENTO, NONNA, PATAPIM, TRALALERO } from '../data/bossBehavior.js'
 import { BOSS_SPRITES } from '../data/bossSprites.js'
 import { getBossPhase } from './bosses.js'
 import { moveAndCollide, overlaps } from './collision.js'
-import { createBanana, createNote, createRoots } from './enemyShots.js'
+import { createBanana, createBomb, createCoffeeDrop, createNote, createRoots } from './enemyShots.js'
 import { getFeetBox, ROOM_FLOOR } from './roomMovement.js'
 import { getTotalDuration } from './spriteAnimation.js'
 import {
@@ -207,7 +207,7 @@ function startTralaleroAttack(fish, world, to) {
   if (attack === 'pauta' && Math.abs(world.player.x - fish.x) > TRALALERO.staffLength) attack = 'canto'
   const next = { ...fish, attackCount: fish.attackCount + 1 }
   if (attack === 'investida') return { ...face(setAnimation(next, 'preparando-investida'), to), dashesLeft: TRALALERO.dashes }
-  if (attack === 'canto') return face(setAnimation(next, 'canto-tralala'), to)
+  if (attack === 'canto') return { ...face(setAnimation(next, 'canto-tralala'), to), volleys: 0 }
   if (attack === 'pauta') return startStaff(face(setAnimation(next, 'pauta'), to), world)
   return setAnimation(next, 'salto-mergulho') // o mergulho
 }
@@ -237,18 +237,21 @@ function updateBite(fish, world) {
   return isAnimationOver(fish) ? restTralalero({ ...fish, biteHit: false }) : fish
 }
 
-// Canto: as notas saem no quadro do emits, em leque na direção do Tung
+// Canto: as notas saem no quadro do emits, em leque na direção do Tung. O canto toca TRALALERO.songVolleys vezes
+// seguidas (uma rajada por vez, com o resto da animação de intervalo, mirando o Tung de novo) e só depois ele descansa.
 function updateSong(fish, world) {
+  const to = getDirectionTo(fish, world.player)
   if (reachedEmitFrame(fish)) {
-    const to = getDirectionTo(fish, world.player)
     const middle = Math.atan2(to.y, to.x)
     for (let k = 0; k < TRALALERO.notes; k++) {
       const angle = middle + (k - (TRALALERO.notes - 1) / 2) * TRALALERO.noteSpread
       world.shots.push(createNote(fish, angle, getAttackDamage(fish, 'canto-tralala')))
     }
-    fish = { ...fish, emitted: true }
+    fish = { ...fish, emitted: true, volleys: fish.volleys + 1 }
   }
-  return isAnimationOver(fish) ? restTralalero(fish) : fish
+  if (!isAnimationOver(fish)) return fish
+  if (fish.volleys < TRALALERO.songVolleys) return { ...face(fish, to), animationMs: 0, emitted: false } // canta de novo
+  return restTralalero(fish)
 }
 
 // Pauta: nos quadros de acerto, quem está nela leva o dano (uma vez)
@@ -454,6 +457,227 @@ function updatePatapim(boss, world) {
   return chase(setAnimation(boss, 'andando'), world, boss.speed)
 }
 
+// ---------- Ballerina Cappuccina (andares 3 e 4): pirueta que ricocheteia e gotas de café; tonta ao bater ----------
+
+// A pirueta: girando em linha reta a BALLERINA.spinSpeed. Bateu em algo: o impacto e o ricochete; na batida número
+// bounces + 1 (ou depois de maxSpinMs), fica tonta.
+function spinBallerina(dancer, world) {
+  const moved = moveEnemy(dancer, dancer.aim, BALLERINA.spinSpeed, world)
+  if (!moved.blocked) return moved.animationMs >= BALLERINA.maxSpinMs ? setAnimation(moved, 'tonta') : moved
+  world.flashes.push(createEnemyFlash('impacto', moved.x + moved.aim.x * (moved.base.width / 2), moved.y - 40))
+  const bounces = moved.bounces + 1
+  if (bounces > BALLERINA.bounces) return setAnimation({ ...moved, bounces }, 'tonta')
+  const aim = bounceAim(moved, moved.aim, world.solids)
+  return { ...face(moved, aim), aim, bounces }
+}
+
+function updateBallerina(dancer, world) {
+  const to = getDirectionTo(dancer, world.player)
+  if (dancer.animation === 'pirueta') return spinBallerina(dancer, world)
+  // Tonta depois de bater na parede: a janela de bater nela (a barra mostra VULNERAVEL)
+  if (dancer.animation === 'tonta') return dancer.animationMs >= BALLERINA.dizzyMs ? rest(dancer, BALLERINA.restMs) : dancer
+  if (dancer.animation === 'atacando') {
+    // As gotas de café saem no quadro do emits, em círculo em volta dela
+    if (reachedEmitFrame(dancer)) {
+      const damage = getAttackDamage(dancer, 'atacando')
+      for (let k = 0; k < BALLERINA.drops; k++) world.shots.push(createCoffeeDrop(dancer, (2 * Math.PI * k) / BALLERINA.drops, damage))
+      dancer = { ...dancer, emitted: true }
+    }
+    return isAnimationOver(dancer) ? rest(dancer, BALLERINA.restMs) : dancer
+  }
+  // Andando atrás do Tung; depois de andar walkMs, reveza a pirueta e as gotas
+  if (dancer.animation === 'andando' && dancer.animationMs >= BALLERINA.walkMs) {
+    const next = { ...dancer, attackCount: dancer.attackCount + 1 }
+    if (dancer.attackCount % 2 === 0) return { ...face(setAnimation(next, 'pirueta'), to), aim: { x: to.x, y: to.y }, bounces: 0 }
+    return face(setAnimation(next, 'atacando'), to)
+  }
+  return chase(setAnimation(dancer, 'andando'), world, dancer.speed)
+}
+
+// ---------- Bombardiro Crocodilo (andares 3 e 4): voa, marca o chão e bombardeia; pousa para abastecer ----------
+
+const BOMB_MARGIN = 40 // as marcas ficam dentro do piso, a esta distância das paredes
+const BOMBING_PATTERNS = ['linha', 'cruz', 'rasante', 'cerco'] // na ordem em que ele reveza (veja BOMBARDIRO)
+
+// Uma bomba com a marca em (x, y), puxada para dentro do piso; cai fallMs depois de a marca aparecer
+function dropBomb(plane, world, x, y, fallMs = BOMBARDIRO.bombFallMs) {
+  const markX = Math.min(ROOM_FLOOR.right - BOMB_MARGIN, Math.max(ROOM_FLOOR.left + BOMB_MARGIN, x))
+  const markY = Math.min(ROOM_FLOOR.bottom - 10, Math.max(ROOM_FLOOR.top + BOMB_MARGIN, y))
+  world.shots.push(createBomb(markX, markY, getAttackDamage(plane, 'atacando'), plane.enemyId, fallMs))
+}
+
+// As marcas dos padrões soltos de uma vez (linha, cruz e cerco), em volta de onde o Tung está agora
+function dropPattern(plane, world) {
+  const { x, y } = world.player
+  const spacing = BOMBARDIRO.bombSpacing
+  if (plane.pattern === 'linha') {
+    // Atravessando o Tung, na direção do voo
+    const to = getDirectionTo(plane, world.player)
+    const direction = to.distance > 0 ? to : { x: 1, y: 0 }
+    const middle = (BOMBARDIRO.lineBombs - 1) / 2
+    for (let k = 0; k < BOMBARDIRO.lineBombs; k++) {
+      const offset = (k - middle) * spacing
+      dropBomb(plane, world, x + direction.x * offset, y + direction.y * offset)
+    }
+  } else if (plane.pattern === 'cruz') {
+    dropBomb(plane, world, x, y)
+    for (let k = 1; k <= BOMBARDIRO.crossArm; k++) {
+      dropBomb(plane, world, x + k * spacing, y)
+      dropBomb(plane, world, x - k * spacing, y)
+      dropBomb(plane, world, x, y + k * spacing)
+      dropBomb(plane, world, x, y - k * spacing)
+    }
+  } else {
+    // Cerco: o anel primeiro e a do meio depois
+    for (let k = 0; k < BOMBARDIRO.ringBombs; k++) {
+      const angle = (2 * Math.PI * k) / BOMBARDIRO.ringBombs
+      dropBomb(plane, world, x + Math.cos(angle) * BOMBARDIRO.ringRadius, y + Math.sin(angle) * BOMBARDIRO.ringRadius)
+    }
+    dropBomb(plane, world, x, y, BOMBARDIRO.bombFallMs + BOMBARDIRO.ringDelayMs)
+  }
+}
+
+// Rasante: voa em linha reta (aim) soltando uma bomba onde está a cada raidSpacing u voados; acaba ao bater na
+// parede ou depois de raidMs
+function raidBombardiro(plane, world) {
+  let moved = moveEnemy(plane, plane.aim, BOMBARDIRO.raidSpeed, world)
+  if (Math.hypot(moved.x - moved.raidFrom.x, moved.y - moved.raidFrom.y) >= BOMBARDIRO.raidSpacing) {
+    dropBomb(moved, world, moved.x, moved.y)
+    moved = { ...moved, raidFrom: { x: moved.x, y: moved.y } }
+  }
+  return moved.blocked || moved.animationMs >= BOMBARDIRO.raidMs ? endBombing(moved) : moved
+}
+
+// Fim de um bombardeio: a cada bombingsBeforeLanding, ele pousa para abastecer; senão descansa
+function endBombing(plane) {
+  const bombings = (plane.bombings ?? 0) + 1
+  if (bombings >= BOMBARDIRO.bombingsBeforeLanding) return setAnimation({ ...plane, bombings: 0 }, 'pousado')
+  return rest({ ...plane, bombings }, BOMBARDIRO.restMs)
+}
+
+function updateBombardiro(plane, world) {
+  const to = getDirectionTo(plane, world.player)
+  // Pousado, abastecendo: a janela de bater nele (a barra mostra VULNERAVEL)
+  if (plane.animation === 'pousado') return plane.animationMs >= BOMBARDIRO.landMs ? rest(plane, BOMBARDIRO.restMs) : plane
+  if (plane.animation === 'atacando') {
+    if (plane.pattern === 'rasante') return raidBombardiro(plane, world)
+    // Os outros padrões: as marcas aparecem todas no quadro do emits (a bomba saindo da asa)
+    if (reachedEmitFrame(plane)) {
+      dropPattern(plane, world)
+      plane = { ...plane, emitted: true }
+    }
+    return isAnimationOver(plane) ? endBombing(plane) : plane
+  }
+  // Voando: chega a hoverRange do Tung (em linha reta: voando, os obstáculos não atrapalham) e fica pairando ali;
+  // depois de voar walkMs, bombardeia com o próximo padrão (o rasante mira onde o Tung está agora)
+  if (plane.animation === 'andando' && plane.animationMs >= BOMBARDIRO.walkMs) {
+    const pattern = BOMBING_PATTERNS[plane.attackCount % BOMBING_PATTERNS.length]
+    const bombing = { ...face(setAnimation(plane, 'atacando'), to), pattern, attackCount: plane.attackCount + 1 }
+    if (pattern !== 'rasante') return bombing
+    return { ...bombing, aim: { x: to.x, y: to.y }, raidFrom: { x: plane.x, y: plane.y } }
+  }
+  const flying = setAnimation(plane, 'andando')
+  if (to.distance <= BOMBARDIRO.hoverRange) return face(flying, to)
+  return moveEnemy(flying, to, plane.speed, world)
+}
+
+// ---------- Cappuccino Assassino (andares 3 e 4): teleporte, corte de katana e clones ----------
+
+const NINJA_MARGIN = 80 // ele reaparece dentro do piso, a esta distância das paredes
+
+// Atrás do Tung: do outro lado de onde o Cappuccino está, a behindDistance dele
+function getBehindPoint(ninja, player) {
+  const to = getDirectionTo(ninja, player)
+  const direction = to.distance > 0 ? to : { x: 1, y: 0 }
+  return {
+    x: Math.min(ROOM_FLOOR.right - NINJA_MARGIN, Math.max(ROOM_FLOOR.left + NINJA_MARGIN, player.x + direction.x * CAPPUCCINO.behindDistance)),
+    y: Math.min(ROOM_FLOOR.bottom - 10, Math.max(ROOM_FLOOR.top + NINJA_MARGIN, player.y + direction.y * CAPPUCCINO.behindDistance)),
+  }
+}
+
+// O corte de katana (o do Cappuccino e o dos clones dele): o rastro da katana sai no quadro do emits, na frente dele;
+// nos quadros de acerto, quem está a até slashRange leva o dano do ataque attackId do catálogo (uma vez)
+function slashKatana(ninja, world, attackId) {
+  if (reachedEmitFrame(ninja)) {
+    const side = ninja.facingLeft ? -1 : 1
+    world.flashes.push({ ...createEnemyFlash('corte-katana', ninja.x + side * 60, ninja.y - 70), scale: CAPPUCCINO.slashScale })
+    ninja = { ...ninja, emitted: true }
+  }
+  if (isHitFrame(ninja) && !ninja.slashHit && getDirectionTo(ninja, world.player).distance <= CAPPUCCINO.slashRange) {
+    world.hits.push({ damage: getAttackDamage(ninja, attackId), cause: ninja.enemyId })
+    ninja = { ...ninja, slashHit: true }
+  }
+  return isAnimationOver(ninja) ? rest({ ...ninja, slashHit: false }, CAPPUCCINO.restMs) : ninja
+}
+
+// Clones vivos na sala
+function countClones(world) {
+  return world.enemies.filter((enemy) => enemy.clone && !enemy.dead).length
+}
+
+// Onde os clones nascem: no meio de cada lado do piso (direita, cima, esquerda e baixo), longe das portas
+const FLOOR_MIDDLE = { x: (ROOM_FLOOR.left + ROOM_FLOOR.right) / 2, y: (ROOM_FLOOR.top + ROOM_FLOOR.bottom) / 2 }
+const CLONE_SPOTS = [
+  { x: ROOM_FLOOR.right - CAPPUCCINO.cloneWallMargin, y: FLOOR_MIDDLE.y },
+  { x: FLOOR_MIDDLE.x, y: ROOM_FLOOR.top + CAPPUCCINO.cloneWallMargin },
+  { x: ROOM_FLOOR.left + CAPPUCCINO.cloneWallMargin, y: FLOOR_MIDDLE.y },
+  { x: FLOOR_MIDDLE.x, y: ROOM_FLOOR.bottom - CAPPUCCINO.cloneWallMargin },
+]
+
+// Pede um clone em cada ponto de CLONE_SPOTS (updateEnemies cria, com createClone). Onde o clone não cabe (um
+// obstáculo), nasce em cima do Cappuccino.
+function summonClones(ninja, world) {
+  let made = ninja.clonesMade ?? 0 // conta todos os que ele já fez: o id de cada clone é único na sala
+  for (const point of CLONE_SPOTS) {
+    const base = getBaseBox({ ...ninja, ...point })
+    const spot = world.solids.some((solid) => overlaps(base, solid)) ? { x: ninja.x, y: ninja.y } : point
+    world.spawns.push({ cloneOf: ninja, id: `clone-${made}`, ...spot })
+    world.flashes.push(createEnemyFlash('poof', spot.x, spot.y - 60))
+    made++
+  }
+  return { ...ninja, clonesMade: made }
+}
+
+// Um clone do Cappuccino (createClone, em enemies.js): anda atrás do Tung e, perto, dá o corte com o dano dos clones.
+// Não se teleporta nem faz clones; ao cair (CAPPUCCINO.cloneHealth de vida), some numa fumaça (updateEnemies).
+export function updateClone(clone, world) {
+  const to = getDirectionTo(clone, world.player)
+  if (clone.animation === 'atacando') return slashKatana(clone, world, 'clones')
+  if (to.distance <= CAPPUCCINO.slashRange) return face(setAnimation(clone, 'atacando'), to)
+  return chase(setAnimation(clone, 'andando'), world, clone.speed)
+}
+
+function updateCappuccino(ninja, world) {
+  const to = getDirectionTo(ninja, world.player)
+  if (ninja.animation === 'teleporte') {
+    // Vira fumaça no quadro do emits: some (nada o acerta) e a fumaça dele já aparece atrás do Tung; no fim,
+    // reaparece e dá o corte
+    if (reachedEmitFrame(ninja)) {
+      world.flashes.push(createEnemyFlash('poof', ninja.x, ninja.y - 60))
+      ninja = { ...ninja, ...getBehindPoint(ninja, world.player), hidden: true, emitted: true }
+    }
+    if (!isAnimationOver(ninja)) return ninja
+    return { ...face(setAnimation(ninja, 'atacando'), getDirectionTo(ninja, world.player)), hidden: false, slashed: true }
+  }
+  if (ninja.animation === 'atacando') return slashKatana(ninja, world, 'atacando')
+  if (ninja.animation === 'clones') {
+    // Os fantasmas saem dele: na fumaça (o quadro do emits), os clones aparecem em volta dele
+    if (reachedEmitFrame(ninja)) {
+      world.flashes.push(createEnemyFlash('poof', ninja.x, ninja.y - 60))
+      ninja = { ...summonClones(ninja, world), emitted: true }
+    }
+    return isAnimationOver(ninja) ? rest(ninja, CAPPUCCINO.restMs) : ninja
+  }
+  // Sem nenhum clone vivo, faz os clones logo depois de um corte (de qualquer distância) ou depois de andar walkMs.
+  // Perto, o corte (só começa com o Tung ao alcance dele). Com clones e o Tung longe (além de teleportRange), depois
+  // de andar walkMs, se teleporta para trás dele. Senão, anda atrás do Tung.
+  const walked = ninja.animation === 'andando' && ninja.animationMs >= CAPPUCCINO.walkMs
+  if ((ninja.slashed || walked) && countClones(world) === 0) return { ...face(setAnimation(ninja, 'clones'), to), slashed: false }
+  if (to.distance <= CAPPUCCINO.slashRange) return { ...face(setAnimation(ninja, 'atacando'), to), slashed: true }
+  if (walked && to.distance > CAPPUCCINO.teleportRange) return face(setAnimation(ninja, 'teleporte'), to)
+  return chase(setAnimation(ninja, 'andando'), world, ninja.speed)
+}
+
 // Comportamento de cada chefe, pelo id. Chefe sem comportamento ainda fica parado (só machuca ao encostar).
 export const BOSS_BEHAVIORS = {
   'cinquecento-turbo': (car, world) => setContactDamage(updateCinquecento(car, world), 'investida'),
@@ -461,4 +685,7 @@ export const BOSS_BEHAVIORS = {
   'chimpanzini-bananini': updateChimpanzini,
   'nonna-lasagnona': updateNonna,
   'brr-brr-patapim': updatePatapim,
+  'ballerina-cappuccina': (dancer, world) => setContactDamage(updateBallerina(dancer, world), 'pirueta'),
+  'bombardiro-crocodilo': updateBombardiro,
+  'cappuccino-assassino': updateCappuccino,
 }

@@ -1,4 +1,4 @@
-import { CHIMPANZINI, PATAPIM, TRALALERO } from '../data/bossBehavior.js'
+import { BALLERINA, BOMBARDIRO, CHIMPANZINI, PATAPIM, TRALALERO } from '../data/bossBehavior.js'
 import { EFFECT_SPRITES } from '../data/effectSprites.js'
 import { FENICOTTERO, MOKA, PISTACCHIO } from '../data/enemyBehavior.js'
 import { overlaps } from './collision.js'
@@ -6,13 +6,17 @@ import { getFeetBox, ROOM_FLOOR } from './roomMovement.js'
 import { getTotalDuration } from './spriteAnimation.js'
 
 // Projéteis dos inimigos: o caroço do Pistacchio, a pizza do Fenicottero e o anel de vapor da Moka. Dos chefes: as
-// notas musicais do Tralalero, a banana-bumerangue do Chimpanzini e as raízes do Patapim.
+// notas musicais do Tralalero, a banana-bumerangue do Chimpanzini, as raízes do Patapim, as gotas de café da Ballerina e
+// as bombas do Bombardiro.
 // Cada projétil guarda o ponto do chão embaixo dele (x, y): é esse ponto que acerta os pés do Tung e bate no que
 // bloqueia, como a sombra de uma bola. A altura (height) é só para o desenho.
 // Ficam em run.enemyShots e somem ao trocar de sala. Funções puras, para testar com node:test.
 // Quem acerta o Tung vai para world.hits ({ damage, cause }), como a explosão do Peperoncino.
 
 const SEED_BOX = { width: 36, height: 24 } // o caroço no chão (a sombra dele)
+// A banana no chão: do tamanho do desenho (68 u no jogo), e não do caroço. Mais rápida (13 u por quadro), com a caixa
+// pequena ela passava pelo Tung na virada para a volta sem encostar em nenhum quadro.
+const BANANA_BOX = { width: 56, height: 40 }
 export const SEED_HEIGHT = 55 // o caroço voa nesta altura (a boca do Pistacchio)
 const PIZZA_START_HEIGHT = 90 // a pizza sai da boca do forno do Fenicottero
 
@@ -28,6 +32,8 @@ const RING_MS = getTotalDuration(EFFECT_SPRITES['vapor-anel'].animations['vapor-
 // Cada raiz do Patapim brota durante a folha dela (raiz.png); ROOT_BOX é a base dela no chão (o desenho tem 68 x 80 u)
 export const ROOT_MS = getTotalDuration(EFFECT_SPRITES.raiz.animations.raiz.durations)
 const ROOT_BOX = { width: 60, height: 36 }
+
+const EXPLOSION_MS = getTotalDuration(EFFECT_SPRITES.explosao.animations.explosao.durations) // a explosão da bomba
 
 // Caixa de tamanho `size` com o meio em (x, y)
 function boxAround(x, y, size) {
@@ -91,6 +97,19 @@ export function createBanana(boss, target, damage, side) {
     damage,
     cause: boss.enemyId,
   }
+}
+
+// Gota de café da Ballerina: sai dos pés dela e voa reto na direção `angle` (radianos), por cima de tudo; some depois
+// de BALLERINA.dropMs
+export function createCoffeeDrop(boss, angle, damage) {
+  const speed = BALLERINA.dropSpeed
+  return { kind: 'gota', x: boss.x, y: boss.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, ageMs: 0, damage, cause: boss.enemyId }
+}
+
+// Bomba do Bombardiro: a marca aparece no chão em (x, y) (o aviso) e a bomba cai ali fallMs depois (a do meio do
+// cerco cai mais tarde que as outras)
+export function createBomb(x, y, damage, cause, fallMs = BOMBARDIRO.bombFallMs) {
+  return { kind: 'bomba', x, y, ageMs: 0, fallMs, damage, cause }
 }
 
 // Raízes do Patapim: PATAPIM.rootCount raízes em linha, dos pés dele na direção do Tung, uma a cada rootSpacing u.
@@ -168,7 +187,7 @@ function updateBanana(banana, world, feet) {
   const x = start.x + (end.x - start.x) * progress + banana.sideX * arc
   const y = start.y + (end.y - start.y) * progress + banana.sideY * arc
   let { hitOut, hitBack } = banana
-  const touching = overlaps(boxAround(x, y, SEED_BOX), feet)
+  const touching = overlaps(boxAround(x, y, BANANA_BOX), feet)
   if (touching && !back && !hitOut) {
     world.hits.push({ damage: banana.damage, cause: banana.cause })
     hitOut = true
@@ -178,6 +197,33 @@ function updateBanana(banana, world, feet) {
     hitBack = true
   }
   return { ...banana, x, y, ageMs, back, hitOut, hitBack }
+}
+
+// A gota anda (por cima de tudo); acertou os pés do Tung (dano) ou o tempo dela acabou, some
+function updateDrop(drop, world, feet) {
+  const x = drop.x + drop.vx * world.deltaSeconds
+  const y = drop.y + drop.vy * world.deltaSeconds
+  const ageMs = drop.ageMs + world.deltaSeconds * 1000
+  if (overlaps(boxAround(x, y, SEED_BOX), feet)) {
+    world.hits.push({ damage: drop.damage, cause: drop.cause })
+    return null
+  }
+  return ageMs >= BALLERINA.dropMs ? null : { ...drop, x, y, ageMs }
+}
+
+// A bomba cai na marca; ao chegar no chão explode (o efeito vai para world.flashes) e machuca quem está a até
+// BOMBARDIRO.blastRadius da marca
+function updateBomb(bomb, world) {
+  const ageMs = bomb.ageMs + world.deltaSeconds * 1000
+  if (ageMs < bomb.fallMs) return { ...bomb, ageMs }
+  if (Math.hypot(world.player.x - bomb.x, world.player.y - bomb.y) <= BOMBARDIRO.blastRadius) {
+    world.hits.push({ damage: bomb.damage, cause: bomb.cause })
+  }
+  if (world.flashes) {
+    // O mesmo formato de createEnemyFlash (enemyBehaviors.js, que já importa este arquivo)
+    world.flashes.push({ effect: 'explosao', x: bomb.x, y: bomb.y - 30, scale: BOMBARDIRO.blastScale, angle: 0, elapsedMs: 0, durationMs: EXPLOSION_MS, loop: false })
+  }
+  return null
 }
 
 // As raízes brotam uma depois da outra; a que está brotando (a folha dela tocando) machuca quem está em cima dela.
@@ -240,6 +286,8 @@ export function updateEnemyShots(shots, world) {
     if (shot.kind === 'nota') moved = updateNote(shot, world, feet)
     if (shot.kind === 'banana') moved = updateBanana(shot, world, feet)
     if (shot.kind === 'raizes') moved = updateRoots(shot, world, feet)
+    if (shot.kind === 'gota') moved = updateDrop(shot, world, feet)
+    if (shot.kind === 'bomba') moved = updateBomb(shot, world)
     if (moved) next.push(moved)
   }
   return next

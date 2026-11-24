@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { CHIMPANZINI, CINQUECENTO, NONNA, PATAPIM, TRALALERO } from '../src/data/bossBehavior.js'
+import { BALLERINA, BOMBARDIRO, CAPPUCCINO, CHIMPANZINI, CINQUECENTO, NONNA, PATAPIM, TRALALERO } from '../src/data/bossBehavior.js'
+import { BOSS_SPRITES } from '../src/data/bossSprites.js'
 import { getBossBar } from '../src/pages/SalaInicial/scene/drawBossBar.js'
-import { createRoomBoss, findTouchingEnemy, getEnemyPose, updateEnemies } from '../src/utils/enemies.js'
+import { createClone, createRoomBoss, findTouchingEnemy, getEnemyPose, updateEnemies } from '../src/utils/enemies.js'
 import { createBanana, createRoots, updateEnemyShots } from '../src/utils/enemyShots.js'
+import { pickRunBosses } from '../src/utils/bosses.js'
 import { generateFloor } from '../src/utils/floorGenerator.js'
-import { ROOM_WALLS } from '../src/utils/roomMovement.js'
+import { DOOR_HIT_ZONES } from '../src/utils/doors.js'
+import { ROOM_FLOOR, ROOM_WALLS } from '../src/utils/roomMovement.js'
+import { createRun, updateRun } from '../src/utils/run.js'
 import { damageTarget, isTargetable } from '../src/utils/targets.js'
 import { TEST_BOSSES, TEST_ENEMIES } from './helpers/testCatalog.js'
 
@@ -161,16 +165,26 @@ describe('Tralalero Tralala', () => {
     assert.equal(getBossBar([result.boss]).state, 'fase2')
   })
 
-  test('fase 2, canto: 3 notas em leque na direção do Tung; a do meio acerta, com o dano do canto', () => {
-    const fish = tralaleroReady(2, 1)
+  test('fase 2, canto: 3 rajadas seguidas de 3 notas em leque, uma a cada canto; a do meio de cada uma acerta', () => {
+    let fish = tralaleroReady(2, 1)
     const player = { x: fish.x + 400, y: fish.y }
-    const { shots } = simulate(fish, player, 1000, (one) => one.animation !== 'canto-tralala' && one.attackCount === 2)
-    assert.equal(shots.length, TRALALERO.notes)
+    const volleyTimes = []
+    const shots = []
+    for (let time = 0; time < 4000 && !(fish.restMs > 0); time += STEP_MS) {
+      const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], flashes: [], floor: [], shots: [] }
+      fish = updateEnemies([fish], world)[0]
+      if (world.shots.length > 0) volleyTimes.push(time)
+      shots.push(...world.shots)
+    }
+    assert.equal(volleyTimes.length, TRALALERO.songVolleys)
+    assert.equal(shots.length, TRALALERO.notes * TRALALERO.songVolleys)
     assert.ok(shots.every((shot) => shot.kind === 'nota'))
-    const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], floor: [] }
-    let flying = shots
-    for (let time = 0; time < 3000 && flying.length > 0; time += STEP_MS) flying = updateEnemyShots(flying, world)
-    assert.deepEqual(world.hits, [{ damage: 1, cause: 'tralalero-tralala' }])
+    // O intervalo entre as rajadas é o canto inteiro (a animação toca de novo)
+    const songMs = BOSS_SPRITES['tralalero-tralala'].animations['canto-tralala'].durations.reduce((sum, ms) => sum + ms, 0)
+    for (let k = 1; k < volleyTimes.length; k++) assert.ok(Math.abs(volleyTimes[k] - volleyTimes[k - 1] - songMs) <= STEP_MS)
+    // Sem a invencibilidade da run, a nota do meio de cada rajada acerta
+    const hits = flyShots(shots, player, fish)
+    assert.deepEqual(hits, Array(TRALALERO.songVolleys).fill({ damage: 1, cause: 'tralalero-tralala' }))
   })
 
   test('fase 2, pauta: aparece na fileira do Tung e machuca quem fica nela, uma vez', () => {
@@ -502,5 +516,287 @@ describe('Brr Brr Patapim', () => {
     const roots = createRoots(boss, { x: 0, y: boss.y }, 1)
     assert.ok(roots.points.length < PATAPIM.rootCount)
     assert.ok(roots.points.every((point) => point.x > 0))
+  })
+})
+
+// A ordem dos ataques que o chefe começa em `ms` (com o Tung parado em `player`), até `count` ataques
+function attackOrder(boss, player, ms, names, count) {
+  const order = []
+  for (let time = 0; time < ms && order.length < count; time += STEP_MS) {
+    const before = boss.animation
+    boss = simulate(boss, player, STEP_MS).boss
+    if (boss.animation !== before && names.includes(boss.animation)) order.push(boss.animation)
+  }
+  return order
+}
+
+describe('Ballerina Cappuccina', () => {
+  test('a pirueta gira até o Tung, ricocheteia nas paredes e, na última batida, ela fica tonta (VULNERAVEL)', () => {
+    const dancer = readyToAttack('ballerina-cappuccina', BALLERINA.walkMs)
+    const player = { x: dancer.x + 500, y: dancer.y + 80 }
+    let { boss, flashes } = simulate(dancer, player, 8000, (one) => one.animation === 'tonta')
+    assert.equal(boss.animation, 'tonta')
+    assert.equal(boss.bounces, BALLERINA.bounces + 1)
+    assert.ok(flashes.some((flash) => flash.effect === 'impacto'))
+    assert.equal(getBossBar([boss]).state, 'vulneravel')
+    boss = simulate(boss, player, 3000, (one) => one.animation !== 'tonta').boss
+    assert.equal(boss.animation, 'parado')
+  })
+
+  test('as gotas de café saem em círculo; quem está no caminho de uma leva o dano', () => {
+    const dancer = { ...readyToAttack('ballerina-cappuccina', BALLERINA.walkMs), attackCount: 1 }
+    const player = { x: dancer.x + 150, y: dancer.y }
+    const { boss, shots } = simulate(dancer, player, 1000, (one) => one.animation !== 'atacando' && one.attackCount === 2)
+    assert.equal(shots.length, BALLERINA.drops)
+    assert.ok(shots.every((shot) => shot.kind === 'gota'))
+    assert.deepEqual(flyShots(shots, player, boss), [{ damage: 1, cause: 'ballerina-cappuccina' }])
+  })
+
+  test('os ataques revezam: pirueta, gotas, pirueta', () => {
+    const dancer = readyToAttack('ballerina-cappuccina', BALLERINA.walkMs)
+    const order = attackOrder(dancer, { x: dancer.x + 500, y: dancer.y + 80 }, 20000, ['pirueta', 'atacando'], 3)
+    assert.deepEqual(order, ['pirueta', 'atacando', 'pirueta'])
+  })
+})
+
+describe('Bombardiro Crocodilo', () => {
+  test('voa e fica pairando perto do Tung, sem chegar em cima dele', () => {
+    const plane = spawn('bombardiro-crocodilo')
+    assert.equal(plane.flying, true)
+    const player = { x: plane.x + 350, y: plane.y } // a 130 u/s, chega no raio de pairar em menos de 1 s
+    const { boss } = simulate(plane, player, 1200)
+    const distance = Math.hypot(player.x - boss.x, player.y - boss.y)
+    assert.ok(distance <= BOMBARDIRO.hoverRange && distance > BOMBARDIRO.hoverRange - 20, `pairando a ${distance} u`)
+  })
+
+  // Um bombardeio inteiro com o padrão `pattern` (attackCount escolhe o padrão), com o Tung parado em `player`
+  function bombing(pattern, player) {
+    const order = ['linha', 'cruz', 'rasante', 'cerco']
+    const plane = { ...readyToAttack('bombardiro-crocodilo', BOMBARDIRO.walkMs), attackCount: order.indexOf(pattern) }
+    return simulate(plane, player, 4000, (one) => one.animation !== 'atacando' && one.waitMs > 0)
+  }
+
+  // As bombas caindo até a última explodir, com o Tung em player(ms) a cada quadro. Devolve os acertos e as explosões.
+  function fallBombs(shots, player) {
+    const world = { player: player(0), solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], floor: [], flashes: [] }
+    let falling = shots
+    for (let time = STEP_MS; falling.length > 0; time += STEP_MS) {
+      world.player = player(time)
+      falling = updateEnemyShots(falling, world)
+    }
+    return { hits: world.hits, blasts: world.flashes.filter((flash) => flash.effect === 'explosao').length }
+  }
+
+  test('reveza os padrões: linha, cruz, rasante e cerco', () => {
+    let plane = readyToAttack('bombardiro-crocodilo', BOMBARDIRO.walkMs)
+    const player = { x: plane.x + 200, y: plane.y }
+    const patterns = []
+    for (let k = 0; k < 5; k++) {
+      plane = simulate(plane, player, 6000, (one) => one.animation === 'atacando').boss
+      patterns.push(plane.pattern)
+      plane = simulate(plane, player, 6000, (one) => one.animation !== 'atacando').boss
+    }
+    assert.deepEqual(patterns, ['linha', 'cruz', 'rasante', 'cerco', 'linha'])
+  })
+
+  test('linha: 5 marcas atravessando o Tung; a bomba só explode depois do aviso e só a do meio pega o Tung', () => {
+    const plane = spawn('bombardiro-crocodilo')
+    const player = { x: plane.x + 200, y: plane.y }
+    const { shots } = bombing('linha', player)
+    assert.equal(shots.length, BOMBARDIRO.lineBombs)
+    assert.ok(shots.every((shot) => shot.kind === 'bomba' && shot.y === player.y))
+    assert.ok(shots.some((shot) => shot.x === player.x), 'uma marca no Tung')
+    const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], floor: [], flashes: [] }
+    let falling = shots
+    for (let time = STEP_MS; time < BOMBARDIRO.bombFallMs; time += STEP_MS) falling = updateEnemyShots(falling, world)
+    assert.deepEqual(world.hits, [], 'durante o aviso, nada machuca')
+    const { hits, blasts } = fallBombs(shots, () => player)
+    assert.deepEqual(hits, [{ damage: 2, cause: 'bombardiro-crocodilo' }], 'só a bomba do meio pega o Tung')
+    assert.equal(blasts, BOMBARDIRO.lineBombs)
+  })
+
+  test('cruz: uma marca no Tung e 2 em cada braço; na diagonal não pega', () => {
+    const plane = spawn('bombardiro-crocodilo')
+    const player = { x: plane.x + 300, y: plane.y }
+    const { shots } = bombing('cruz', player)
+    assert.equal(shots.length, 1 + 4 * BOMBARDIRO.crossArm)
+    assert.equal(fallBombs(shots, () => player).hits.length, 1, 'parado no meio, a do meio pega')
+    const diagonal = { x: player.x + 80, y: player.y + 80 }
+    assert.deepEqual(fallBombs(shots, () => diagonal).hits, [], 'na diagonal, entre os braços, escapa')
+  })
+
+  test('rasante: voa por cima do Tung soltando bombas pelo caminho, que explodem uma depois da outra', () => {
+    const plane = spawn('bombardiro-crocodilo')
+    const player = { x: plane.x + 300, y: plane.y }
+    const { boss, shots } = bombing('rasante', player)
+    assert.ok(shots.length >= 4, `${shots.length} bombas`)
+    assert.ok(boss.x > player.x, 'passou por cima do Tung')
+    assert.ok(shots.some((shot) => Math.abs(shot.x - player.x) <= BOMBARDIRO.blastRadius), 'uma bomba pega o Tung parado')
+    const sorted = [...shots].sort((a, b) => a.x - b.x)
+    assert.deepEqual(shots, sorted, 'as marcas vão ficando no caminho dele, na ordem do voo')
+  })
+
+  test('cerco: o anel cai primeiro e a do meio depois; quem fica no meio e sai depois do anel escapa', () => {
+    const plane = spawn('bombardiro-crocodilo')
+    const player = { x: plane.x + 300, y: plane.y }
+    const { shots } = bombing('cerco', player)
+    assert.equal(shots.length, BOMBARDIRO.ringBombs + 1)
+    const middle = shots.find((shot) => shot.x === player.x && shot.y === player.y)
+    assert.equal(middle.fallMs, BOMBARDIRO.bombFallMs + BOMBARDIRO.ringDelayMs)
+    assert.equal(fallBombs(shots, () => player).hits.length, 1, 'parado no meio, a do meio pega')
+    const leaves = (ms) => (ms <= BOMBARDIRO.bombFallMs + 40 ? player : { x: player.x + BOMBARDIRO.ringRadius, y: player.y + 120 })
+    assert.deepEqual(fallBombs(shots, leaves).hits, [], 'espera o anel e sai antes da do meio')
+    const runsEarly = (ms) => (ms < 200 ? player : { x: player.x + BOMBARDIRO.ringRadius, y: player.y })
+    assert.equal(fallBombs(shots, runsEarly).hits.length, 1, 'quem sai antes cai no anel')
+  })
+
+  test('a cada 3 bombardeios pousa para abastecer (VULNERAVEL) e depois volta a voar', () => {
+    let plane = { ...readyToAttack('bombardiro-crocodilo', BOMBARDIRO.walkMs), bombings: BOMBARDIRO.bombingsBeforeLanding - 1 }
+    const player = { x: plane.x + 200, y: plane.y }
+    plane = simulate(plane, player, 2000, (one) => one.animation === 'pousado').boss
+    assert.equal(plane.animation, 'pousado')
+    assert.equal(getBossBar([plane]).state, 'vulneravel')
+    plane = simulate(plane, player, 3000, (one) => one.animation !== 'pousado').boss
+    assert.equal(plane.animation, 'parado')
+    assert.equal(plane.bombings, 0)
+  })
+})
+
+describe('Cappuccino Assassino', () => {
+  // Os clones de um Cappuccino que já fez os clones (perto dele, parados, para o teste olhar só o que quer)
+  function clonesOf(ninja) {
+    return [0, 1, 2].map((k) => ({ ...createClone(ninja, { id: `clone-${k}`, x: ninja.x - 150, y: ninja.y + 40 * k }), waitMs: 1e9 }))
+  }
+
+  test('com clones vivos e o Tung longe, se teleporta: some na fumaça (nada o acerta), reaparece atrás do Tung e dá o corte', () => {
+    const ninja = readyToAttack('cappuccino-assassino', CAPPUCCINO.walkMs)
+    const player = { x: ninja.x + 400, y: ninja.y }
+    let [boss, ...clones] = simulateRoom([ninja, ...clonesOf(ninja)], player, 1000, (list) => list[0].hidden).targets
+    assert.equal(boss.animation, 'teleporte')
+    assert.equal(isTargetable(boss), false)
+    assert.equal(findTouchingEnemy([boss], { x: boss.x, y: boss.y - 10 }), null)
+    assert.ok(boss.x > player.x, 'a fumaça já está do outro lado do Tung')
+    const slash = simulateRoom([boss, ...clones], player, 1500, (list) => list[0].animation !== 'atacando' && list[0].waitMs > 0)
+    assert.equal(slash.targets[0].hidden, false)
+    assert.deepEqual(slash.hits, [{ damage: 2, cause: 'cappuccino-assassino' }])
+    assert.ok(slash.flashes.some((flash) => flash.effect === 'corte-katana'))
+  })
+
+  test('sem clones vivos, depois de andar faz 4 clones na fumaça, um no meio de cada lado da sala (sem barra de vida)', () => {
+    const ninja = readyToAttack('cappuccino-assassino', CAPPUCCINO.walkMs)
+    const player = { x: ninja.x + 400, y: ninja.y }
+    const { targets, flashes } = simulateRoom([ninja], player, 1000, (list) => list.length > 1)
+    const clones = targets.slice(1)
+    assert.equal(targets[0].animation, 'clones')
+    assert.equal(clones.length, 4)
+    assert.ok(clones.every((one) => one.clone && one.minion && !one.boss && one.enemyId === 'cappuccino-assassino'))
+    assert.ok(clones.every((one) => one.health === CAPPUCCINO.cloneHealth && one.health === 4), 'cada um com 4 de vida')
+    assert.equal(new Set(clones.map((one) => one.id)).size, 4, 'cada clone com um id')
+    const margin = CAPPUCCINO.cloneWallMargin
+    const middle = { x: (ROOM_FLOOR.left + ROOM_FLOOR.right) / 2, y: (ROOM_FLOOR.top + ROOM_FLOOR.bottom) / 2 }
+    assert.deepEqual(
+      clones.map((one) => ({ x: one.x, y: one.y })),
+      [
+        { x: ROOM_FLOOR.right - margin, y: middle.y },
+        { x: middle.x, y: ROOM_FLOOR.top + margin },
+        { x: ROOM_FLOOR.left + margin, y: middle.y },
+        { x: middle.x, y: ROOM_FLOOR.bottom - margin },
+      ],
+      'direita, cima, esquerda e baixo',
+    )
+    assert.ok(flashes.filter((flash) => flash.effect === 'poof').length >= 4)
+    assert.equal(getBossBar(targets).name, ninja.name.toUpperCase(), 'a barra continua sendo a dele')
+  })
+
+  test('os clones nascem fora das portas (nenhum cai em cima do Cappuccino na sala vazia)', () => {
+    const ninja = readyToAttack('cappuccino-assassino', CAPPUCCINO.walkMs)
+    const solids = [...ROOM_WALLS, ...Object.values(DOOR_HIT_ZONES)]
+    const world = { player: { x: ninja.x + 400, y: ninja.y }, solids, deltaSeconds: STEP, hits: [], flashes: [], floor: [], shots: [] }
+    let targets = [ninja]
+    for (let time = 0; time < 1000 && targets.length === 1; time += STEP_MS) targets = updateEnemies(targets, { ...world, flashes: [] })
+    assert.ok(targets.slice(1).every((one) => one.x !== ninja.x || one.y !== ninja.y))
+  })
+
+  test('com um clone vivo ele não faz mais; com todos mortos, faz de novo', () => {
+    const ninja = readyToAttack('cappuccino-assassino', CAPPUCCINO.walkMs)
+    const player = { x: ninja.x + 250, y: ninja.y } // perto o bastante para não se teleportar
+    const clones = clonesOf(ninja)
+    const oneAlive = simulateRoom([ninja, clones[0], damageTarget(clones[1], 9), damageTarget(clones[2], 9)], player, 1500)
+    assert.equal(oneAlive.targets.length, 4, 'nenhum clone novo')
+    const noneAlive = [ninja, ...clones.map((one) => damageTarget(one, 9))]
+    const again = simulateRoom(noneAlive, player, 1000, (list) => list.length > 4).targets
+    assert.equal(again.filter((one) => one.clone && !one.dead).length, 4)
+  })
+
+  test('cada clone tem 4 de vida: ao cair, some numa fumaça, sem a animação de morte', () => {
+    const [clone] = clonesOf(spawn('cappuccino-assassino'))
+    assert.equal(damageTarget(clone, 3).dead, false, 'um golpe de 3 não derruba')
+    const hit = damageTarget(damageTarget(clone, 3), 1)
+    assert.equal(hit.dead, true)
+    assert.equal(getEnemyPose(hit), null, 'nada é desenhado no lugar dele')
+    const { targets, flashes } = simulateRoom([hit], { x: 0, y: 0 }, STEP_MS)
+    assert.equal(targets[0].vanished, true)
+    assert.deepEqual(flashes.map((flash) => flash.effect), ['poof'])
+  })
+
+  test('o clone anda até o Tung e dá o corte, com o dano dos clones', () => {
+    const ninja = spawn('cappuccino-assassino')
+    const clone = { ...clonesOf(ninja)[0], waitMs: 0 }
+    const player = { x: clone.x - 300, y: clone.y }
+    const { targets, hits, flashes } = simulateRoom([clone], player, 3000, (list) => list[0].slashHit)
+    assert.equal(targets[0].animation, 'atacando')
+    assert.deepEqual(hits, [{ damage: 1, cause: 'cappuccino-assassino' }])
+    assert.ok(flashes.some((flash) => flash.effect === 'corte-katana'))
+  })
+
+  test('quando ele morre, os clones somem junto na fumaça', () => {
+    const ninja = spawn('cappuccino-assassino')
+    const room = [damageTarget(ninja, 999), ...clonesOf(ninja)]
+    const { targets, flashes } = simulateRoom(room, { x: 0, y: 0 }, STEP_MS)
+    assert.ok(targets.slice(1).every((one) => one.dead && one.vanished))
+    assert.equal(flashes.filter((flash) => flash.effect === 'poof').length, 3)
+  })
+
+  test('o ataque só começa com o Tung ao alcance dele: de qualquer ponto em volta, o Tung parado é acertado', () => {
+    // Era o defeito: ele começava a atacar a 230 u, mas o corte só alcança 170 e os clones só pegavam de lado
+    for (const distance of [150, 200, 250, 290]) {
+      for (const angle of [0, Math.PI / 2, Math.PI, -Math.PI / 4]) {
+        const ninja = spawn('cappuccino-assassino')
+        const player = { x: ninja.x + Math.cos(angle) * distance, y: ninja.y + Math.sin(angle) * distance }
+        const { hits } = simulate(ninja, player, 4000)
+        assert.ok(hits.length > 0, `Tung parado a ${distance} u, ângulo ${angle.toFixed(2)}: ${hits.length} acertos`)
+      }
+    }
+  })
+
+  test('nenhum chefe começa um ataque de perto mais longe do que ele alcança', () => {
+    assert.ok(CINQUECENTO.honkRange <= CINQUECENTO.honkRadius, 'buzina')
+    assert.ok(PATAPIM.stompRange <= PATAPIM.stompRadius, 'pisão')
+    assert.ok(NONNA.slamRange <= NONNA.slamRadius + NONNA.slamReach, 'colherada')
+    // O Cappuccino (e os clones) e o Tralalero usam o mesmo número para começar e para acertar (slashRange, biteRange)
+    assert.ok(CAPPUCCINO.slashRange > 0 && TRALALERO.biteRange > 0)
+  })
+
+  test('o Cinquecento buzina com o Tung parado entre 190 e 210 u e acerta', () => {
+    const car = spawn('cinquecento-turbo')
+    const { hits } = simulate(car, { x: car.x + 200, y: car.y }, 2500)
+    assert.ok(hits.some((hit) => hit.damage === 1), 'a buzina acertou')
+  })
+
+  test('na run de verdade, o Tung parado perto dele perde vida (o corte e os clones acertam)', () => {
+    let seed = 1
+    while (pickRunBosses(seed, TEST_BOSSES)[2] !== 'cappuccino-assassino') seed++
+    const roomId = generateFloor(seed, 3).rooms.find((room) => room.type === 'chefe').id
+    for (const offset of [250, 400]) {
+      let run = createRun({ seed, floorNumber: 3, roomId, characterId: 'tung-tung-sahur', catalog: {}, enemyCatalog: TEST_ENEMIES, bossCatalog: TEST_BOSSES })
+      const boss = run.targets.find((target) => target.boss)
+      const spot = { x: boss.x + offset, y: boss.y }
+      const start = run.health
+      for (let frame = 0; frame < 500 && !run.death; frame++) {
+        run.player = { ...run.player, x: spot.x, y: spot.y }
+        run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: null }, STEP)
+      }
+      assert.ok(run.health < start, `Tung parado a ${offset} u: perdeu ${start - run.health} em 10 s`)
+    }
   })
 })
