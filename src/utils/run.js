@@ -863,6 +863,7 @@ function updateRoom(run, input, deltaSeconds) {
   // e projéteis novos. Depois os projéteis que já voavam andam (enemyShots.js) e também deixam dano e queijo.
   const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [] }
   world.floorObstacles = [...obstacles, ...run.enemyFloor] // o piso vale para os inimigos também
+  world.enemyCatalog = run.enemyCatalog // a Nonna chama almôndegas (Polpettas) do catálogo
   // O barril (ou a roda) rolando que encosta num inimigo tira ROLL_DAMAGE dele e quebra ali
   const rolled = rollIntoTargets(obstacles, updateEnemies(updateTargets(run.targets, deltaSeconds, targetSolids), world))
   obstacles = rolled.obstacles

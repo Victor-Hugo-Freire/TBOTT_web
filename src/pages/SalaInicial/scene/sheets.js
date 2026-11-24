@@ -28,10 +28,10 @@ export function loadSheets() {
   for (const enemy of [...Object.values(ENEMY_SPRITES), ...Object.values(BOSS_SPRITES)]) {
     getImage(enemy.layers.pernas)
     getImage(enemy.layers.tronco)
-    // O Tralalero tem a folha de óculos da fase 2: pedida já, para não piscar sem desenho quando ele põe os óculos
-    if (enemy.glassesLayers) {
-      getImage(enemy.glassesLayers.pernas)
-      getImage(enemy.glassesLayers.tronco)
+    // As versões das folhas de alguns chefes (uma por fase): pedidas já, para não piscarem sem desenho na troca de fase
+    for (const variant of Object.values(enemy.variantLayers ?? {})) {
+      getImage(variant.pernas)
+      getImage(variant.tronco)
     }
   }
   return sheets

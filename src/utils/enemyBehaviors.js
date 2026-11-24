@@ -102,7 +102,8 @@ const NO_FLOOR_EFFECT = { slippery: false, speedMultiplier: 1, push: { x: 0, y: 
 function getEnemyFloorEffect(enemy, world) {
   if (enemy.flying || enemy.hidden || !world.floorObstacles) return NO_FLOOR_EFFECT
   const effect = getFloorEffect(world.floorObstacles, enemy)
-  if (enemy.enemyId === 'pinguino-sorbettino') return { ...effect, slippery: false }
+  // O Pinguino não escorrega no gelo dele, nem o Chimpanzini na casca dele
+  if (enemy.enemyId === 'pinguino-sorbettino' || enemy.enemyId === 'chimpanzini-bananini') return { ...effect, slippery: false }
   return effect
 }
 

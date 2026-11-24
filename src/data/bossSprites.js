@@ -12,7 +12,10 @@
 // Escala: frameWidth, frameHeight, feetX e feetPadding estão em pixels do ARQUIVO. Com scale: 3 o arquivo é a
 // versão @1x (1 px por pixel da grade da arte, 9x menos memória): desenhe 3x maior com imageSmoothingEnabled = false,
 // que o resultado é idêntico, pixel a pixel, à folha grande. Os <id>.json ao lado dos PNGs estão em pixels da folha grande (3x).
-// Gerado a partir desses <id>.json. Nenhuma tela usa estes dados ainda.
+// Gerado a partir desses <id>.json.
+// variantLayers (só em alguns chefes): versões da folha com a MESMA grade, linhas e quadros, mas com a aparência de
+// outra fase em todos os quadros (o Tralalero de óculos, o Chimpanzini descascado, a Nonna com menos camadas). Geradas por
+// pesquisa-issue-16-sprites/_novo/ferramentas/gerar_variantes.py. O chefe diz qual usa em layerVariant (bossBehaviors.js).
 
 // Chave = id do chefe (kebab-case, igual à pasta e aos arquivos)
 export const BOSS_SPRITES = {
@@ -156,6 +159,13 @@ export const BOSS_SPRITES = {
       pernas: '/sprites/bosses/chimpanzini-bananini/chimpanzini-bananini-pernas.png',
       tronco: '/sprites/bosses/chimpanzini-bananini/chimpanzini-bananini-tronco.png',
     },
+    // Versão da fase 2: descascado em todos os quadros (na folha normal, só fase2-andando e a morte)
+    variantLayers: {
+      fase2: {
+        pernas: '/sprites/bosses/chimpanzini-bananini/chimpanzini-bananini-fase2-pernas.png',
+        tronco: '/sprites/bosses/chimpanzini-bananini/chimpanzini-bananini-fase2-tronco.png',
+      },
+    },
     scale: 3,
     frameWidth: 220,
     frameHeight: 220,
@@ -241,6 +251,21 @@ export const BOSS_SPRITES = {
       pernas: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-pernas.png',
       tronco: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-tronco.png',
     },
+    // Versões com 3, 2 e 1 camadas de lasanha em todos os quadros (na folha normal, só os parado-3, -2 e -1)
+    variantLayers: {
+      camadas3: {
+        pernas: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-camadas3-pernas.png',
+        tronco: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-camadas3-tronco.png',
+      },
+      camadas2: {
+        pernas: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-camadas2-pernas.png',
+        tronco: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-camadas2-tronco.png',
+      },
+      camadas1: {
+        pernas: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-camadas1-pernas.png',
+        tronco: '/sprites/bosses/nonna-lasagnona/nonna-lasagnona-camadas1-tronco.png',
+      },
+    },
     scale: 3,
     frameWidth: 220,
     frameHeight: 220,
@@ -279,12 +304,13 @@ export const BOSS_SPRITES = {
       pernas: '/sprites/bosses/tralalero-tralala/tralalero-tralala-pernas.png',
       tronco: '/sprites/bosses/tralalero-tralala/tralalero-tralala-tronco.png',
     },
-    // Folha da fase 2: as mesmas linhas e quadros, com os óculos escuros e os tênis brilhando em todos eles (na folha
-    // normal, só parado-fase2 e o fim de transicao-fase2 têm óculos). Gerada por _novo/ferramentas/gerar_tralalero_fase2.py.
-    // O jogo desenha com ela depois que ele põe os óculos (glasses, veja bossBehaviors.js).
-    glassesLayers: {
-      pernas: '/sprites/bosses/tralalero-tralala/tralalero-tralala-fase2-pernas.png',
-      tronco: '/sprites/bosses/tralalero-tralala/tralalero-tralala-fase2-tronco.png',
+    // Versão da fase 2 (veja variantLayers no começo do arquivo): os óculos escuros e os tênis brilhando em todos os
+    // quadros (na folha normal, só parado-fase2 e o fim de transicao-fase2 têm óculos)
+    variantLayers: {
+      fase2: {
+        pernas: '/sprites/bosses/tralalero-tralala/tralalero-tralala-fase2-pernas.png',
+        tronco: '/sprites/bosses/tralalero-tralala/tralalero-tralala-fase2-tronco.png',
+      },
     },
     scale: 3,
     frameWidth: 280,

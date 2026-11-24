@@ -56,11 +56,56 @@ export const BOSS_STUN_MS = 300
 // Os tempos de aviso e de recuperação de cada ataque saem das folhas (bossSprites.js); os danos, do catálogo (attacks).
 
 // Cinquecento Turbo: anda atrás do Tung; perto (honkRange), buzina: a onda de som machuca até honkRadius dos pés dele,
-// nos quadros de acerto (honkScale: o desenho, 284 u de largura na escala 1, do tamanho dessa área). Depois de andar
+// nos quadros de acerto (honkScale: o desenho, 284 u de largura na escala 1, do tamanho dessa área). Antes da buzina,
+// os quadros do aviso (ele enchendo o peito) repetem por honkWarnMs a mais: o aviso total fica em 620 ms (era 220,
+// pedido do Victor, 2026-11-23), dá tempo de sair da onda. Depois de andar
 // walkMs, ou logo depois de buzinar, acelera parado (o aviso, 520 ms) e investe a chargeSpeed, ricocheteando nas paredes;
 // na batida número bounces + 1 ele para e abre o capô para esfriar (a janela de bater, 840 ms). Na investida, encostar
 // nele tira o dano da investida (catálogo), e não o de encostar.
-export const CINQUECENTO = { walkMs: 1500, honkRange: 210, honkRadius: 190, honkScale: 1.35, chargeSpeed: 620, bounces: 2, maxChargeMs: 4000, restMs: 500 }
+export const CINQUECENTO = {
+  walkMs: 1500,
+  honkRange: 210,
+  honkRadius: 190,
+  honkScale: 1.35,
+  honkWarnMs: 400,
+  chargeSpeed: 620,
+  bounces: 2,
+  maxChargeMs: 4000,
+  restMs: 500,
+}
+
+// Chimpanzini Bananini (andares 1 e 2): anda atrás do Tung e, depois de andar walkMs (fase 2: phase2WalkMs), joga duas
+// bananas-bumerangue (até throwRange; pedido do Victor, 2026-11-23). Cada uma faz uma laçada: vai em arco até onde o
+// Tung estava (no máximo bananaRange, na velocidade bananaSpeed), afastada até bananaArc u da linha reta, e volta para a
+// mão dele em arco pelo outro lado. Uma laça pela esquerda e a outra pela direita: elas se cruzam no Tung. Cada uma
+// acerta uma vez na ida e uma na volta. Na metade da vida se descasca (a troca de fase): a casca fica no chão,
+// escorregadia, por peelMs. Na fase 2, descascado, anda phase2Speed vezes mais rápido e joga mais vezes.
+export const CHIMPANZINI = {
+  walkMs: 1300,
+  phase2WalkMs: 650,
+  throwRange: 650,
+  bananaSpeed: 460,
+  bananaRange: 520,
+  bananaArc: 110,
+  peelMs: 8000,
+  phase2Speed: 1.6,
+  restMs: 500,
+}
+
+// Nonna Lasagnona (andares 1 a 4): anda devagar atrás do Tung; perto (slamRange), dá a colherada: a onda de choque
+// machuca até slamRadius do ponto onde a colher bate (slamReach à frente dela), nos quadros de acerto (slamScale: o
+// desenho, 227 u de largura na escala 1, do tamanho da área). Depois de andar walkMs, sem nenhuma almôndega viva,
+// invoca `meatballs` almôndegas (Polpettas do catálogo de inimigos): sempre exatamente essas, nunca mais que essas vivas
+// (pedido do Victor, 2026-11-23: 2 é o mínimo e o máximo). Elas morrem junto com ela. A cada marca da barra perde uma
+// camada de lasanha (a troca de fase).
+export const NONNA = { walkMs: 1600, slamRange: 200, slamReach: 50, slamRadius: 200, slamScale: 1.8, meatballs: 2, summonDistance: 120, restMs: 700 }
+
+// Brr Brr Patapim (andares 1 e 2): anda atrás do Tung; perto (stompRange), pisa: a onda de choque machuca até
+// stompRadius dele no quadro de acerto (stompScale: o desenho do tamanho da área). Depois de andar walkMs, ou logo depois
+// de cada pisão (os dois ataques revezam), solta as raízes: rootCount raízes brotam em linha na direção do Tung, uma a
+// cada rootSpacing u e rootStepMs ms; cada uma machuca quem está em cima dela enquanto brota (a folha da raiz, 360 ms).
+// A linha acerta uma vez só.
+export const PATAPIM = { walkMs: 1500, stompRange: 220, stompRadius: 230, stompScale: 2, rootCount: 7, rootSpacing: 80, rootStepMs: 70, restMs: 600 }
 
 // Tralalero Tralala (andar 5), 3 fases (marcas em BOSS_PHASES):
 // - fase 1: anda atrás do Tung; perto (biteRange), morde (acerta quem está a até biteRange nos quadros de acerto).

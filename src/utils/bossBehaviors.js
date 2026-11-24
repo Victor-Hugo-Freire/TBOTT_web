@@ -1,9 +1,9 @@
-import { CINQUECENTO, TRALALERO } from '../data/bossBehavior.js'
+import { CHIMPANZINI, CINQUECENTO, NONNA, PATAPIM, TRALALERO } from '../data/bossBehavior.js'
 import { BOSS_SPRITES } from '../data/bossSprites.js'
 import { getBossPhase } from './bosses.js'
 import { moveAndCollide, overlaps } from './collision.js'
-import { createNote } from './enemyShots.js'
-import { getFeetBox } from './roomMovement.js'
+import { createBanana, createNote, createRoots } from './enemyShots.js'
+import { getFeetBox, ROOM_FLOOR } from './roomMovement.js'
 import { getTotalDuration } from './spriteAnimation.js'
 import {
   chase,
@@ -51,6 +51,49 @@ function bounceAim(boss, aim, solids) {
   return { x: blockedX ? -aim.x : aim.x, y: blockedY ? -aim.y : aim.y }
 }
 
+// ---------- troca de fase (os chefes com marcas na barra: Chimpanzini, Nonna e Tralalero) ----------
+
+// Descanso dos chefes que trocam de fase: contado pelo próprio chefe (restMs, veja restCountdown), e não pelo waitMs
+// dos inimigos (que nem chama o comportamento): assim, descansando, ele percebe na hora que chegou numa marca da barra
+function restBoss(boss, ms) {
+  return { ...setAnimation(boss, getIdleAnimation(boss)), restMs: ms }
+}
+
+// Um quadro de descanso: devolve o chefe com o descanso contado, ou null se ele não está descansando
+function restCountdown(boss, world) {
+  if (!(boss.restMs > 0)) return null
+  return { ...boss, restMs: Math.max(0, boss.restMs - world.deltaSeconds * 1000) }
+}
+
+// Chegou numa marca da barra (decisão do Victor, 2026-11-23): o chefe para o que estava fazendo, fica invencível e
+// toca a animação da troca. É uma marca por vez: um golpe que passa de duas marcas toca as duas trocas, uma depois da
+// outra. A troca é desenhada na folha `variant` (null = a normal, onde as animações de troca mostram a passagem de um
+// estado para o outro); quem chama troca a folha e tira a invencibilidade no fim (endPhaseChange).
+// A animação de dano do golpe que passou da marca é cortada (hurtMs): ela tem prioridade sobre as outras e, na folha
+// da troca, mostraria a fase antiga (a Nonna inteira levando dano). A própria animação de troca já mostra o golpe.
+// Devolve o chefe já trocando de fase, ou null se ele não chegou numa marca nova.
+function startPhaseChange(boss, to, animation, variant) {
+  if (getBossPhase(boss) <= boss.phase) return null
+  const changing = {
+    ...boss,
+    phase: boss.phase + 1,
+    hidden: false,
+    invincible: true,
+    hurtMs: Infinity,
+    restMs: 0,
+    layerVariant: variant,
+    staff: null,
+    biteHit: false,
+    staffHit: false,
+  }
+  return face(setAnimation(changing, animation), to)
+}
+
+// Fim da troca: volta a levar dano, já com a folha da fase nova, e descansa `restMs`
+function endPhaseChange(boss, variant, restMs) {
+  return restBoss({ ...boss, invincible: false, layerVariant: variant }, restMs)
+}
+
 // ---------- Cinquecento Turbo: investe e ricocheteia, buzina e abre o capô para esfriar ----------
 
 // A investida: em linha reta a CINQUECENTO.chargeSpeed. Bateu em algo: o impacto, a marca de pneu e o ricochete; na
@@ -71,8 +114,18 @@ function chargeCinquecento(car, world) {
   return { ...face(moved, aim), aim, bounces }
 }
 
-// A buzina: a onda de som sai no quadro do emits; nos quadros de acerto, quem está a até honkRadius leva o dano (uma vez)
+// Os quadros da buzina antes do primeiro acerto (ele enchendo o peito): o aviso que repete por honkWarnMs
+const HONK = BOSS_SPRITES['cinquecento-turbo'].animations.atacando
+const HONK_WINDUP_MS = getTotalDuration(HONK.durations.slice(0, HONK.hitFrames[0]))
+
+// A buzina. Primeiro o aviso: os quadros antes do acerto repetem por honkWarnMs (honkWarnMs conta o que falta).
+// Depois a animação segue: a onda de som sai no quadro do emits e, nos quadros de acerto, quem está a até honkRadius
+// leva o dano (uma vez).
 function honkCinquecento(car, world) {
+  if (car.honkWarnMs > 0) {
+    const honkWarnMs = Math.max(0, car.honkWarnMs - world.deltaSeconds * 1000)
+    return { ...car, honkWarnMs, animationMs: honkWarnMs > 0 ? car.animationMs % HONK_WINDUP_MS : 0 }
+  }
   if (reachedEmitFrame(car)) {
     const wave = createEnemyFlash('buzina', car.x, car.y - car.height / 2)
     world.flashes.push({ ...wave, scale: CINQUECENTO.honkScale })
@@ -100,7 +153,7 @@ function updateCinquecento(car, world) {
   // Andando atrás do Tung. Perto dele, buzina (se não acabou de buzinar); depois de andar walkMs, ou logo depois de
   // buzinar com ele ainda perto, prepara a investida.
   const near = to.distance <= CINQUECENTO.honkRange
-  if (near && !car.honked) return { ...face(setAnimation(car, 'atacando'), to), honked: true }
+  if (near && !car.honked) return { ...face(setAnimation(car, 'atacando'), to), honked: true, honkWarnMs: CINQUECENTO.honkWarnMs }
   const walkedEnough = car.animation === 'andando' && car.animationMs >= CINQUECENTO.walkMs
   if (walkedEnough || (near && car.honked)) return face(setAnimation(car, 'preparando-investida'), to)
   return chase(setAnimation(car, 'andando'), world, car.speed)
@@ -122,11 +175,12 @@ function getTralaleroSpeed(fish, speed) {
   return fish.phase >= 3 ? speed * TRALALERO.phase3Speed : speed
 }
 
-// O descanso do Tralalero é contado por ele mesmo (restMs), e não pelo waitMs dos inimigos (que nem chama o
-// comportamento): assim, descansando, ele também percebe na hora que chegou numa marca da barra e troca de fase
+function getTralaleroRestMs(fish) {
+  return fish.phase >= 3 ? TRALALERO.restMs / TRALALERO.phase3Speed : TRALALERO.restMs
+}
+
 function restTralalero(fish) {
-  const ms = fish.phase >= 3 ? TRALALERO.restMs / TRALALERO.phase3Speed : TRALALERO.restMs
-  return { ...setAnimation(fish, getIdleAnimation(fish)), restMs: ms }
+  return restBoss(fish, getTralaleroRestMs(fish))
 }
 
 // A pauta: no chão, na fileira em que o Tung está agora, saindo do lado do Tralalero para o lado do Tung, com
@@ -209,22 +263,16 @@ function updateStaff(fish, world) {
 function updateTralalero(fish, world) {
   const to = getDirectionTo(fish, world.player)
 
-  // Chegou numa marca da barra: ele para, fica invencível e toca a troca de fase. Na fase 2 ela é desenhada na folha
-  // normal (ele põe os óculos); na fase 3, na folha de óculos (os tênis piscam e brilham). Qualquer ataque para.
-  const phase = getBossPhase(fish)
-  if (phase > fish.phase) {
-    const changed = { ...fish, phase, hidden: false, invincible: true, staff: null, biteHit: false, staffHit: false }
-    return face(setAnimation(changed, 'transicao-fase2'), to)
-  }
-
-  // Descansando, parado
-  if (fish.restMs > 0) return { ...fish, restMs: Math.max(0, fish.restMs - world.deltaSeconds * 1000) }
+  // Troca de fase: a da fase 2 é desenhada na folha normal (ele põe os óculos); a da fase 3, na folha de óculos (os
+  // tênis piscam e brilham)
+  const changing = startPhaseChange(fish, to, 'transicao-fase2', fish.phase === 1 ? null : 'fase2')
+  if (changing) return changing
+  const resting = restCountdown(fish, world)
+  if (resting) return resting
 
   const { animation } = fish
-  if (animation === 'transicao-fase2') {
-    // No fim da troca ele já está de óculos (dali em diante, a folha de óculos) e volta a levar dano
-    return isAnimationOver(fish) ? restTralalero({ ...fish, invincible: false, glasses: true }) : fish
-  }
+  // No fim da troca ele já está de óculos (dali em diante, a folha de óculos)
+  if (animation === 'transicao-fase2') return isAnimationOver(fish) ? endPhaseChange(fish, 'fase2', getTralaleroRestMs(fish)) : fish
   // Tropeçando depois da investida tripla (a janela de bater nele)
   if (animation === 'tropeco-vulneravel') return isAnimationOver(fish) ? restTralalero(fish) : fish
   if (animation === 'preparando-investida' || animation === 'investida') return updateTralaleroCharge(fish, world, to)
@@ -249,8 +297,168 @@ function updateTralalero(fish, world) {
   return chase(setAnimation(fish, 'andando'), world, getTralaleroSpeed(fish, fish.speed))
 }
 
+// ---------- Chimpanzini Bananini (andares 1 e 2): banana-bumerangue; na metade se descasca e fica mais rápido ----------
+
+const PEEL_SCALE = 2 // a casca no chão: o desenho (57 x 40 u na escala 1) 2x maior
+const PEEL_BOX = { width: 100, height: 50 } // a parte escorregadia da casca
+
+// A casca no chão: um "obstáculo de piso" escorregadio, como o gelo do Pinguino (some depois de CHIMPANZINI.peelMs)
+function createPeel(x, y) {
+  const box = { x: x - PEEL_BOX.width / 2, y: y - PEEL_BOX.height, width: PEEL_BOX.width, height: PEEL_BOX.height }
+  return { kind: 'casca-escorregadia', mechanic: 'escorregadio', box, x, y: y - PEEL_BOX.height / 2, scale: PEEL_SCALE, ageMs: 0, ms: CHIMPANZINI.peelMs }
+}
+
+function updateChimpanzini(chimp, world) {
+  const to = getDirectionTo(chimp, world.player)
+  // Na metade da vida ele se descasca: é a troca de fase, na folha normal (ela mostra a casca abrindo)
+  const changing = startPhaseChange(chimp, to, 'descascar', null)
+  if (changing) return changing
+  const resting = restCountdown(chimp, world)
+  if (resting) return resting
+
+  if (chimp.animation === 'descascar') {
+    // A casca cai no chão no quadro do emits e fica escorregadia; no fim ele já está descascado (a folha da fase 2)
+    if (reachedEmitFrame(chimp)) {
+      world.floor.push(createPeel(chimp.x, chimp.y))
+      chimp = { ...chimp, emitted: true }
+    }
+    return isAnimationOver(chimp) ? endPhaseChange(chimp, 'fase2', CHIMPANZINI.restMs) : chimp
+  }
+  if (chimp.animation === 'atacando') {
+    // As duas bananas saem da mão no quadro do emits, na direção do Tung: uma laça pela esquerda e a outra pela direita
+    if (reachedEmitFrame(chimp)) {
+      const damage = getAttackDamage(chimp, 'atacando')
+      world.shots.push(createBanana(chimp, world.player, damage, -1), createBanana(chimp, world.player, damage, 1))
+      chimp = { ...chimp, emitted: true }
+    }
+    return isAnimationOver(chimp) ? restBoss(chimp, CHIMPANZINI.restMs) : chimp
+  }
+
+  // Andando atrás do Tung (descascado, mais rápido e jogando mais vezes); depois de andar, joga a banana
+  const peeled = chimp.phase >= 2
+  const walk = peeled ? 'fase2-andando' : 'andando'
+  const walkMs = peeled ? CHIMPANZINI.phase2WalkMs : CHIMPANZINI.walkMs
+  if (chimp.animation === walk && chimp.animationMs >= walkMs && to.distance <= CHIMPANZINI.throwRange) {
+    return face(setAnimation(chimp, 'atacando'), to)
+  }
+  return chase(setAnimation(chimp, walk), world, peeled ? chimp.speed * CHIMPANZINI.phase2Speed : chimp.speed)
+}
+
+// ---------- Nonna Lasagnona (andares 1 a 4): colherada, almôndegas e as camadas de lasanha ----------
+
+// A troca de fase de cada marca da barra (a camada que cai, na folha normal) e a folha com as camadas que sobram
+const NONNA_LAYERS = {
+  2: { animation: 'perde-camada', variant: 'camadas3' },
+  3: { animation: 'perde-camada-3', variant: 'camadas2' },
+  4: { animation: 'perde-camada-2', variant: 'camadas1' },
+}
+const MEATBALL_ID = 'polpetta-sotterranea' // as almôndegas são Polpettas do catálogo de inimigos
+const MEATBALL_MARGIN = 60 // as almôndegas nascem dentro do piso, a esta distância das paredes
+
+// Almôndegas vivas na sala (as que ela chamou)
+function countMeatballs(world) {
+  return world.enemies.filter((enemy) => enemy.minion && !enemy.dead).length
+}
+
+// Pede as NONNA.meatballs almôndegas (updateEnemies cria as Polpettas), dos dois lados dela. Ela só invoca sem
+// nenhuma viva (veja updateNonna), então nunca passam de NONNA.meatballs.
+function summonMeatballs(nonna, world) {
+  let summoned = nonna.summoned ?? 0
+  for (let k = 0; k < NONNA.meatballs; k++) {
+    const side = k % 2 === 0 ? -1 : 1
+    const x = Math.min(ROOM_FLOOR.right - MEATBALL_MARGIN, Math.max(ROOM_FLOOR.left + MEATBALL_MARGIN, nonna.x + side * NONNA.summonDistance))
+    const y = Math.min(ROOM_FLOOR.bottom - 10, Math.max(ROOM_FLOOR.top + MEATBALL_MARGIN, nonna.y + 20))
+    world.spawns.push({ enemyId: MEATBALL_ID, id: `almondega-${summoned}`, x, y })
+    world.flashes.push(createEnemyFlash('poof', x, y - 30))
+    summoned++
+  }
+  return { ...nonna, summoned }
+}
+
+// Colherada: a colher bate no chão à frente dela; a onda de choque sai no quadro do emits e, nos quadros de acerto,
+// machuca quem está a até slamRadius de onde a colher bateu (uma vez)
+function slamNonna(nonna, world) {
+  const side = nonna.facingLeft ? -1 : 1
+  const impact = { x: nonna.x + side * NONNA.slamReach, y: nonna.y }
+  if (reachedEmitFrame(nonna)) {
+    world.flashes.push({ ...createEnemyFlash('onda-choque', impact.x, impact.y - 10), scale: NONNA.slamScale })
+    nonna = { ...nonna, emitted: true }
+  }
+  if (isHitFrame(nonna) && !nonna.slamHit && getDirectionTo(impact, world.player).distance <= NONNA.slamRadius) {
+    world.hits.push({ damage: getAttackDamage(nonna, 'atacando'), cause: nonna.enemyId })
+    nonna = { ...nonna, slamHit: true }
+  }
+  return isAnimationOver(nonna) ? restBoss({ ...nonna, slamHit: false }, NONNA.restMs) : nonna
+}
+
+function updateNonna(nonna, world) {
+  const to = getDirectionTo(nonna, world.player)
+  const nextLayer = NONNA_LAYERS[nonna.phase + 1]
+  const changing = nextLayer ? startPhaseChange(nonna, to, nextLayer.animation, null) : null
+  if (changing) return changing
+  const resting = restCountdown(nonna, world)
+  if (resting) return resting
+
+  const { animation } = nonna
+  // Uma camada caiu: dali em diante, a folha com as camadas que sobraram
+  if (animation.startsWith('perde-camada')) {
+    return isAnimationOver(nonna) ? endPhaseChange(nonna, NONNA_LAYERS[nonna.phase].variant, NONNA.restMs) : nonna
+  }
+  if (animation === 'atacando') return slamNonna(nonna, world)
+  if (animation === 'invocar') {
+    if (reachedEmitFrame(nonna)) nonna = { ...summonMeatballs(nonna, world), emitted: true }
+    return isAnimationOver(nonna) ? restBoss(nonna, NONNA.restMs) : nonna
+  }
+
+  // Andando atrás do Tung: perto, colherada; depois de andar walkMs, invoca (sem nenhuma almôndega viva e com a
+  // Polpetta no catálogo); senão continua andando
+  if (to.distance <= NONNA.slamRange) return face(setAnimation(nonna, 'atacando'), to)
+  if (animation === 'andando' && nonna.animationMs >= NONNA.walkMs) {
+    const canSummon = Boolean(world.enemyCatalog?.[MEATBALL_ID]) && countMeatballs(world) === 0
+    if (canSummon) return face(setAnimation(nonna, 'invocar'), to)
+    return { ...nonna, animationMs: 0 }
+  }
+  return chase(setAnimation(nonna, 'andando'), world, nonna.speed)
+}
+
+// ---------- Brr Brr Patapim (andares 1 e 2): pisão com onda de choque e raízes em linha ----------
+
+function updatePatapim(boss, world) {
+  const to = getDirectionTo(boss, world.player)
+  if (boss.animation === 'atacando') {
+    // O pisão: a onda de choque sai no quadro do emits; no quadro de acerto, machuca quem está a até stompRadius
+    if (reachedEmitFrame(boss)) {
+      world.flashes.push({ ...createEnemyFlash('onda-choque', boss.x, boss.y - 10), scale: PATAPIM.stompScale })
+      boss = { ...boss, emitted: true }
+    }
+    if (isHitFrame(boss) && !boss.stompHit && to.distance <= PATAPIM.stompRadius) {
+      world.hits.push({ damage: getAttackDamage(boss, 'atacando'), cause: boss.enemyId })
+      boss = { ...boss, stompHit: true }
+    }
+    // Depois do pisão ele descansa: é a hora de bater no pé dele
+    return isAnimationOver(boss) ? rest({ ...boss, stompHit: false }, PATAPIM.restMs) : boss
+  }
+  if (boss.animation === 'raizes') {
+    // As raízes começam a brotar no quadro do emits, em linha na direção do Tung
+    if (reachedEmitFrame(boss)) {
+      world.shots.push(createRoots(boss, world.player, getAttackDamage(boss, 'raizes')))
+      boss = { ...boss, emitted: true }
+    }
+    return isAnimationOver(boss) ? rest(boss, PATAPIM.restMs) : boss
+  }
+  // Os dois ataques revezam (pedido do Victor, 2026-11-23): depois de um pisão, o próximo é sempre as raízes, mesmo
+  // com o Tung perto. Fora isso, andando atrás do Tung: perto, pisa; depois de andar walkMs, solta as raízes.
+  if (boss.stomped) return { ...face(setAnimation(boss, 'raizes'), to), stomped: false }
+  if (to.distance <= PATAPIM.stompRange) return { ...face(setAnimation(boss, 'atacando'), to), stomped: true }
+  if (boss.animation === 'andando' && boss.animationMs >= PATAPIM.walkMs) return face(setAnimation(boss, 'raizes'), to)
+  return chase(setAnimation(boss, 'andando'), world, boss.speed)
+}
+
 // Comportamento de cada chefe, pelo id. Chefe sem comportamento ainda fica parado (só machuca ao encostar).
 export const BOSS_BEHAVIORS = {
   'cinquecento-turbo': (car, world) => setContactDamage(updateCinquecento(car, world), 'investida'),
   'tralalero-tralala': (fish, world) => setContactDamage(updateTralalero(fish, world), 'investida'),
+  'chimpanzini-bananini': updateChimpanzini,
+  'nonna-lasagnona': updateNonna,
+  'brr-brr-patapim': updatePatapim,
 }

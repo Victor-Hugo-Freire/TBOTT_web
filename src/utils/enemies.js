@@ -142,6 +142,7 @@ export function updateEnemies(targets, world) {
   world.chaseMap = createChaseMap(world.pathSolids, world.player)
   world.enemies = targets
   world.shields = []
+  world.spawns = [] // inimigos que um chefe chamou neste quadro (as almôndegas da Nonna): { enemyId, id, x, y }
   const next = targets.map((target) => {
     if (!target.enemyId) return target
     // Morto com o pavio aceso, o Peperoncino explode
@@ -153,7 +154,21 @@ export function updateEnemies(targets, world) {
     const behavior = ENEMY_BEHAVIORS[enemy.enemyId] ?? BOSS_BEHAVIORS[enemy.enemyId]
     return settleOnFloor(behavior ? behavior(enemy, world) : enemy, world)
   })
-  return next.map((target) => (world.shields.includes(target.id) && isTargetable(target) ? { ...target, shielded: true } : target))
+  const shielded = next.map((target) => (world.shields.includes(target.id) && isTargetable(target) ? { ...target, shielded: true } : target))
+  // O chefe morreu: quem ele chamou (minion) morre junto, até escondido
+  const bossDead = shielded.some((target) => target.boss && target.dead)
+  const result = []
+  for (const target of shielded) {
+    if (bossDead && target.minion && !target.dead) result.push({ ...target, health: 0, dead: true, deadMs: 0, hidden: false })
+    else result.push(target)
+  }
+  // Os chamados agora entram no fim da lista, com a vida cheia (findNewKills compara pela posição, então quem já
+  // estava continua no mesmo lugar). O chefe só pede: quem cria é aqui (createEnemy mora neste arquivo).
+  for (const spawn of world.spawns) {
+    const data = world.enemyCatalog?.[spawn.enemyId]
+    if (data) result.push({ ...createEnemy(data, 0, 0), id: spawn.id, x: spawn.x, y: spawn.y, minion: true })
+  }
+  return result
 }
 
 // Os rastros no chão (o gelo do Pinguino e o queijo quente do Fenicottero) envelhecem e somem depois de `ms`

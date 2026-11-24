@@ -1,8 +1,9 @@
+import { PATAPIM } from '../../../data/bossBehavior.js'
 import { EFFECT_SPRITES } from '../../../data/effectSprites.js'
 import { MOKA } from '../../../data/enemyBehavior.js'
 import { getEnemyPose } from '../../../utils/enemies.js'
 import { getEnemySprite } from '../../../utils/enemyBehaviors.js'
-import { SEED_HEIGHT } from '../../../utils/enemyShots.js'
+import { ROOT_MS, SEED_HEIGHT } from '../../../utils/enemyShots.js'
 import { drawEffectSpriteFrame, getEffectSpriteFrame } from './drawItemEffects.js'
 import { drawShadow } from './drawShadow.js'
 import { drawFrame } from './drawSprite.js'
@@ -15,6 +16,10 @@ const MARK_SCALE = 1.95 // marca no chão (62 u na escala 1) do tamanho do queij
 const BOSS_SHADOW_SCALE = 2.5 // a sombra do chefe: 2,5x a do Tung (61 u), mais ou menos a largura da base dele
 const NOTE_SCALE = 1.3 // nota musical do Tralalero (34 x 43 u na escala 1)
 const NOTE_HEIGHT = 60 // a nota voa nesta altura acima da sombra dela
+const BANANA_SCALE = 1.2 // banana-bumerangue do Chimpanzini (57 x 57 u na escala 1)
+const BANANA_HEIGHT = 70 // a banana voa nesta altura acima da sombra dela
+const ROOT_SCALE = 1.2 // raiz do Patapim (68 x 80 u na escala 1)
+const ROOT_LIFT = 40 // o meio do desenho da raiz fica acima do ponto do chão de onde ela brota
 
 // Um inimigo (ou o chefe) na sala: a sombra, as pernas (atrás) e o tronco (na frente), com os pés em (enemy.x, enemy.y).
 // A folha é de frente; virado para a esquerda, o desenho é espelhado em volta dos pés.
@@ -26,8 +31,9 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   if (!pose) return // a animação de morte já acabou: ele sumiu
   const sprite = getEnemySprite(enemy.enemyId)
   const { row } = sprite.animations[pose.animation]
-  // O Tralalero de óculos (fase 2 em diante) usa a folha com os óculos em todos os quadros
-  const layers = enemy.glasses && sprite.glassesLayers ? sprite.glassesLayers : sprite.layers
+  // O chefe numa fase com outra aparência (o Tralalero de óculos, o Chimpanzini descascado, a Nonna com menos camadas)
+  // usa a versão da folha dessa fase (variantLayers, em bossSprites.js)
+  const layers = (enemy.layerVariant && sprite.variantLayers?.[enemy.layerVariant]) || sprite.layers
 
   ctx.save()
   ctx.globalAlpha = pose.alpha // no fim da morte, ele e a sombra apagam juntos
@@ -83,6 +89,7 @@ export function drawEnemyShotsFloor(ctx, shots) {
       const mark = EFFECT_SPRITES['marca-chao']
       drawEffectSpriteFrame(ctx, mark, getEffectSpriteFrame(mark, shot.ageMs, true), shot.to.x, shot.to.y, MARK_SCALE)
     }
+    if (shot.kind === 'raizes') continue // as raízes saem do chão: não têm sombra
     drawScaledShadow(ctx, shot.x, shot.y, 0.5)
   }
 }
@@ -101,6 +108,20 @@ export function drawEnemyShots(ctx, shots) {
     if (shot.kind === 'nota') {
       const sprite = EFFECT_SPRITES['nota-musical']
       drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, shot.ageMs, true), shot.x, shot.y - NOTE_HEIGHT, NOTE_SCALE)
+    }
+    if (shot.kind === 'banana') {
+      const sprite = EFFECT_SPRITES['banana-bumerangue']
+      drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, shot.ageMs, true), shot.x, shot.y - BANANA_HEIGHT, BANANA_SCALE)
+    }
+    if (shot.kind === 'raizes') {
+      // Cada raiz brota rootStepMs depois da anterior e toca a folha dela uma vez
+      const sprite = EFFECT_SPRITES.raiz
+      shot.points.forEach((point, index) => {
+        const rootMs = shot.ageMs - index * PATAPIM.rootStepMs
+        if (rootMs >= 0 && rootMs < ROOT_MS) {
+          drawEffectSpriteFrame(ctx, sprite, getEffectSpriteFrame(sprite, rootMs, false), point.x, point.y - ROOT_LIFT, ROOT_SCALE)
+        }
+      })
     }
   }
 }
