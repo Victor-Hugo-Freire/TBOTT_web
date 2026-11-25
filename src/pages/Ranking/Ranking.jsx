@@ -5,6 +5,7 @@ import Login from '../../components/Login/Login.jsx'
 import { ROUTES } from '../../routes/paths.js'
 import { apiRequest } from '../../services/api.js'
 import { formatDuration } from '../../utils/formatDuration.js'
+import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './Ranking.css'
 
 const PAGE_SIZE = 50
@@ -24,6 +25,8 @@ function Avatar() {
 export default function Ranking() {
   const navigate = useNavigate()
   const backRef = useRef(null)
+  const userRef = useRef(null)
+  const moreRef = useRef(null)
   const [entries, setEntries] = useState([])
   const [hasMore, setHasMore] = useState(false)
   // attempt muda a cada clique em "Carregar mais", para tentar de novo mesmo com o mesmo offset
@@ -33,7 +36,34 @@ export default function Ranking() {
 
   useEffect(() => {
     backRef.current?.focus()
-  }, [])
+
+    function handleKeyDown(event) {
+      if (isTypingTarget(event.target)) return
+      if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
+
+      const action = getMenuNavigationAction(event.key)
+      if (!action) return
+
+      event.preventDefault()
+      if (action === 'back') {
+        backRef.current?.focus()
+        return
+      }
+      if (action === 'user') {
+        userRef.current?.focus()
+        return
+      }
+
+      const buttons = [backRef.current, moreRef.current].filter(Boolean)
+      if (buttons.length === 0) return
+      const currentIndex = buttons.findIndex((button) => button === document.activeElement)
+      const nextIndex = getNextIndex(currentIndex, action, buttons.length)
+      buttons[nextIndex]?.focus()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [hasMore, isLoading])
 
   // Busca a página atual. Ao pedir "carregar mais", o efeito roda de novo.
   useEffect(() => {
@@ -83,7 +113,7 @@ export default function Ranking() {
 
       <BotaoVoltar ref={backRef} label="Voltar para o menu" onClick={() => navigate(ROUTES.menuPrincipal)} />
 
-      <Login className="ranking__usuario" />
+      <Login ref={userRef} className="ranking__usuario" />
 
       <section className="ranking__painel" aria-label="Ranking dos jogadores">
         <div className="ranking__rolagem">
@@ -118,6 +148,7 @@ export default function Ranking() {
 
           {hasMore && (
             <button
+              ref={moreRef}
               type="button"
               className="ranking__mais"
               disabled={isLoading}

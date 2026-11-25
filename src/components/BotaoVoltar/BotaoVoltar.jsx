@@ -9,6 +9,13 @@ export default function BotaoVoltar({ ref, label, className = '', onClick }) {
   useEffect(() => {
     function handleKeyDown(event) {
       if (event.key !== 'Escape' || event.repeat) return
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
+
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        if (target.closest('[role="dialog"], [role="alertdialog"]')) return
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      }
 
       onClick()
     }
