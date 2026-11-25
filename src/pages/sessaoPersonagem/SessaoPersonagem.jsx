@@ -45,6 +45,8 @@ export default function SessaoPersonagem() {
   const [selectedCharacterId, setSelectedCharacterId] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showOverwriteDialog, setShowOverwriteDialog] = useState(false)
+  const [isStartingGame, setIsStartingGame] = useState(false)
 
   useEffect(() => {
     backRef.current?.focus()
@@ -118,7 +120,41 @@ export default function SessaoPersonagem() {
   }
 
   useEffect(() => {
+    if (!showOverwriteDialog) return
+
+    function handleOverwriteKey(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || event.repeat) return
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setShowOverwriteDialog(false)
+        return
+      }
+
+      const key = event.key.toLowerCase()
+      if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'a', 'd', 'w', 's'].includes(key)) {
+        event.preventDefault()
+        const buttons = Array.from(document.querySelectorAll('.sessao-personagem__dialog-acoes button:not(:disabled)'))
+        if (buttons.length === 0) return
+
+        const currentIndex = buttons.findIndex((button) => button === document.activeElement)
+        const direction = ['arrowright', 'd', 'arrowdown', 's'].includes(key) ? 1 : -1
+        const nextIndex = currentIndex === -1
+          ? (direction === 1 ? 0 : buttons.length - 1)
+          : (currentIndex + direction + buttons.length) % buttons.length
+        buttons[nextIndex]?.focus()
+      }
+
+    }
+
+    document.querySelector('.sessao-personagem__dialog-cancelar')?.focus()
+    window.addEventListener('keydown', handleOverwriteKey)
+    return () => window.removeEventListener('keydown', handleOverwriteKey)
+  }, [showOverwriteDialog])
+
+  useEffect(() => {
     function handleKeyDown(event) {
+      if (showOverwriteDialog) return
       if (isTypingTarget(event.target)) return
       if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
 
@@ -159,18 +195,15 @@ export default function SessaoPersonagem() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [characters.length])
+  }, [characters.length, showOverwriteDialog])
 
-  async function handleStartGame() {
-    if (!selectedCharacter) return
+  async function startSelectedGame() {
+    if (!selectedCharacter || isStartingGame) return
+
+    setIsStartingGame(true)
+    setShowOverwriteDialog(false)
 
     try {
-      const response = await apiRequest('/api/progress/exists', { credentials: 'include' })
-
-      if (response?.exists && !window.confirm('Já existe uma partida salva. Deseja sobrescrevê-la?')) {
-        return
-      }
-
       // A partida nova substitui a salva já aqui (a API troca o progresso do usuário pelo novo).
       // A sala carrega o progresso da API, então nunca depende do state da navegação.
       const newRun = createProgressSnapshot({ characterId: selectedCharacter.id })
@@ -184,6 +217,24 @@ export default function SessaoPersonagem() {
       }
 
       setError(error?.message || 'Não foi possível iniciar a partida.')
+      setIsStartingGame(false)
+    }
+  }
+
+  async function handleStartGame() {
+    if (!selectedCharacter || isStartingGame) return
+
+    try {
+      const response = await apiRequest('/api/progress/exists', { credentials: 'include' })
+
+      if (response?.exists) {
+        setShowOverwriteDialog(true)
+        return
+      }
+
+      await startSelectedGame()
+    } catch (error) {
+      setError(error?.message || 'Não foi possível verificar a partida salva.')
     }
   }
 
@@ -293,6 +344,33 @@ export default function SessaoPersonagem() {
           Começar Jogo
         </button>
       </div>
+
+      {showOverwriteDialog && (
+        <div className="sessao-personagem__dialog-fundo" role="presentation">
+          <section className="sessao-personagem__dialog" role="alertdialog" aria-modal="true" aria-labelledby="sessao-personagem-dialog-titulo">
+            <h2 id="sessao-personagem-dialog-titulo">Substituir partida salva?</h2>
+            <p>Começar uma nova run apagará o progresso atual.</p>
+            <div className="sessao-personagem__dialog-acoes">
+              <button
+                type="button"
+                className="sessao-personagem__dialog-cancelar"
+                onClick={() => setShowOverwriteDialog(false)}
+                autoFocus
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="sessao-personagem__dialog-confirmar"
+                disabled={isStartingGame}
+                onClick={() => void startSelectedGame()}
+              >
+                Substituir e começar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
