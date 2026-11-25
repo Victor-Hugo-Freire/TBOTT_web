@@ -21,7 +21,7 @@
 import { CADEIA_DO_MASTER, criarRespostaDeSala } from '../masterizacao.js'
 import { FAIXAS, FAIXAS_COMPOSTAS } from './faixas.js'
 import { ROUTES } from '../../routes/paths.js'
-import { getFloorTrack, getTrackForContext } from './trackSelection.js'
+import { FAIXA_DO_MENU, getFloorTrack, getTrackForContext } from './trackSelection.js'
 
 export const MUSICA_DO_JOGO = 'musica-do-jogo'
 
@@ -80,9 +80,11 @@ export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {
 }
 
 // Faixas que vale a pena ter prontas: a que toca, a do andar (para voltar das salas especiais) e a
-// do próximo andar
+// do próximo andar. Quando a run acaba (morte ou fim), a "A Vila Espera": o cache de 3 faixas a
+// libera durante a run, e assim ela já está pronta quando o jogador volta ao menu.
 export function faixasParaPreparar(contexto, alvo, compostas = FAIXAS_COMPOSTAS) {
   if (!contexto) return []
+  if (contexto.dead || contexto.finished) return [FAIXA_DO_MENU]
   const ids = [alvo, getFloorTrack(contexto.floorNumber, compostas), getFloorTrack(contexto.floorNumber + 1, compostas)]
   return [...new Set(ids.filter(Boolean))]
 }
