@@ -20,6 +20,7 @@
 
 import { CADEIA_DO_MASTER, criarRespostaDeSala } from '../masterizacao.js'
 import { FAIXAS, FAIXAS_COMPOSTAS } from './faixas.js'
+import { ROUTES } from '../../routes/paths.js'
 import { getFloorTrack, getTrackForContext } from './trackSelection.js'
 
 export const MUSICA_DO_JOGO = 'musica-do-jogo'
@@ -44,6 +45,14 @@ const LIVRE = Object.freeze({ frequencia: 20000, ganho: 1 })
 
 // Cada faixa começa um pouco no futuro: assim o ponto de início (e a retomada) é exato
 const ANTECEDENCIA = 0.05
+
+// A fonte da música do jogo deve começar agora? Em /jogo, com o áudio destravado. Antes do primeiro
+// gesto depois de abrir a página ('idle'), o navegador não deixa tocar: o AudioProvider destrava no
+// primeiro gesto e a música entra sozinha. Nunca pede o destravamento sem gesto (no Chrome, o resume
+// sem gesto fica pendente e travaria o destravamento seguinte).
+export function shouldStartGameMusic({ pathname, audioState, activeMusicName }) {
+  return pathname === ROUTES.novaPartida && audioState === 'ready' && activeMusicName !== MUSICA_DO_JOGO
+}
 
 // O que a música deve fazer quando o contexto muda (função pura)
 export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {

@@ -4,7 +4,7 @@ import { useAudio } from '../../context/useAudio.js'
 import { ROUTES } from '../../routes/paths.js'
 import { CACHE_DAS_FAIXAS } from '../../audio/music/cacheDeFaixas.js'
 import { clearGameMusicContext, subscribeGameMusic } from '../../audio/music/contextoDoJogo.js'
-import { criarMesaDoJogo, FADES, MUSICA_DO_JOGO } from '../../audio/music/mesaDoJogo.js'
+import { criarMesaDoJogo, FADES, MUSICA_DO_JOGO, shouldStartGameMusic } from '../../audio/music/mesaDoJogo.js'
 import { FAIXA_INICIAL } from '../../audio/music/trackSelection.js'
 
 // Telas de onde o jogador vai para /jogo: a Cantina já fica pronta antes de a run começar
@@ -17,7 +17,7 @@ const ROTAS_QUE_PREPARAM_A_RUN = Object.freeze([ROUTES.menuPrincipal, ROUTES.sel
 // e a "A Vila Espera" segue a regra dela (VilaEsperaMusicController).
 export function useMusicaDoJogo() {
   const location = useLocation()
-  const { unlock, registerMusic, unregisterMusic, playMusic, stopMusic, activeMusicName } = useAudio()
+  const { state, registerMusic, unregisterMusic, playMusic, stopMusic, activeMusicName } = useAudio()
   const [mesa] = useState(() => criarMesaDoJogo({ cache: CACHE_DAS_FAIXAS }))
   const noJogo = location.pathname === ROUTES.novaPartida
 
@@ -43,51 +43,15 @@ export function useMusicaDoJogo() {
     return subscribeGameMusic((contexto) => mesa.definirContexto(contexto))
   }, [noJogo, mesa])
 
-  // A fonte do jogo toca enquanto o jogador está em /jogo. O áudio só destrava depois de um gesto
-  // do jogador: até lá, cada tecla ou clique tenta de novo (como na "A Vila Espera").
+  // A fonte do jogo toca enquanto o jogador está em /jogo, assim que o áudio estiver destravado.
+  // Sem gesto ainda (F5 direto em /jogo), ela entra sozinha no primeiro gesto: o AudioProvider
+  // destrava e `state` vira 'ready'. A parada leva o nome: nunca derruba a Vila que entrou no lugar.
   useEffect(() => {
     if (!noJogo) {
-      if (activeMusicName === MUSICA_DO_JOGO) stopMusic({ fadeMs: FADES.saidaDoJogo })
-      return undefined
+      if (activeMusicName === MUSICA_DO_JOGO) stopMusic({ fadeMs: FADES.saidaDoJogo, name: MUSICA_DO_JOGO })
+      return
     }
-    if (activeMusicName === MUSICA_DO_JOGO) return undefined
-
-    let installed = true
-    let pending = false
-
-    function removeInteractionListeners() {
-      window.removeEventListener('keydown', handleInteraction)
-      window.removeEventListener('pointerdown', handleInteraction)
-    }
-
-    async function start() {
-      if (pending) return
-      pending = true
-      try {
-        // Depois de um await: a Vila (que para ao entrar em /jogo) já saiu antes desta fonte entrar
-        await unlock()
-        if (!installed) return
-        const result = playMusic(MUSICA_DO_JOGO, { fadeMs: 180 })
-        if (result.played || result.reason === 'already-playing') removeInteractionListeners()
-      } catch {
-        // Falha transitória de áudio não atrapalha o jogo
-      } finally {
-        pending = false
-      }
-    }
-
-    function handleInteraction(event) {
-      if (event.type === 'keydown' && event.repeat) return
-      void start()
-    }
-
-    window.addEventListener('keydown', handleInteraction)
-    window.addEventListener('pointerdown', handleInteraction)
-    void start()
-
-    return () => {
-      installed = false
-      removeInteractionListeners()
-    }
-  }, [noJogo, activeMusicName, unlock, playMusic, stopMusic])
+    if (!shouldStartGameMusic({ pathname: location.pathname, audioState: state, activeMusicName })) return
+    playMusic(MUSICA_DO_JOGO, { fadeMs: 180 })
+  }, [noJogo, location.pathname, state, activeMusicName, playMusic, stopMusic])
 }

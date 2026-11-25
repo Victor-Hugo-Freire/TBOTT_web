@@ -31,3 +31,15 @@ export function createVilaEsperaAudioSource(context) {
 export function shouldPlayVilaEsperaForPathname(pathname) {
     return pathname !== '/jogo'
 }
+
+// A Vila entra com fade (ao abrir o site, depois do primeiro gesto, e ao voltar do jogo)
+export const VILA_ESPERA_FADE_IN_MS = 1000
+
+// A Vila deve começar agora? Basta o áudio estar destravado ('ready'): o navegador só exige um
+// gesto do jogador (tecla ou clique) depois de abrir ou recarregar a página, e o AudioProvider já
+// atende esse gesto. Trocar de tela ou voltar do jogo não pede gesto nenhum.
+export function shouldStartVilaEspera({ pathname, audioState, activeMusicName }) {
+    return shouldPlayVilaEsperaForPathname(pathname)
+        && audioState === 'ready'
+        && activeMusicName !== VILA_ESPERA_MUSIC_NAME
+}

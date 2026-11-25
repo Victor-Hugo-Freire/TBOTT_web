@@ -304,7 +304,8 @@ export class AudioManager {
     }
   }
 
-  playMusic(name, { fadeMs = DEFAULT_FADE_MS } = {}) {
+  // fadeMs: fade de saída da música anterior. fadeInMs: fade de entrada desta (0 = entra cheia).
+  playMusic(name, { fadeMs = DEFAULT_FADE_MS, fadeInMs = 0 } = {}) {
     if (this._activeMusicName === name && this._musicSource) {
       return { played: false, reason: 'already-playing' }
     }
@@ -326,6 +327,13 @@ export class AudioManager {
 
       const sourceGain = context.createGain()
       sourceGain.gain.value = 1
+      const fadeIn = typeof fadeInMs === 'number' && Number.isFinite(fadeInMs) ? Math.max(0, fadeInMs) : 0
+      if (fadeIn > 0 && typeof sourceGain.gain.setValueAtTime === 'function' && typeof sourceGain.gain.linearRampToValueAtTime === 'function') {
+        const now = context.currentTime || 0
+        sourceGain.gain.value = 0
+        sourceGain.gain.setValueAtTime(0, now)
+        sourceGain.gain.linearRampToValueAtTime(1, now + fadeIn / 1000)
+      }
       source.connect(sourceGain)
       sourceGain.connect(this._musicBus || this._musicGain)
 
@@ -388,7 +396,9 @@ export class AudioManager {
     try { send?.disconnect() } catch { /* já desconectado */ }
   }
 
-  stopMusic({ fadeMs = DEFAULT_FADE_MS } = {}) {
+  // name: só para se a música atual for essa (outra música pode já ter entrado no lugar dela)
+  stopMusic({ fadeMs = DEFAULT_FADE_MS, name } = {}) {
+    if (name !== undefined && this._activeMusicName !== name) return
     if (!this._musicSource) {
       this._activeMusicName = null
       this._musicGainNode = null
