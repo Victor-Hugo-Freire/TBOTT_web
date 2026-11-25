@@ -120,7 +120,7 @@ export const INSTRUMENTOS = Object.freeze({
   }),
 
   pianoBoogie: instrumento({
-    baseMidi: 48, registro: [36, 79],
+    baseMidi: 48, registro: [36, 86],
     volume: 0.3, aleatoriedade: 0.002, forma: TRIANGULO,
     ataque: 0.003, decaimento: 0.12, nivelSustentacao: 0.35, sustentacao: 0.06, soltura: 0.32,
     filtro: passaBaixa(3500),
@@ -154,7 +154,7 @@ export const INSTRUMENTOS = Object.freeze({
   // Baixo de órgão (o pedal do trio de órgão): seno arredondado, curto e redondo
   orgaoBaixo: instrumento({
     baseMidi: 36, registro: [28, 52],
-    volume: 0.6, aleatoriedade: 0.001, forma: SENO,
+    volume: 0.45, aleatoriedade: 0.001, forma: SENO,
     ataque: 0.006, decaimento: 0.08, nivelSustentacao: 0.7, sustentacao: 0.16, soltura: 0.08,
     filtro: passaBaixa(900),
   }),
@@ -206,7 +206,7 @@ export const INSTRUMENTOS = Object.freeze({
 
   guitarraPalmMute: instrumento({
     baseMidi: 48, registro: [40, 64],
-    volume: 0.17, aleatoriedade: 0.003, forma: SERRA, curva: 0.6,
+    volume: 0.26, aleatoriedade: 0.003, forma: SERRA, curva: 0.6,
     ataque: 0.003, decaimento: 0.05, nivelSustentacao: 0.5, sustentacao: 0.02, soltura: 0.06,
     filtro: passaBaixa(1600),
   }),

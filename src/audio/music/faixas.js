@@ -8,7 +8,7 @@
 export const FAIXAS = Object.freeze({
   'a-vila-espera': Object.freeze({ titulo: 'A Vila Espera', reverb: 0.16, composta: true }),
   'andar-cantina': Object.freeze({ titulo: 'A Ronda: Cantina', reverb: 0.18, composta: true }),
-  'andar-cucina': Object.freeze({ titulo: 'A Ronda: Cucina', reverb: 0.14, composta: false }),
+  'andar-cucina': Object.freeze({ titulo: 'A Ronda: Cucina', reverb: 0.14, composta: true }),
   'andar-piazza': Object.freeze({ titulo: 'A Ronda: Piazza', reverb: 0.16, composta: false }),
   'andar-pastificio': Object.freeze({ titulo: 'A Ronda: Pastificio', reverb: 0.11, composta: false }),
   'andar-porto': Object.freeze({ titulo: 'A Ronda: Porto', reverb: 0.13, composta: false }),

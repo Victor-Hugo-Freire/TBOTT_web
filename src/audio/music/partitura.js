@@ -12,6 +12,7 @@
 //   desvio pequeno e fixo por nota (variacao) evita que duas notas iguais soem idênticas.
 
 import { INSTRUMENTOS, notaDoInstrumento } from './instrumentos.js'
+import { celulaDoTung, passosDoTungTungTung, TUNG_TUNG_TUNG_ATENUACAO } from './motivos.js'
 
 export const PAUSA = 0
 
@@ -148,4 +149,32 @@ export function montarMusica({ instrumentos, canais, compassos, inicioDoLoop = 0
 
   const sequencia = Array.from({ length: compassos }, (_, indice) => (inicioDoLoop + indice) % compassos)
   return [parametros, padroes, sequencia, bpmDoZzfxm(andamento, grade.passosPorTempo)]
+}
+
+// --------------------------------------------------
+// O motivo do Tung em qualquer faixa (motivos.js)
+// --------------------------------------------------
+
+// A célula do Tung (5 – ♭7 – 1' – ♭7 – 5) a partir de uma tônica, na grade da faixa.
+// mais: notas avulsas no mesmo compasso ({ passo, midi, atenuacao? }), como uma aproximação do baixo.
+export function celula(tonicaMidi, v, compasso, grade, { extra = 0, mais = [] } = {}) {
+  const lista = celulaDoTung(tonicaMidi, grade.passosPorTempo).map((nota) => ({ ...nota, atenuacao: nota.atenuacao + extra }))
+  return notas([...lista, ...mais], v, compasso, grade)
+}
+
+// O tung-tung-tung no último tempo do compasso, em crescendo
+export function tungTungTung(altura, compasso, grade, { instrumento = 'madeira', extra = 0 } = {}) {
+  const passos = compassoVazio(grade)
+  passosDoTungTungTung(grade.passosPorTempo, grade.temposPorCompasso).forEach((passo, indice) => {
+    const desvio = variacao(compasso, passo, 9) / 2
+    passos[passo] = notaDoInstrumento(altura, instrumento, Math.max(0, TUNG_TUNG_TUNG_ATENUACAO[indice] + extra + desvio))
+  })
+  return passos
+}
+
+// Junta canais de bateria de um mesmo instrumento num compasso (o primeiro que tocar no passo vale)
+export function juntar(...listas) {
+  const validas = listas.filter(Boolean)
+  if (validas.length === 0) return null
+  return validas[0].map((_, passo) => validas.find((lista) => lista[passo])?.[passo] ?? PAUSA)
 }

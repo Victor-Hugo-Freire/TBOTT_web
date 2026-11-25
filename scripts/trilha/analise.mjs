@@ -240,8 +240,9 @@ function convolverCircular(canal, resposta, loop = true) {
   return saida
 }
 
-// Compressor parecido com o DynamicsCompressorNode (curva com joelho e ganho de compensação)
-function comprimir(canais, sampleRate, { threshold, knee, ratio, attack, release }) {
+// Compressor parecido com o DynamicsCompressorNode (curva com joelho e ganho de compensação).
+// Em loop, o detector começa aquecido pelo último segundo (no navegador ele roda sem parar no loop).
+function comprimir(canais, sampleRate, { threshold, knee, ratio, attack, release }, loop = true) {
   const curva = (entradaDb) => {
     const acima = entradaDb - threshold
     if (acima <= -knee / 2) return entradaDb
@@ -254,6 +255,14 @@ function comprimir(canais, sampleRate, { threshold, knee, ratio, attack, release
   const coefSoltura = Math.exp(-1 / (release * sampleRate))
   let reducao = 0
   const [esquerdo, direito] = canais
+  if (loop) {
+    for (let i = Math.max(0, esquerdo.length - sampleRate); i < esquerdo.length; i++) {
+      const nivelDb = 20 * Math.log10(Math.max(Math.abs(esquerdo[i]), Math.abs(direito[i]), 1e-9))
+      const alvo = nivelDb - curva(nivelDb)
+      const coef = alvo > reducao ? coefAtaque : coefSoltura
+      reducao = coef * reducao + (1 - coef) * alvo
+    }
+  }
   for (let i = 0; i < esquerdo.length; i++) {
     const nivel = Math.max(Math.abs(esquerdo[i]), Math.abs(direito[i]), 1e-9)
     const nivelDb = 20 * Math.log10(nivel)
@@ -279,7 +288,7 @@ export function aplicarCadeiaDoMaster(canais, sampleRate, reverbMix = CADEIA_DO_
   for (let c = 0; c < saida.length; c++) {
     for (let i = 0; i < saida[c].length; i++) saida[c][i] += molhado[c][i] * reverbMix
   }
-  comprimir(saida, sampleRate, CADEIA_DO_MASTER.compressor)
+  comprimir(saida, sampleRate, CADEIA_DO_MASTER.compressor, loop)
   for (const canal of saida) {
     for (let i = 0; i < canal.length; i++) canal[i] *= CADEIA_DO_MASTER.ganhoDeSaida
   }
