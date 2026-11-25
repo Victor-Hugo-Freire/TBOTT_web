@@ -4,6 +4,15 @@ const DEFAULT_EFFECT_VOLUME = 80
 const DEFAULT_MUSIC_VOLUME = 70
 const DEFAULT_FADE_MS = 180
 
+// Volume das Opções (0 a 100) → ganho. A escala é perceptiva (ganho = volume²): o ouvido percebe
+// o volume em proporção, não em linha reta. Com a escala linear, 1% ainda ficava só 40 dB abaixo
+// do máximo e era bem audível; com esta, 1% fica 80 dB abaixo (mudo na prática), 10% fica 40 dB
+// abaixo, 50% fica 12 dB abaixo e 100% é o ganho cheio.
+export function ganhoDoVolume(volume) {
+  const fracao = Math.min(100, Math.max(0, Number(volume) || 0)) / 100
+  return fracao * fracao
+}
+
 function normalizeVolume(value, fallback) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.min(100, Math.max(0, value))
@@ -110,8 +119,8 @@ export class AudioManager {
       this._effectsGain = this._context.createGain()
       this._musicGain = this._context.createGain()
       this._masterGain.gain.value = this._muted ? 0 : 1
-      this._effectsGain.gain.value = this._effectsVolume / 100
-      this._musicGain.gain.value = this._musicVolume / 100
+      this._effectsGain.gain.value = ganhoDoVolume(this._effectsVolume)
+      this._musicGain.gain.value = ganhoDoVolume(this._musicVolume)
       this._effectsGain.connect(this._masterGain)
       this._musicGain.connect(this._masterGain)
       this._masterGain.connect(this._context.destination)
@@ -214,12 +223,12 @@ export class AudioManager {
 
   setEffectsVolume(value) {
     this._effectsVolume = normalizeVolume(value, this._effectsVolume)
-    if (this._effectsGain) this._effectsGain.gain.value = this._effectsVolume / 100
+    if (this._effectsGain) this._effectsGain.gain.value = ganhoDoVolume(this._effectsVolume)
   }
 
   setMusicVolume(value) {
     this._musicVolume = normalizeVolume(value, this._musicVolume)
-    if (this._musicGain) this._musicGain.gain.value = this._musicVolume / 100
+    if (this._musicGain) this._musicGain.gain.value = ganhoDoVolume(this._musicVolume)
   }
 
   setMuted(muted) {

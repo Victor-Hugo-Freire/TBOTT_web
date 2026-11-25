@@ -27,9 +27,10 @@ export const CADEIA_DO_MASTER = Object.freeze({
   reverbPadrao: 0.15,
   sala: Object.freeze({ duracao: 1.2, preDelay: 0.012, semente: 1907 }),
   compressor: Object.freeze({ threshold: -14, knee: 10, ratio: 2, attack: 0.012, release: 0.25 }),
-  // O DynamicsCompressorNode aplica sozinho um ganho de compensação (~4 dB com esta curva)
-  // que não dá para desligar; este ganho depois dele devolve o pico para perto de -1 dBFS.
-  ganhoDeSaida: 0.6,
+  // O DynamicsCompressorNode aplica sozinho um ganho de compensação (~4 dB com esta curva) que não
+  // dá para desligar. Este ganho depois dele define o nível geral da música: com 0,3, o pico fica
+  // perto de -8 dBFS com o volume em 100%, deixando espaço para os efeitos sonoros por cima.
+  ganhoDeSaida: 0.3,
 })
 
 // Saturação suave seguida de normalização dos dois canais juntos (o estéreo não muda).
