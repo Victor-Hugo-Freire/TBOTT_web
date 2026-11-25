@@ -4,29 +4,53 @@
 //   Blues-rock em colcheias retas, em Mi, ♩ = 124. Grade de 16 passos por compasso (semicolcheias
 //   retas). bpm do ZzFXM = 124.
 //
-// O TEMA (motivos.js)
-//   A célula do Tung (Si – Ré – Mi – Ré – Si, 5 – ♭7 – 1' – ♭7 – 5 em Mi) é o riff, em power chords
-//   (fundamental e quinta em dois canais da guitarra crunch). Na grade reta o ritmo da célula fica
-//   longo-curto (passos 0, 3, 4, 7 e 8), como uma prensa. O tung-tung-tung (madeira, em Mi, em
-//   semicolcheias nos passos 13, 14 e 15) fecha cada frase de 4 compassos; na ponte, um tom grave
-//   dobra as batidas (a prensa da fábrica).
+// MATERIAL
+//   Tema A (o riff): a célula do Tung (Si – Ré – Mi – Ré – Si em Mi) em power chords, com o ritmo
+//   longo-curto da grade reta (passos 0, 3, 4, 7 e 8), como uma prensa. Ela sobe para o Lá e volta
+//   com outro fim.
+//   Tema B (a ponte): a mesma célula em valores longos, no órgão.
+//   A "máquina": palm mute no Mi2 (82 Hz), que liga, acelera, para e volta.
+//   O tung-tung-tung (madeira, em Mi, em semicolcheias) aparece em lugares diferentes; na ponte e
+//   na parada, um tom grave (a prensa) responde a ele.
 //
-// FORMA (32 compassos)
-//   0–7    Riff: a "máquina" (palm mute em colcheias no Mi2) e a célula nos compassos ímpares
-//   8–15   Verso: E5 | E5 | A5 | E5 | B5 | A5 | E5 | B5, power chord no tempo 1 sobre a máquina
-//   16–23  Riff de novo
-//   24–31  Ponte: C5 | D5 | E5 | E5 | C5 | D5 | B5 | B5; a máquina para, entram o órgão sustentado
-//          e power chords longos (no tempo 1), a bateria vai a meio-tempo e cresce no fim
+// FORMA (50 compassos, ~97 s; editar em FORMA)
+//   Partida (4)  a máquina liga sozinha, em crescendo, com o chimbal; virada no fim
+//   Riff A  (8)  o riff (Mi, Mi, Lá, Mi com outro fim), bateria rock
+//   Verso   (8)  E5 – A5 – B5 em contratempo (passos 0 e 10), sem a célula; bumbo sincopado e
+//                chimbal aberto
+//   Riff B  (8)  o riff uma oitava acima, a máquina em semicolcheias, o órgão segura o acorde; virada
+//                grande de tons no fim: o ponto mais alto
+//   Ponte   (8)  a máquina para: C5 – D5 – E5, meio-tempo, o órgão canta a célula em valores longos
+//   Parada  (6)  a fábrica para: só o baixo, a máquina em marcha lenta e o tung-tung-tung respondido
+//                pela prensa; rulo de caixa em crescendo no fim
+//   Riff C  (8)  o riff no grave com o órgão dobrando no agudo, bateria cheia → volta à Partida
+//   Energia: Partida baixa → Riff A média → Verso média → Riff B alta → Ponte média → Parada a mais
+//   baixa → Riff C alta → (Partida)
 //
 // ESPAÇO PARA OS EFEITOS SONOROS (100 a 650 Hz)
-//   A máquina fica no Mi2 (82 Hz) e o baixo, uma oitava abaixo; a célula aparece em 4 de cada 8
-//   compassos; o órgão só toca na ponte.
+//   A máquina e o baixo ficam abaixo de 100 Hz; o riff aparece em metade dos compassos de riff.
 //
 // LOOP SEM EMENDA
-//   A sequência começa no compasso 2 (dentro do primeiro riff) e dá a volta: a emenda (1 → 2) fica
-//   com a máquina tocando dos dois lados.
+//   O áudio começa na Partida; o fim do Riff C (tung-tung-tung com a prensa) volta à Partida, que é a
+//   máquina sozinha: a queda de energia é a própria emenda.
+//
+// ONDE AJUSTAR
+//   FORMA · RIFF (onde a célula entra e como termina) · ACORDES (ritmo dos power chords por seção) ·
+//   MAQUINA · GROOVES (bateria e viradas) · DINAMICA · TUNG
 
-import { bateria, celula, criarGrade, montarMusica, notas, tungTungTung, voz } from './partitura.js'
+import { bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
+
+const FORMA = Object.freeze([
+  { nome: 'Partida', papel: 'a máquina liga sozinha', harmonia: ['E5', 'E5', 'E5', 'E5'] },
+  { nome: 'Riff A', papel: 'o riff da célula, bateria rock', harmonia: ['E5', 'E5', 'E5', 'E5', 'A5', 'A5', 'E5', 'E5'] },
+  { nome: 'Verso', papel: 'power chords em contratempo', harmonia: ['E5', 'E5', 'A5', 'E5', 'B5', 'A5', 'E5', 'B5'] },
+  { nome: 'Riff B', papel: 'o riff uma oitava acima, máquina acelerada', harmonia: ['E5', 'E5', 'E5', 'E5', 'A5', 'A5', 'E5', 'E5'] },
+  { nome: 'Ponte', papel: 'a máquina para, a célula em valores longos no órgão', harmonia: ['C5', 'D5', 'E5', 'E5', 'C5', 'D5', 'B5', 'B5'] },
+  { nome: 'Parada', papel: 'a fábrica para: tung-tung-tung e a prensa', harmonia: ['E5', 'E5', 'E5', 'E5', 'E5', 'E5'] },
+  { nome: 'Riff C', papel: 'o riff no grave com o órgão no agudo', harmonia: ['E5', 'E5', 'E5', 'E5', 'A5', 'A5', 'E5', 'E5'] },
+])
+
+const COMPASSOS = expandirForma(FORMA)
 
 export const PASTIFICIO_META = Object.freeze({
   id: 'andar-pastificio',
@@ -35,21 +59,20 @@ export const PASTIFICIO_META = Object.freeze({
   andamento: 124,
   passosPorTempo: 4,
   temposPorCompasso: 4,
-  compassos: 32,
-  inicioDoLoop: 2,
+  compassos: COMPASSOS.length,
+  inicioDoLoop: 0,
   tonalidade: 'Mi (E5)',
-  estrutura: 'Riff 8 · Verso 8 · Riff 8 · Ponte 8 (áudio gira a partir do compasso 2)',
+  estrutura: 'Partida 4 · Riff A 8 · Verso 8 · Riff B 8 · Ponte 8 · Parada 6 · Riff C 8',
 })
+
+export const PASTIFICIO_SECOES = secoesDaForma(FORMA)
+export const PASTIFICIO_HARMONIA = Object.freeze(COMPASSOS.map((c) => c.acorde))
 
 const GRADE = criarGrade(PASTIFICIO_META.passosPorTempo, PASTIFICIO_META.temposPorCompasso)
 
-const RIFF = Array(8).fill('E5')
-const VERSO = ['E5', 'E5', 'A5', 'E5', 'B5', 'A5', 'E5', 'B5']
-const PONTE = ['C5', 'D5', 'E5', 'E5', 'C5', 'D5', 'B5', 'B5']
-export const PASTIFICIO_HARMONIA = Object.freeze([...RIFF, ...VERSO, ...RIFF, ...PONTE])
-
 export const PASTIFICIO_INSTRUMENTOS = Object.freeze([
-  'baixoEletrico', 'guitarraPalmMute', 'guitarraCrunch', 'orgaoSustentado', 'bumbo', 'caixa', 'caixaCorpo', 'chimbal', 'madeira',
+  'baixoEletrico', 'guitarraPalmMute', 'guitarraCrunch', 'orgaoSustentado', 'orgaoLeslieRapido',
+  'bumbo', 'caixa', 'caixaCorpo', 'chimbal', 'chimbalAberto', 'madeira',
 ])
 
 const VOZ = Object.freeze({
@@ -58,115 +81,202 @@ const VOZ = Object.freeze({
   fundamental: voz('guitarraCrunch', 'riff', { semente: 53 }),
   quinta: voz('guitarraCrunch', 'riff', { semente: 54 }),
   orgao: voz('orgaoSustentado', 'comping', { semente: 55 }),
+  orgaoCanto: voz('orgaoSustentado', 'melodia', { semente: 56 }),
+  orgaoRiff: voz('orgaoLeslieRapido', 'riff', { semente: 57 }),
 })
-
-const secao = (compasso) => ['riff', 'verso', 'riff', 'ponte'][Math.floor(compasso / 8)]
-const fechaFrase = (compasso) => compasso % 4 === 3
-const temCelula = (compasso) => secao(compasso) === 'riff' && compasso % 2 === 1
 
 // Fundamental de cada power chord na guitarra (o baixo toca uma oitava abaixo)
 const RAIZ = Object.freeze({ E5: 40, A5: 45, B5: 47, C5: 48, D5: 50 })
-const TONICA = 40 // Mi2: a célula soa Si2 – Ré3 – Mi3
-
-// Colcheias retas: passos 0, 2, 4, ... 14
 const COLCHEIAS = Array.from({ length: 8 }, (_, i) => i * 2)
+const SEMICOLCHEIAS = Array.from({ length: 16 }, (_, i) => i)
 
 // --------------------------------------------------
-// GUITARRAS
+// TUNG: lugares diferentes em cada seção
 // --------------------------------------------------
 
-// A máquina: palm mute no Mi2 em colcheias (riff e verso). Nos compassos da célula, ela entra depois
-// do riff; no fim da frase, ela para antes do tung-tung-tung.
-function maquina(compasso) {
-  if (secao(compasso) === 'ponte') return null
-  let passos = COLCHEIAS
-  if (temCelula(compasso)) passos = passos.filter((passo) => passo >= 10)
-  else if (secao(compasso) === 'riff') passos = passos.filter((passo) => passo > 0)
-  if (fechaFrase(compasso)) passos = passos.filter((passo) => passo < 13)
-  return notas(passos.map((passo) => ({ passo, midi: TONICA, atenuacao: passo % 4 === 0 ? 0 : 0.15 })), VOZ.maquina, compasso, GRADE)
+const TUNG = Object.freeze({ Partida: [], 'Riff A': [3, 7], Verso: [], 'Riff B': [3], Ponte: [7], Parada: [1, 3], 'Riff C': [7] })
+const temTung = (compasso) => {
+  const { secao, indice } = COMPASSOS[compasso]
+  return TUNG[secao].includes(indice)
 }
+// No fim de frase com tung-tung-tung, nada toca nos passos 13 a 15
+const semOFim = (passos, compasso) => (temTung(compasso) ? passos.filter((passo) => passo < 13) : passos)
 
-// Power chord: os passos em que ele soa, por seção
-function passosDoAcorde(compasso) {
-  if (secao(compasso) === 'ponte') return compasso >= 30 ? [0, 8] : [0]
-  if (secao(compasso) === 'verso') return compasso === 15 ? [0, 8] : [0]
-  return [0]
-}
+// --------------------------------------------------
+// RIFF: tônica da célula por compasso da seção ('fim' = a célula com o último Si trocado pelo Sol)
+// --------------------------------------------------
+
+const RIFF = Object.freeze({
+  'Riff A': { 0: 40, 2: 40, 4: 45, 6: 'fim' },
+  'Riff B': { 0: 52, 2: 52, 4: 57, 6: 'fim' },
+  'Riff C': { 0: 40, 2: 40, 4: 45, 6: 40 },
+})
+
+// Ritmo dos power chords fora do riff, por seção
+const ACORDES = Object.freeze({
+  'Riff A': [0],
+  Verso: [0, 10],
+  'Riff B': [0],
+  Ponte: [0],
+  'Riff C': [0],
+})
 
 function powerChord(intervalo, v) {
   return (compasso) => {
-    if (temCelula(compasso)) return celula(TONICA + intervalo, v, compasso, GRADE)
-    const raiz = RAIZ[PASTIFICIO_HARMONIA[compasso]]
-    return notas(passosDoAcorde(compasso).map((passo) => ({ passo, midi: raiz + intervalo })), v, compasso, GRADE)
+    const { secao, indice, acorde } = COMPASSOS[compasso]
+    const tonica = RIFF[secao]?.[indice]
+    const oitava = secao === 'Riff B' ? 12 : 0
+    if (tonica === 'fim') {
+      // A célula com outro fim: Si – Ré – Mi – Ré – Sol
+      const lista = [[0, 47], [3, 50], [4, 52], [7, 50], [8, 43]].map(([passo, midi]) => ({ passo, midi: midi + oitava + intervalo }))
+      return notas(lista, v, compasso, GRADE)
+    }
+    if (tonica) return celula(tonica + intervalo, v, compasso, GRADE)
+    const ritmo = ACORDES[secao]
+    if (!ritmo) return null
+    const passos = secao === 'Ponte' && indice >= 6 ? [0, 8] : ritmo
+    return notas(semOFim(passos, compasso).map((passo) => ({ passo, midi: RAIZ[acorde] + oitava + intervalo })), v, compasso, GRADE)
   }
 }
 
 // --------------------------------------------------
-// BAIXO: colcheias na fundamental, uma oitava abaixo da guitarra
+// MÁQUINA: palm mute no Mi2
+// --------------------------------------------------
+
+function maquina(compasso) {
+  const { secao, indice } = COMPASSOS[compasso]
+  const temCelula = Boolean(RIFF[secao]?.[indice])
+  let passos
+  let extra = 0
+  if (secao === 'Partida') {
+    passos = COLCHEIAS
+    extra = 0.45 * (1 - indice / 3) // liga aos poucos
+  } else if (secao === 'Parada') {
+    if (indice >= 4) return null
+    passos = [0, 4, 8, 12] // marcha lenta
+    extra = 0.3
+  } else if (secao === 'Ponte') {
+    return null
+  } else if (secao === 'Riff B') {
+    passos = temCelula ? SEMICOLCHEIAS.filter((passo) => passo >= 10) : SEMICOLCHEIAS
+  } else {
+    passos = temCelula ? COLCHEIAS.filter((passo) => passo >= 10) : COLCHEIAS.filter((passo) => secao !== 'Riff A' || passo > 0)
+  }
+  return notas(semOFim(passos, compasso).map((passo) => ({ passo, midi: 40, atenuacao: extra + (passo % 4 === 0 ? 0 : 0.15) })), VOZ.maquina, compasso, GRADE)
+}
+
+// --------------------------------------------------
+// BAIXO: colcheias na fundamental; mínimas na ponte; notas longas na parada
 // --------------------------------------------------
 
 function baixo(compasso) {
-  const raiz = RAIZ[PASTIFICIO_HARMONIA[compasso]] - 12
-  const passos = fechaFrase(compasso) ? COLCHEIAS.filter((passo) => passo < 13) : COLCHEIAS
-  return notas(passos.map((passo) => ({ passo, midi: raiz, atenuacao: passo % 4 === 0 ? 0 : 0.12 })), VOZ.baixo, compasso, GRADE)
+  const { secao, acorde } = COMPASSOS[compasso]
+  const raiz = RAIZ[acorde] - 12
+  if (secao === 'Partida') return null
+  let passos = COLCHEIAS
+  if (secao === 'Ponte') passos = [0, 8]
+  if (secao === 'Parada') passos = [0]
+  return notas(semOFim(passos, compasso).map((passo) => ({ passo, midi: raiz, atenuacao: passo % 4 === 0 ? 0 : 0.12 })), VOZ.baixo, compasso, GRADE)
 }
 
 // --------------------------------------------------
-// ÓRGÃO (só na ponte): tríades sustentadas no tempo 1
+// ÓRGÃO: acorde segurado no Riff B, tríades e o canto da célula alongada na ponte, a célula no agudo no Riff C
 // --------------------------------------------------
 
-const TRIADES = Object.freeze({
-  C5: [60, 64, 67],
-  D5: [62, 66, 69],
-  E5: [64, 68, 71],
-  B5: [59, 63, 66],
+const TRIADES = Object.freeze({ E5: [64, 68, 71], A5: [64, 69, 73], B5: [63, 66, 71], C5: [60, 64, 67], D5: [62, 66, 69] })
+
+function orgao(indiceDaVoz) {
+  return (compasso) => {
+    const { secao, indice, acorde } = COMPASSOS[compasso]
+    if (secao === 'Ponte' || (secao === 'Riff B' && indice % 2 === 0)) {
+      return notas([{ passo: 0, midi: TRIADES[acorde][indiceDaVoz] }], VOZ.orgao, compasso, GRADE)
+    }
+    return null
+  }
+}
+
+// Ponte: Si . . . Ré . . . | Mi (longo) | Ré . . . Si (a célula, cada nota em dois tempos)
+const CANTO = Object.freeze({
+  0: [[0, 71], [8, 74]], 1: [[0, 76]], 2: [[0, 74], [8, 71]], 3: [],
+  4: [[0, 71], [8, 74]], 5: [[0, 76], [8, 78]], 6: [[0, 75]], 7: [],
 })
 
-function orgao(indice) {
+function orgaoCanto(compasso) {
+  const { secao, indice } = COMPASSOS[compasso]
+  if (secao !== 'Ponte' || !CANTO[indice].length) return null
+  return notas(CANTO[indice].map(([passo, midi]) => ({ passo, midi })), VOZ.orgaoCanto, compasso, GRADE)
+}
+
+// Riff C: o órgão dobra a célula duas oitavas acima da guitarra
+function orgaoRiff(compasso) {
+  const { secao, indice } = COMPASSOS[compasso]
+  const tonica = RIFF[secao]?.[indice]
+  if (secao !== 'Riff C' || typeof tonica !== 'number') return null
+  return celula(tonica + 24, VOZ.orgaoRiff, compasso, GRADE)
+}
+
+// --------------------------------------------------
+// BATERIA: um groove por seção e viradas nas passagens
+// --------------------------------------------------
+
+const BUMBO = Object.freeze({ K: 12.42, k: 12.55, l: 19.2, m: 22.25, h: 26.3 })
+const CAIXA = Object.freeze({ X: 12, x: 12.3, g: 12.7, r: 12.55 })
+const CAIXA_CORPO = Object.freeze({ X: 12, x: 12.3, g: 12.9, r: 12.75 })
+const CHIMBAL = Object.freeze({ X: 12.1, x: 12.35, s: 12.55 })
+const ABERTO = Object.freeze({ o: 12.25 })
+
+// Intensidade da bateria por seção (atenuação somada; 0 = cheia)
+const DINAMICA = Object.freeze({ Partida: 0.2, 'Riff A': 0.05, Verso: 0.06, 'Riff B': 0, Ponte: 0.08, Parada: 0.1, 'Riff C': 0 })
+
+const GROOVES = Object.freeze({
+  bumbo: {
+    Partida: (i) => (i < 2 ? null : i === 3 ? 'K . . . | . . . . | K . . . | h h m l' : 'K . . . | . . . . | K . . . | . . . .'),
+    'Riff A': () => 'K . . . | . . . . | K . k . | . . . .',
+    Verso: (i) => (i === 7 ? 'K . . . | . . k . | h . h . | m . l .' : 'K . . . | . . k . | K . k . | . . . .'),
+    'Riff B': (i) => (i === 7 ? 'K . . . | h . h . | m . m . | l l l l' : 'K . . . | . . . . | K . K . | . . . .'),
+    Ponte: (i) => (i === 7 ? 'K . . . | . . . . | . . . . | . l l l' : 'K . . . | . . . . | . . . . | . . . .'),
+    // A prensa (tom grave) responde ao tung-tung-tung nos compassos sem ele
+    Parada: (i) => (i === 0 || i === 2 ? '. . . . | . . . . | . . . . | . l l l' : null),
+    'Riff C': (i) => (i === 7 ? 'K . . . | . . . . | K . K . | . l l l' : 'K . . . | . . k . | K . k . | . . . .'),
+  },
+  caixa: {
+    Partida: (i) => (i === 3 ? '. . . . | X . . . | . . . . | X . . .' : null),
+    'Riff A': () => '. . . . | X . . . | . . . . | X . . .',
+    Verso: (i) => (i === 7 ? '. . . . | X . . . | . . . . | . . . .' : '. . . . | X . . . | . . . g | X . . .'),
+    'Riff B': (i) => (i === 7 ? '. . . . | X . . . | . . . . | . . . .' : '. . . . | X . . g | . . . . | X . . g'),
+    Ponte: (i) => (i === 6 ? '. . . . | . . . . | X . . . | r . r .' : '. . . . | . . . . | X . . . | . . . .'),
+    Parada: (i) => (i === 5 ? 'r . r . | r . r . | r r x x | X X X X' : i === 4 ? '. . . . | . . . . | r . . . | r . r .' : null),
+    'Riff C': () => '. . . . | X . . . | . . . . | X . . .',
+  },
+  chimbal: {
+    Partida: () => 'X . x . | X . x . | X . x . | X . x .',
+    'Riff A': () => 'X . x . | X . x . | X . x . | X . x .',
+    Verso: () => 'X . x . | X . x . | X . x . | X . . .',
+    'Riff B': () => 'X s x s | X s x s | X s x s | X s x s',
+    Ponte: () => 'X . . . | x . . . | X . . . | x . . .',
+    'Riff C': () => 'X . x . | X . x . | X . x . | X . x .',
+  },
+  aberto: {
+    // Chimbal aberto no "e" do 4: no Verso a cada dois compassos, no Riff C em todos
+    Verso: (i) => (i % 2 === 1 && i !== 7 ? '. . . . | . . . . | . . . . | . . o .' : null),
+    'Riff C': (i) => (i === 7 ? null : '. . . . | . . . . | . . . . | . . o .'),
+  },
+})
+
+function peca(nome, mapa) {
   return (compasso) => {
-    if (secao(compasso) !== 'ponte') return null
-    return notas([{ passo: 0, midi: TRIADES[PASTIFICIO_HARMONIA[compasso]][indice] }], VOZ.orgao, compasso, GRADE)
+    const { secao, indice } = COMPASSOS[compasso]
+    const groove = GROOVES[nome][secao]
+    const texto = groove ? groove(indice, temTung(compasso)) : null
+    if (!texto) return null
+    // No fim de frase com tung-tung-tung, o chimbal deixa os passos 13 a 15 livres
+    const final = nome === 'chimbal' && temTung(compasso) ? texto.replace(/(\S+ \S+ \S+)$/, (fim) => fim.replace(/[Xxs]/g, '.')) : texto
+    return bateria(final, comAtenuacao(mapa, DINAMICA[secao]), GRADE)
   }
-}
-
-// --------------------------------------------------
-// BATERIA
-// --------------------------------------------------
-
-const BUMBO = Object.freeze({ K: 12.42, k: 12.55, l: 19.2 }) // l = tom grave (a prensa da ponte)
-const CAIXA = Object.freeze({ X: 12, x: 12.3, r: 12.55 })
-const CAIXA_CORPO = Object.freeze({ X: 12, x: 12.3, r: 12.75 })
-const CHIMBAL = Object.freeze({ X: 12.1, x: 12.35 })
-
-function bumbo(compasso) {
-  if (secao(compasso) === 'ponte') {
-    if (compasso === 27 || compasso === 31) return bateria('K . . . | . . . . | . . . . | . l l l', BUMBO, GRADE)
-    return bateria('K . . . | . . . . | . . . . | . . . .', BUMBO, GRADE)
-  }
-  return bateria('K . . . | . . . . | K . k . | . . . .', BUMBO, GRADE)
-}
-
-function linhaDaCaixa(compasso) {
-  if (secao(compasso) === 'ponte') {
-    // Meio-tempo na ponte (caixa no 3); no último compasso, colcheias em crescendo até a volta do riff
-    if (compasso === 31) return 'r . r . | r . x . | x . X . | X . . .'
-    return '. . . . | . . . . | X . . . | . . . .'
-  }
-  return '. . . . | X . . . | . . . . | X . . .'
-}
-
-const caixa = (mapa) => (compasso) => bateria(linhaDaCaixa(compasso), mapa, GRADE)
-
-function chimbal(compasso) {
-  if (secao(compasso) === 'ponte') return bateria('X . . . | x . . . | X . . . | x . . .', CHIMBAL, GRADE)
-  if (fechaFrase(compasso)) return bateria('X . x . | X . x . | X . x . | X . . .', CHIMBAL, GRADE)
-  return bateria('X . x . | X . x . | X . x . | X . x .', CHIMBAL, GRADE)
 }
 
 const ALTURA_DO_TUNG = 76 // Mi5
-function madeira(compasso) {
-  return fechaFrase(compasso) ? tungTungTung(ALTURA_DO_TUNG, compasso, GRADE) : null
-}
+const madeira = (compasso) => (temTung(compasso) ? tungTungTung(ALTURA_DO_TUNG, compasso, GRADE) : compassoVazio(GRADE))
 
 // --------------------------------------------------
 // CANAIS
@@ -180,10 +290,13 @@ const CANAIS = [
   ['orgaoSustentado', 0.2, orgao(0)],
   ['orgaoSustentado', 0.28, orgao(1)],
   ['orgaoSustentado', 0.24, orgao(2)],
-  ['bumbo', 0, bumbo],
-  ['caixa', 0, caixa(CAIXA)],
-  ['caixaCorpo', 0, caixa(CAIXA_CORPO)],
-  ['chimbal', -0.18, chimbal],
+  ['orgaoSustentado', 0.12, orgaoCanto],
+  ['orgaoLeslieRapido', 0.18, orgaoRiff],
+  ['bumbo', 0, peca('bumbo', BUMBO)],
+  ['caixa', 0, peca('caixa', CAIXA)],
+  ['caixaCorpo', 0, peca('caixa', CAIXA_CORPO)],
+  ['chimbal', -0.18, peca('chimbal', CHIMBAL)],
+  ['chimbalAberto', -0.22, peca('aberto', ABERTO)],
   ['madeira', 0.08, madeira],
 ]
 
@@ -196,7 +309,15 @@ export const PASTIFICIO_SONG = montarMusica({
   andamento: PASTIFICIO_META.andamento,
 })
 
+const riffExato = (nomeDaSecao) => {
+  const secao = PASTIFICIO_SECOES.find((item) => item.nome === nomeDaSecao)
+  return Object.entries(RIFF[nomeDaSecao]).filter(([, tonica]) => typeof tonica === 'number').map(([indice, tonica]) => [secao.inicio + Number(indice), tonica])
+}
+
 export const PASTIFICIO_MOTIVO = Object.freeze({
-  riff: { instrumento: 'guitarraCrunch', compassos: Object.fromEntries(Array.from({ length: 32 }, (_, c) => c).filter(temCelula).map((c) => [c, TONICA])) },
-  tung: { compassos: Array.from({ length: 32 }, (_, c) => c).filter(fechaFrase) },
+  riff: [
+    { instrumento: 'guitarraCrunch', compassos: Object.fromEntries([...riffExato('Riff A'), ...riffExato('Riff B'), ...riffExato('Riff C')]) },
+    { instrumento: 'orgaoLeslieRapido', compassos: Object.fromEntries(riffExato('Riff C').map(([compasso, tonica]) => [compasso, tonica + 24])) },
+  ],
+  tung: { compassos: COMPASSOS.map((_, compasso) => compasso).filter(temTung) },
 })

@@ -3,7 +3,7 @@ import { describe, test } from 'node:test'
 import { INSTRUMENTOS } from '../src/audio/music/instrumentos.js'
 import { FAIXAS, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
 import { INSTRUMENTOS_DAS_MUSICAS, MUSICAS } from '../src/audio/music/musicas.js'
-import { CANTINA_INSTRUMENTOS, CANTINA_META, CANTINA_SONG } from '../src/audio/music/andar-cantina.js'
+import { CANTINA_INSTRUMENTOS, CANTINA_META, CANTINA_SECOES, CANTINA_SONG } from '../src/audio/music/andar-cantina.js'
 import { CELULA_DO_TUNG_GRAUS, passosDoTungTungTung } from '../src/audio/music/motivos.js'
 import { bpmDoZzfxm } from '../src/audio/music/partitura.js'
 
@@ -69,55 +69,60 @@ describe('A Ronda: Cantina', () => {
     const indices = padroes[0].flatMap((canal, indice) => (CANTINA_INSTRUMENTOS[canal[0]] === nome ? [indice] : []))
     return indices[ordem]
   }
+  const tocaEm = (nome, compassos) => compassos.some((compasso) => notasDoCanal(padroes[compasso][canalDe(nome)]).length > 0)
+  const faixa = (de, ate) => Array.from({ length: ate - de }, (_, i) => de + i)
+  const [A1, A2, B, R] = CANTINA_SECOES
 
-  test('24 compassos de 12 passos, ♩ = 88 e áudio começando no compasso 2', () => {
-    assert.equal(padroes.length, 24)
+  test('36 compassos de 12 passos em quatro seções (A1 12, A2 12, B 8, respiro 4), ♩ = 88', () => {
+    assert.equal(padroes.length, 36)
     assert.equal(padroes[0][0].length - 2, 12)
     assert.equal(bpm, bpmDoZzfxm(88, 3))
     assert.equal(bpm, 66)
     assert.equal(sequencia[0], CANTINA_META.inicioDoLoop)
-    assert.equal(sequencia[0], 2)
+    assert.deepEqual(CANTINA_SECOES.map(({ nome, compassos }) => [nome, compassos]), [['A1', 12], ['A2', 12], ['B', 8], ['R', 4]])
   })
 
-  test('o riff é a célula do Tung no baixo (5 – ♭7 – 1\' – ♭7 – 5)', () => {
-    const baixo = canalDe('contrabaixo')
-    const tonicas = { 0: 33, 2: 33, 4: 38, 6: 33, 8: 28, 9: 26 }
-    for (const volta of [0, 12]) {
-      for (const [posicao, tonica] of Object.entries(tonicas)) {
-        const tocadas = notasDoCanal(padroes[volta + Number(posicao)][baixo]).slice(0, 5)
-        assert.deepEqual(tocadas.map(({ passo }) => passo), [0, 2, 3, 5, 6])
-        assert.deepEqual(tocadas.map(({ nota }) => alturaEscrita(nota, 'contrabaixo') - tonica), [...CELULA_DO_TUNG_GRAUS])
+  test('o riff é a célula do Tung, que passa do baixo (A1) para a guitarra (A2)', () => {
+    const passos = [0, 2, 3, 5, 6]
+    const confere = (nome, tonicas) => {
+      for (const [compasso, tonica] of Object.entries(tonicas)) {
+        const tocadas = notasDoCanal(padroes[Number(compasso)][canalDe(nome)]).slice(0, 5)
+        assert.deepEqual(tocadas.map(({ passo }) => passo), passos, `${nome} ${compasso}`)
+        assert.deepEqual(tocadas.map(({ nota }) => alturaEscrita(nota, nome) - tonica), [...CELULA_DO_TUNG_GRAUS], `${nome} ${compasso}`)
       }
     }
+    confere('contrabaixo', { 0: 33, 4: 38, 8: 28, 9: 26 })
+    confere('guitarraJazz', { 12: 57, 16: 62 })
   })
 
-  test('o tung-tung-tung fecha cada frase de 4 compassos, em crescendo e sem a caixa por cima', () => {
+  test('o tung-tung-tung fecha só algumas frases, em lugares diferentes em cada seção, e a caixa sai do caminho', () => {
     const madeira = canalDe('madeira')
     const caixa = canalDe('caixa')
     const passos = passosDoTungTungTung(3)
-    for (let compasso = 0; compasso < 24; compasso++) {
+    const comTung = padroes.flatMap((padrao, compasso) => (notasDoCanal(padrao[madeira]).length ? [compasso] : []))
+    assert.deepEqual(comTung, [3, 11, 19, 23, 31, 33, 35])
+    for (const compasso of comTung) {
       const tocadas = notasDoCanal(padroes[compasso][madeira])
-      if ([3, 7, 11].includes(compasso % 12)) {
-        assert.deepEqual(tocadas.map(({ passo }) => passo), passos)
-        const atenuacoes = tocadas.map(({ nota }) => nota % 1)
-        assert.ok(atenuacoes[0] > atenuacoes[1] && atenuacoes[1] > atenuacoes[2], 'crescendo')
-        assert.deepEqual(notasDoCanal(padroes[compasso][caixa]).filter(({ passo }) => passo >= 9), [])
-      } else {
-        assert.deepEqual(tocadas, [])
-      }
+      assert.deepEqual(tocadas.map(({ passo }) => passo), passos)
+      const atenuacoes = tocadas.map(({ nota }) => nota % 1)
+      assert.ok(atenuacoes[0] > atenuacoes[2], 'crescendo')
+      assert.deepEqual(notasDoCanal(padroes[compasso][caixa]).filter(({ passo }) => passo >= 9), [])
     }
   })
 
-  test('primeira volta só com vassourinha; segunda com baquetas e a guitarra respondendo', () => {
-    const tocaEm = (nome, compassos) => compassos.some((compasso) => notasDoCanal(padroes[compasso][canalDe(nome)]).length > 0)
-    const volta1 = Array.from({ length: 12 }, (_, i) => i)
-    const volta2 = volta1.map((i) => i + 12)
-    assert.equal(tocaEm('vassourinha', volta1), true)
-    assert.equal(tocaEm('vassourinha', volta2), false)
+  test('cada seção tem a sua cara: vassourinha no A1, baquetas e guitarra no A2, aro no B, quase nada no respiro', () => {
+    const a1 = faixa(A1.inicio, A1.inicio + A1.compassos)
+    const a2 = faixa(A2.inicio, A2.inicio + A2.compassos)
+    const b = faixa(B.inicio, B.inicio + B.compassos)
+    const r = faixa(R.inicio, R.inicio + R.compassos)
+    assert.equal(tocaEm('vassourinha', a1), true)
     for (const nome of ['ride', 'caixa', 'guitarraJazz']) {
-      assert.equal(tocaEm(nome, volta1), false, nome)
-      assert.equal(tocaEm(nome, volta2), true, nome)
+      assert.equal(tocaEm(nome, a1), false, `${nome} no A1`)
+      assert.equal(tocaEm(nome, a2), true, `${nome} no A2`)
     }
+    assert.equal(tocaEm('vassourinha', a2), false)
+    assert.equal(tocaEm('caixaAro', b), true)
+    for (const nome of ['ride', 'caixa', 'guitarraJazz', 'bumbo']) assert.equal(tocaEm(nome, r), false, `${nome} no respiro`)
   })
 
   test('a melodia fica esparsa na região dos efeitos sonoros (100 a 650 Hz)', () => {
@@ -133,7 +138,7 @@ describe('A Ronda: Cantina', () => {
         }
       }
     }
-    const segundos = 24 * 4 * (60 / 88)
+    const segundos = padroes.length * 4 * (60 / 88)
     assert.ok(ataques / segundos < 2.5, `${(ataques / segundos).toFixed(2)} ataques por segundo`)
   })
 })

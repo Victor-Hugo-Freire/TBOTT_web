@@ -19,7 +19,7 @@ import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../src/audio
 import { CADEIA_DO_MASTER, prepararFaixa } from '../src/audio/masterizacao.js'
 import { INSTRUMENTOS, midiParaFrequencia } from '../src/audio/music/instrumentos.js'
 import { FAIXAS as REGISTRO, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
-import { INSTRUMENTOS_DAS_MUSICAS, obterFaixa, obterMusica } from '../src/audio/music/musicas.js'
+import { INSTRUMENTOS_DAS_MUSICAS, obterFaixa, obterMusica, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
 import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
 import { ENTRADA_DO_CORPO } from '../src/audio/fonteComIntro.js'
 import { aplicarCadeiaDoMaster, distribuicaoEspectral, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav } from './trilha/analise.mjs'
@@ -77,6 +77,39 @@ function densidadeNaRegiaoDosEfeitos(song, nomes) {
     maximo = Math.max(maximo, noCompasso / (passos * passoEmSegundos))
   }
   return { mediaPorSegundo: total / duracao, maximoPorSegundo: maximo }
+}
+
+// Energia de cada seção (dB RMS depois do master), na ordem em que o áudio toca: as subidas e descidas
+function imprimirEnergiaPorSecao(faixa, canais) {
+  const secoes = SECOES_DAS_MUSICAS[faixa.id]
+  if (!secoes) return
+  const [, padroes, sequencia, bpm] = faixa.song
+  const passo = (SAMPLE_RATE / bpm * 60) >> 2
+  const inicioDoCompasso = []
+  let posicao = 0
+  for (const indice of sequencia) {
+    inicioDoCompasso[indice] = posicao
+    posicao += (padroes[indice][0].length - 2) * passo
+  }
+  const partes = secoes.map((secao) => {
+    const de = inicioDoCompasso[secao.inicio]
+    const ate = de + secao.compassos * (padroes[secao.inicio][0].length - 2) * passo
+    let soma = 0
+    for (const canal of canais) for (let i = de; i < ate; i++) soma += canal[i] * canal[i]
+    return `${secao.nome} (${secao.compassos}) ${numero(10 * Math.log10(soma / (2 * (ate - de))))}`
+  })
+  console.log(`  energia por seção (dB RMS): ${partes.join(' → ')}`)
+
+  // Atividade: ataques por segundo de todos os canais (notas e batidas), por seção
+  const segundosPorCompasso = (padroes[0][0].length - 2) * passo / SAMPLE_RATE
+  const atividade = secoes.map((secao) => {
+    let ataques = 0
+    for (let compasso = secao.inicio; compasso < secao.inicio + secao.compassos; compasso++) {
+      for (const canal of padroes[compasso]) ataques += canal.slice(2).filter((nota) => nota > 0).length
+    }
+    return `${secao.nome} ${numero(ataques / (secao.compassos * segundosPorCompasso))}`
+  })
+  console.log(`  atividade por seção (ataques/s, todos os instrumentos): ${atividade.join(' → ')}`)
 }
 
 function imprimirDensidade(densidade) {
@@ -212,6 +245,7 @@ for (const faixa of FAIXAS) {
   imprimirDensidade(densidadeNaRegiaoDosEfeitos(faixa.song, faixa.instrumentos))
   const final = aplicarCadeiaDoMaster(seco, SAMPLE_RATE, faixa.reverb)
   imprimirMedicoes(`${faixa.id} (corpo em loop, depois da cadeia do master, reverb ${Math.round(faixa.reverb * 100)}%)`, medirFaixa(final, SAMPLE_RATE))
+  imprimirEnergiaPorSecao(faixa, final)
 
   if (!preparada.intro) {
     salvarWav(join(PASTA, `${faixa.id}-seco.wav`), seco, SAMPLE_RATE)

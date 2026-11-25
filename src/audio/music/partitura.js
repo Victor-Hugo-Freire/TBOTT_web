@@ -178,3 +178,42 @@ export function juntar(...listas) {
   if (validas.length === 0) return null
   return validas[0].map((_, passo) => validas.find((lista) => lista[passo])?.[passo] ?? PAUSA)
 }
+
+// --------------------------------------------------
+// Forma da faixa em seções
+// --------------------------------------------------
+
+// Uma faixa é uma lista de seções: { nome, harmonia: [um acorde por compasso], ...o que a faixa quiser
+// (groove, virada, camadas) }. expandirForma devolve um item por compasso, com a seção inteira e mais
+// indice (compasso dentro da seção), tamanho, acorde, inicio (compasso em que a seção começa),
+// primeiro e ultimo.
+export function expandirForma(forma) {
+  const compassos = []
+  for (const secao of forma) {
+    const inicio = compassos.length
+    const tamanho = secao.harmonia.length
+    secao.harmonia.forEach((acorde, indice) => {
+      compassos.push(Object.freeze({
+        ...secao,
+        secao: secao.nome,
+        indice,
+        tamanho,
+        acorde,
+        inicio,
+        primeiro: indice === 0,
+        ultimo: indice === tamanho - 1,
+      }))
+    })
+  }
+  return Object.freeze(compassos)
+}
+
+// Onde cada seção começa e quantos compassos tem (para as medições e os testes)
+export function secoesDaForma(forma) {
+  let inicio = 0
+  return Object.freeze(forma.map((secao) => {
+    const item = Object.freeze({ nome: secao.nome, papel: secao.papel ?? '', inicio, compassos: secao.harmonia.length })
+    inicio += secao.harmonia.length
+    return item
+  }))
+}

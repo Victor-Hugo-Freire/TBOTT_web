@@ -170,7 +170,7 @@ export const INSTRUMENTOS = Object.freeze({
 
   // Leslie rápido (~6,5 Hz): clímax
   orgaoLeslieRapido: instrumento({
-    baseMidi: 48, registro: [48, 79],
+    baseMidi: 48, registro: [48, 84],
     volume: 0.2, aleatoriedade: 0.002, forma: TRIANGULO,
     ataque: 0.008, decaimento: 0.05, nivelSustentacao: 0.85, sustentacao: 0.45, soltura: 0.12,
     repeticao: 0.154, tremolo: 0.2,
@@ -198,7 +198,7 @@ export const INSTRUMENTOS = Object.freeze({
   // Serra "achatada" (curva < 1) e passa-baixa forte: é o papel da caixa do amplificador.
   // Power chord = tônica e quinta em canais separados (o aleatoriedade desafina um pouco cada um).
   guitarraCrunch: instrumento({
-    baseMidi: 48, registro: [40, 69],
+    baseMidi: 48, registro: [40, 76],
     volume: 0.16, aleatoriedade: 0.003, forma: SERRA, curva: 0.6,
     ataque: 0.004, decaimento: 0.1, nivelSustentacao: 0.78, sustentacao: 0.28, soltura: 0.1,
     filtro: passaBaixa(2800),
