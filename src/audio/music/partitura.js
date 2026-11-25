@@ -81,8 +81,9 @@ export function compassoVazio(grade) {
   return Array(grade.passos).fill(PAUSA)
 }
 
-// Uma linha de notas → passos do compasso (números de nota do instrumento da voz)
-export function linha(texto, v, compasso, grade, transpor = 0) {
+// Uma linha de notas → passos do compasso (números de nota do instrumento da voz).
+// extra: atenuação somada a todas as notas (crescendos de uma introdução, por exemplo).
+export function linha(texto, v, compasso, grade, transpor = 0, extra = 0) {
   const lista = tokens(texto)
   if (lista.length !== grade.passos) {
     throw new Error(`A linha tem ${lista.length} passos, mas a grade tem ${grade.passos}: "${texto}"`)
@@ -91,8 +92,16 @@ export function linha(texto, v, compasso, grade, transpor = 0) {
     if (token === '.') return PAUSA
     const nota = lerNota(token)
     if (!nota) throw new Error(`Token inválido "${token}" na linha "${texto}"`)
-    return notaDoInstrumento(nota.midi + transpor + v.oitava, v.instrumento, atenuacao(v, compasso, passo, grade, nota.marca))
+    return notaDoInstrumento(nota.midi + transpor + v.oitava, v.instrumento, atenuacao(v, compasso, passo, grade, nota.marca, extra))
   })
+}
+
+// O mesmo mapa de bateria com mais atenuação em todas as batidas (sem passar da nota seguinte)
+export function comAtenuacao(mapa, extra) {
+  return Object.freeze(Object.fromEntries(Object.entries(mapa).map(([token, valor]) => {
+    const nota = Math.floor(valor)
+    return [token, nota + Math.min(0.95, valor - nota + extra)]
+  })))
 }
 
 // Notas avulsas: [{ passo, midi, atenuacao? }] (atenuacao soma à do perfil)

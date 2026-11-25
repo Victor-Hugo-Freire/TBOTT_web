@@ -184,8 +184,8 @@ export function medirFaixa(canais, sampleRate) {
 // Cadeia do master fora do navegador (aproxima o que o AudioManager monta)
 // --------------------------------------------------
 
-// Biquad RBJ (Q = 0,707), como o BiquadFilterNode
-function biquad(canal, sampleRate, tipo, frequencia) {
+// Biquad RBJ (Q = 0,707), como o BiquadFilterNode. Em loop, o estado começa aquecido pelo fim do áudio.
+function biquad(canal, sampleRate, tipo, frequencia, loop = true) {
   const w = 2 * Math.PI * frequencia / sampleRate
   const cos = Math.cos(w)
   const alpha = Math.sin(w) / (2 * Math.SQRT1_2)
@@ -200,7 +200,7 @@ function biquad(canal, sampleRate, tipo, frequencia) {
   let y1 = 0
   let y2 = 0
   // Duas passadas: a primeira aquece o estado com o fim do áudio (o sinal é um loop)
-  for (let passada = 0; passada < 2; passada++) {
+  for (let passada = loop ? 0 : 1; passada < 2; passada++) {
     const inicio = passada === 0 ? Math.max(0, canal.length - sampleRate) : 0
     for (let i = inicio; i < canal.length; i++) {
       const x = canal[i]
@@ -214,8 +214,8 @@ function biquad(canal, sampleRate, tipo, frequencia) {
   }
 }
 
-// Convolução circular: a cauda da reverb que passa do fim volta para o começo (loop)
-function convolverCircular(canal, resposta) {
+// Convolução: em loop, a cauda da reverb que passa do fim volta para o começo; sem loop, é cortada
+function convolverCircular(canal, resposta, loop = true) {
   const tamanho = proximaPotencia(canal.length + resposta.length)
   const re = new Float64Array(tamanho)
   const im = new Float64Array(tamanho)
@@ -233,7 +233,10 @@ function convolverCircular(canal, resposta) {
   }
   ifft(re, im)
   const saida = new Float32Array(canal.length)
-  for (let i = 0; i < tamanho; i++) saida[i % canal.length] += re[i]
+  for (let i = 0; i < tamanho; i++) {
+    if (loop) saida[i % canal.length] += re[i]
+    else if (i < canal.length) saida[i] += re[i]
+  }
   return saida
 }
 
@@ -264,14 +267,15 @@ function comprimir(canais, sampleRate, { threshold, knee, ratio, attack, release
 }
 
 // fonte → passa-alta → passa-baixa → (seco + envio para a sala) → compressor
-export function aplicarCadeiaDoMaster(canais, sampleRate, reverbMix = CADEIA_DO_MASTER.reverbPadrao) {
+// loop: false para um trecho que não volta ao começo (a introdução seguida do corpo)
+export function aplicarCadeiaDoMaster(canais, sampleRate, reverbMix = CADEIA_DO_MASTER.reverbPadrao, { loop = true } = {}) {
   const saida = canais.map((canal) => Float32Array.from(canal))
   for (const canal of saida) {
-    biquad(canal, sampleRate, 'highpass', CADEIA_DO_MASTER.passaAltaHz)
-    biquad(canal, sampleRate, 'lowpass', CADEIA_DO_MASTER.passaBaixaHz)
+    biquad(canal, sampleRate, 'highpass', CADEIA_DO_MASTER.passaAltaHz, loop)
+    biquad(canal, sampleRate, 'lowpass', CADEIA_DO_MASTER.passaBaixaHz, loop)
   }
   const sala = criarRespostaDeSala(sampleRate)
-  const molhado = saida.map((canal, indice) => convolverCircular(canal, sala[indice]))
+  const molhado = saida.map((canal, indice) => convolverCircular(canal, sala[indice], loop))
   for (let c = 0; c < saida.length; c++) {
     for (let i = 0; i < saida[c].length; i++) saida[c][i] += molhado[c][i] * reverbMix
   }
@@ -309,4 +313,33 @@ export function salvarWav(caminho, canais, sampleRate) {
     }
   }
   writeFileSync(caminho, buffer)
+}
+
+// Nível (dB RMS) de cada trecho de `tamanho` amostras, nos dois canais juntos
+export function niveisPorTrecho(canais, inicio, tamanho, quantos) {
+  const niveis = []
+  for (let trecho = 0; trecho < quantos; trecho++) {
+    let soma = 0
+    let n = 0
+    const de = inicio + trecho * tamanho
+    for (const canal of canais) {
+      for (let i = de; i < Math.min(canal.length, de + tamanho); i++) {
+        soma += canal[i] * canal[i]
+        n++
+      }
+    }
+    niveis.push(n > 0 && soma > 0 ? 10 * Math.log10(soma / n) : -Infinity)
+  }
+  return niveis
+}
+
+// Maior salto entre amostras vizinhas perto de uma posição (a passagem da introdução para o corpo)
+export function maiorSaltoPerto(canais, posicao, raio) {
+  let maior = 0
+  for (const canal of canais) {
+    for (let i = Math.max(1, posicao - raio); i < Math.min(canal.length, posicao + raio); i++) {
+      maior = Math.max(maior, Math.abs(canal[i] - canal[i - 1]))
+    }
+  }
+  return maior
 }

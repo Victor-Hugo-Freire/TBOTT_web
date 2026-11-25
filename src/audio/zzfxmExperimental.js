@@ -9,7 +9,9 @@ import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from './zzfxExperi
 //   aconteceria se a música tocasse em ciclo. A emenda do loop fica contínua.
 // - normalize: false deixa os canais sem normalizar (a masterização faz isso depois,
 //   nos dois canais juntos, para não desequilibrar o estéreo).
-export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE, { loop = false, normalize = true } = {}) {
+// - cauda: sem loop, o áudio ganha depois do fim o espaço da nota mais longa, para as últimas
+//   notas soarem inteiras (a introdução de uma faixa, que toca uma vez só antes do loop).
+export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE, { loop = false, normalize = true, cauda = false } = {}) {
   if (!Array.isArray(song) || song.length < 3) {
     throw new TypeError('A música ZzFXM precisa dos instrumentos, padrões e sequência.')
   }
@@ -27,8 +29,19 @@ export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SA
     totalLength += (pattern[0].length - 2) * beatLength
   }
 
-  const left = new Float32Array(totalLength)
-  const right = new Float32Array(totalLength)
+  // Espaço para a cauda: a duração da nota mais longa entre os instrumentos
+  let tailLength = 0
+  if (cauda && !loop) {
+    for (const instrument of instruments) {
+      if (!Array.isArray(instrument)) continue
+      const seconds = (instrument[3] || 0) + (instrument[18] || 0) + (instrument[4] || 0) + (instrument[5] ?? 0.1) + (instrument[16] || 0)
+      tailLength = Math.max(tailLength, Math.ceil(seconds * sampleRate) + 16)
+    }
+  }
+  const outputLength = totalLength + tailLength
+
+  const left = new Float32Array(outputLength)
+  const right = new Float32Array(outputLength)
   let offset = 0
 
   for (const patternIndex of sequence) {
@@ -60,10 +73,10 @@ export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SA
 
         const leftGain = gain * (1 - panning)
         const rightGain = gain * (1 + panning)
-        const end = loop ? samples.length : Math.min(samples.length, totalLength - destination)
+        const end = loop ? samples.length : Math.min(samples.length, outputLength - destination)
 
         for (let index = 0; index < end; index++) {
-          const position = (destination + index) % totalLength
+          const position = loop ? (destination + index) % totalLength : destination + index
           left[position] += samples[index] * leftGain
           right[position] += samples[index] * rightGain
         }

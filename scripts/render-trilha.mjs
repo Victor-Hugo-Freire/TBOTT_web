@@ -7,6 +7,7 @@
 //
 // Saída em tmp/trilha/ (fora do Git):
 //   <id>.wav       a faixa como o jogador ouve: preparação do worker + cadeia do master
+//                  (com introdução: a introdução e depois o corpo duas vezes, para ouvir a entrada e o loop)
 //   <id>-seco.wav  só a preparação do worker (sem filtros, reverb nem compressor)
 //   vila-espera-antiga.wav  a versão anterior à Fase 1, exatamente como tocava
 
@@ -15,12 +16,13 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { generateZzfxMusicSamples } from '../src/audio/zzfxmExperimental.js'
 import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../src/audio/zzfxExperimental.js'
-import { prepararCanaisDaMusica, CADEIA_DO_MASTER } from '../src/audio/masterizacao.js'
+import { CADEIA_DO_MASTER, prepararFaixa } from '../src/audio/masterizacao.js'
 import { INSTRUMENTOS, midiParaFrequencia } from '../src/audio/music/instrumentos.js'
 import { FAIXAS as REGISTRO, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
-import { INSTRUMENTOS_DAS_MUSICAS, obterMusica } from '../src/audio/music/musicas.js'
+import { INSTRUMENTOS_DAS_MUSICAS, obterFaixa, obterMusica } from '../src/audio/music/musicas.js'
 import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
-import { aplicarCadeiaDoMaster, distribuicaoEspectral, inarmonicidade, medirFaixa, mono, salvarWav } from './trilha/analise.mjs'
+import { ENTRADA_DO_CORPO } from '../src/audio/fonteComIntro.js'
+import { aplicarCadeiaDoMaster, distribuicaoEspectral, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav } from './trilha/analise.mjs'
 
 const SAMPLE_RATE = ZZFX_EXPERIMENTAL_SAMPLE_RATE
 const PASTA = join(fileURLToPath(new URL('..', import.meta.url)), 'tmp', 'trilha')
@@ -202,15 +204,55 @@ for (const faixa of FAIXAS) {
   let picoBruto = 0
   for (const c of brutos) for (let i = 0; i < c.length; i++) picoBruto = Math.max(picoBruto, Math.abs(c[i]))
 
-  const seco = prepararCanaisDaMusica(faixa.song, SAMPLE_RATE)
-  const final = aplicarCadeiaDoMaster(seco, SAMPLE_RATE, faixa.reverb)
-  salvarWav(join(PASTA, `${faixa.id}-seco.wav`), seco, SAMPLE_RATE)
-  salvarWav(join(PASTA, `${faixa.id}.wav`), final, SAMPLE_RATE)
+  const preparada = prepararFaixa(obterFaixa(faixa.id), SAMPLE_RATE)
+  const seco = preparada.canais
 
-  imprimirMedicoes(`${faixa.id} (saída do worker; soma bruta dos canais com pico ${picoBruto.toFixed(2)})`, medirFaixa(seco, SAMPLE_RATE))
+  imprimirMedicoes(`${faixa.id} (corpo em loop, saída do worker; soma bruta dos canais com pico ${picoBruto.toFixed(2)})`, medirFaixa(seco, SAMPLE_RATE))
   imprimirSemBateria(espectroSemBateria(faixa.song, faixa.percussao))
   imprimirDensidade(densidadeNaRegiaoDosEfeitos(faixa.song, faixa.instrumentos))
-  imprimirMedicoes(`${faixa.id} (depois da cadeia do master, reverb ${Math.round(faixa.reverb * 100)}%)`, medirFaixa(final, SAMPLE_RATE))
+  const final = aplicarCadeiaDoMaster(seco, SAMPLE_RATE, faixa.reverb)
+  imprimirMedicoes(`${faixa.id} (corpo em loop, depois da cadeia do master, reverb ${Math.round(faixa.reverb * 100)}%)`, medirFaixa(final, SAMPLE_RATE))
+
+  if (!preparada.intro) {
+    salvarWav(join(PASTA, `${faixa.id}-seco.wav`), seco, SAMPLE_RATE)
+    salvarWav(join(PASTA, `${faixa.id}.wav`), final, SAMPLE_RATE)
+  } else {
+    // Como o jogador ouve: a introdução (com a cauda) e, no fim dela, o corpo duas vezes seguidas
+    const inicioDoCorpo = preparada.introAmostras
+    const corpo = seco[0].length
+    const total = inicioDoCorpo + corpo * 2
+    const ouvido = [new Float32Array(total), new Float32Array(total)]
+    for (let c = 0; c < 2; c++) {
+      const intro = preparada.intro[c]
+      for (let i = 0; i < intro.length && i < total; i++) ouvido[c][i] += intro[i]
+      // Na primeira entrada o corpo sobe de 0 a 1 em ENTRADA_DO_CORPO (como em fonteComIntro.js)
+      const rampa = Math.round(ENTRADA_DO_CORPO * SAMPLE_RATE)
+      for (let volta = 0; volta < 2; volta++) {
+        for (let i = 0; i < corpo; i++) {
+          const ganho = volta === 0 && i < rampa ? i / rampa : 1
+          ouvido[c][inicioDoCorpo + volta * corpo + i] += seco[c][i] * ganho
+        }
+      }
+    }
+    const ouvidoFinal = aplicarCadeiaDoMaster(ouvido, SAMPLE_RATE, faixa.reverb, { loop: false })
+    salvarWav(join(PASTA, `${faixa.id}-seco.wav`), ouvido, SAMPLE_RATE)
+    salvarWav(join(PASTA, `${faixa.id}.wav`), ouvidoFinal, SAMPLE_RATE)
+
+    const [, padroesDaIntro, , bpm] = obterFaixa(faixa.id).intro
+    const compasso = (padroesDaIntro[0][0].length - 2) * ((SAMPLE_RATE / bpm * 60) >> 2)
+    const compassosDaIntro = Math.round(inicioDoCorpo / compasso)
+    const niveis = niveisPorTrecho(ouvidoFinal, 0, compasso, compassosDaIntro + 4).map((db) => numero(db))
+    const medida = medirFaixa(ouvidoFinal, SAMPLE_RATE)
+    // Estalo aparece como salto na amostra exata da passagem; o ataque do tempo forte, nos ±50 ms
+    // em volta, se compara com os outros tempos fortes do corpo
+    const naPassagem = maiorSaltoPerto(ouvido, inicioDoCorpo, 2)
+    const salto = maiorSaltoPerto(ouvidoFinal, inicioDoCorpo, Math.round(SAMPLE_RATE * 0.05))
+    const outrosTemposFortes = [4, 8, 16].map((n) => maiorSaltoPerto(ouvidoFinal, inicioDoCorpo + n * compasso, Math.round(SAMPLE_RATE * 0.05)))
+    console.log(`\n${faixa.id}: introdução de ${compassosDaIntro} compassos = ${numero(inicioDoCorpo / SAMPLE_RATE, 2)} s; o corpo entra na amostra ${inicioDoCorpo} (início de compasso)`)
+    console.log(`  nível por compasso (dB RMS, como o jogador ouve): introdução ${niveis.slice(0, compassosDaIntro).join(' → ')} | corpo ${niveis.slice(compassosDaIntro).join(' · ')}`)
+    console.log(`  passagem introdução → corpo: salto na amostra da passagem ${naPassagem.toFixed(4)} (mediana da faixa ${medida.saltoMediano.toFixed(4)}) · ataque do tempo forte ±50 ms ${salto.toFixed(4)} (outros tempos fortes: ${outrosTemposFortes.map((v) => v.toFixed(4)).join(', ')})`)
+    console.log(`  pico ${numero(medida.picoDb)} dBFS · clipadas ${medida.clipadas}`)
+  }
   if (medirCanais) imprimirCanais(faixa.song, 0.89 / picoBruto)
 }
 

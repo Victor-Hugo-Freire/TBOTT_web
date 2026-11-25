@@ -141,6 +141,24 @@ export const INSTRUMENTOS = Object.freeze({
     ataque: 0.008, decaimento: 0.05, nivelSustentacao: 0.85, sustentacao: 0.32, soltura: 0.09,
   }),
 
+  // Órgão sustentado: o ataque lento faz o acorde "inchar" (pad), com Leslie lento. Dura mais que um
+  // compasso a ♩ = 100, então acordes seguidos se emendam. Introduções e a sala do God.
+  orgaoSustentado: instrumento({
+    baseMidi: 48, registro: [43, 79],
+    volume: 0.17, aleatoriedade: 0.002, forma: TRIANGULO,
+    ataque: 0.38, decaimento: 0.1, nivelSustentacao: 0.9, sustentacao: 1.6, soltura: 0.55,
+    repeticao: 0.4, tremolo: 0.1,
+    filtro: passaBaixa(2600),
+  }),
+
+  // Baixo de órgão (o pedal do trio de órgão): seno arredondado, curto e redondo
+  orgaoBaixo: instrumento({
+    baseMidi: 36, registro: [28, 52],
+    volume: 0.6, aleatoriedade: 0.001, forma: SENO,
+    ataque: 0.006, decaimento: 0.08, nivelSustentacao: 0.7, sustentacao: 0.16, soltura: 0.08,
+    filtro: passaBaixa(900),
+  }),
+
   // Leslie lento (~2,5 Hz): baladas e trechos calmos
   orgaoLeslieLento: instrumento({
     baseMidi: 48, registro: [48, 79],
@@ -165,6 +183,15 @@ export const INSTRUMENTOS = Object.freeze({
     baseMidi: 48, registro: [40, 81],
     volume: 0.3, aleatoriedade: 0.003, forma: TRIANGULO,
     ataque: 0.004, decaimento: 0.18, nivelSustentacao: 0.4, sustentacao: 0.1, soltura: 0.24,
+    filtro: passaBaixa(2500),
+  }),
+
+  // Guitarra com o tremolo do amplificador (~6 Hz): o balanço da água no Porto. Notas longas.
+  guitarraTremolo: instrumento({
+    baseMidi: 48, registro: [40, 76],
+    volume: 0.3, aleatoriedade: 0.003, forma: TRIANGULO,
+    ataque: 0.005, decaimento: 0.25, nivelSustentacao: 0.6, sustentacao: 0.6, soltura: 0.35,
+    repeticao: 0.16, tremolo: 0.55,
     filtro: passaBaixa(2500),
   }),
 
@@ -318,7 +345,7 @@ export const INSTRUMENTOS = Object.freeze({
   // Madeira: o "tung" do tronco. Seno oco que cai um pouco de altura, com um toque de ruído
   // no ataque. É o timbre do motivo tung-tung-tung (ver motivos.js).
   madeira: instrumento({
-    baseMidi: 72, registro: [67, 79], percussao: true,
+    baseMidi: 72, registro: [60, 79], percussao: true,
     volume: 0.5, forma: SENO,
     ataque: 0.003, decaimento: 0.03, nivelSustentacao: 0.25, sustentacao: 0, soltura: 0.08,
     slide: -0.8, ruido: 0.25,

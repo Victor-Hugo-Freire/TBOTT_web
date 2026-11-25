@@ -66,6 +66,29 @@ export function prepararCanaisDaMusica(song, sampleRate = ZZFX_EXPERIMENTAL_SAMP
   return canais
 }
 
+// Duração (em amostras) dos compassos de uma música ZzFXM, sem a cauda das notas
+export function duracaoDaMusicaEmAmostras(song, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE) {
+  const [, padroes, sequencia, bpm = 125] = song
+  const passo = sampleRate / bpm * 60 >> 2
+  return sequencia.reduce((total, indice) => total + (padroes[indice][0].length - 2) * passo, 0)
+}
+
+// Prepara uma faixa com introdução opcional.
+// - corpo: a parte em loop (loop contínuo: a cauda do fim volta para o começo do corpo)
+// - intro: toca uma vez antes do corpo, com a cauda inteira (ela soa por cima do começo do corpo)
+// As duas passam pela mesma saturação e pela mesma normalização: o volume não salta na passagem.
+// introAmostras é onde o corpo começa (sempre no início de um compasso).
+export function prepararFaixa({ corpo, intro = null }, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE) {
+  const canais = generateZzfxMusicSamples(corpo, sampleRate, { loop: true, normalize: false })
+  const canaisDaIntro = intro ? generateZzfxMusicSamples(intro, sampleRate, { cauda: true, normalize: false }) : null
+  saturarENormalizar(canaisDaIntro ? [...canais, ...canaisDaIntro] : canais)
+  return {
+    canais,
+    intro: canaisDaIntro,
+    introAmostras: intro ? duracaoDaMusicaEmAmostras(intro, sampleRate) : 0,
+  }
+}
+
 // Gerador pseudoaleatório com semente (mulberry32): a sala é sempre a mesma.
 function criarAleatorio(semente) {
   let estado = semente >>> 0

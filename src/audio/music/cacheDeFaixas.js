@@ -3,13 +3,13 @@
 // - preparar(id) gera a faixa num worker (uma de cada vez, para não disputar a CPU com o jogo).
 //   { urgente: true } passa a faixa para a frente da fila (a que vai tocar agora).
 // - Passando do limite, sai a faixa usada há mais tempo.
-// - Assim que a faixa fica pronta, o AudioBuffer é montado em pedaços pequenos nos momentos ociosos
-//   do navegador (copiar 23 MB de uma vez travaria um quadro do jogo). obterBuffer(id, context) usa
-//   esse AudioBuffer; se ele ainda não estiver montado, monta na hora. Depois de montado, os
-//   Float32Array são soltos (a memória não fica em dobro).
+// - Assim que a faixa fica pronta, os AudioBuffer (o corpo e a introdução, se houver) são montados
+//   em pedaços pequenos nos momentos ociosos do navegador (copiar 23 MB de uma vez travaria um
+//   quadro do jogo). obterBuffer e obterIntro usam esses AudioBuffer; se ainda não estiverem
+//   montados, montam na hora. Depois de montados, os Float32Array são soltos (sem memória em dobro).
 
 import { ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../zzfxExperimental.js'
-import { prepararCanaisDaMusica } from '../masterizacao.js'
+import { prepararFaixa } from '../masterizacao.js'
 
 export const LIMITE_DO_CACHE = 3
 
@@ -17,6 +17,18 @@ function canaisValidos(canais) {
   return Array.isArray(canais)
     && canais.length === 2
     && canais.every((canal) => canal instanceof Float32Array && canal.length > 0)
+}
+
+// Aceita o resultado da preparação ({ canais, intro, introAmostras }) ou só os canais do corpo
+function normalizarFaixa(resultado) {
+  const faixa = Array.isArray(resultado) ? { canais: resultado, intro: null, introAmostras: 0 } : resultado
+  if (!canaisValidos(faixa?.canais)) return null
+  const temIntro = canaisValidos(faixa.intro) && faixa.introAmostras > 0
+  return {
+    canais: faixa.canais,
+    intro: temIntro ? faixa.intro : null,
+    introAmostras: temIntro ? faixa.introAmostras : 0,
+  }
 }
 
 // Quantas amostras copiar por vez ao montar o AudioBuffer (~1 ms de trabalho em cada pedaço)
@@ -60,7 +72,7 @@ export function montarBufferAosPoucos(canais, sampleRate, { pedaco = AMOSTRAS_PO
 // Gera a faixa num worker. Sem Worker (navegador antigo, Node), gera na própria thread.
 export function renderizarNoWorker(id, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE) {
   if (typeof Worker === 'undefined') {
-    return import('./musicas.js').then(({ obterMusica }) => prepararCanaisDaMusica(obterMusica(id), sampleRate))
+    return import('./musicas.js').then(({ obterFaixa }) => prepararFaixa(obterFaixa(id), sampleRate))
   }
 
   return new Promise((resolve, reject) => {
@@ -76,7 +88,7 @@ export function renderizarNoWorker(id, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RAT
         reject(new Error('A preparação da trilha não produziu canais válidos.'))
         return
       }
-      resolve(data.channels)
+      resolve({ canais: data.channels, intro: data.intro ?? null, introAmostras: data.introSamples ?? 0 })
     }
 
     worker.onerror = () => {
@@ -88,13 +100,26 @@ export function renderizarNoWorker(id, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RAT
   })
 }
 
+function criarEntrada() {
+  return {
+    canais: null, // corpo ainda em Float32Array
+    buffer: null, // corpo já em AudioBuffer
+    introCanais: null,
+    introBuffer: null,
+    introAmostras: 0,
+    promessa: null,
+    tarefa: null,
+    usadoEm: 0,
+  }
+}
+
 export function criarCacheDeFaixas({
   renderizar = renderizarNoWorker,
   montarBuffer = montarBufferAosPoucos,
   limite = LIMITE_DO_CACHE,
   sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE,
 } = {}) {
-  const entradas = new Map() // id → { canais, buffer, promessa, tarefa, usadoEm }
+  const entradas = new Map()
   const fila = []
   let ocupado = false
   let relogio = 0
@@ -103,6 +128,8 @@ export function criarCacheDeFaixas({
     relogio += 1
     entrada.usadoEm = relogio
   }
+
+  const pronta = (entrada) => Boolean(entrada && (entrada.canais || entrada.buffer))
 
   function liberarExcesso(protegida) {
     while (entradas.size > limite) {
@@ -127,7 +154,15 @@ export function criarCacheDeFaixas({
     })
   }
 
-  // Monta o AudioBuffer em segundo plano; quem pedir antes de terminar monta na hora (obterBuffer)
+  function preencher(entrada, faixa) {
+    entrada.canais = faixa.canais
+    entrada.buffer = null
+    entrada.introCanais = faixa.intro
+    entrada.introBuffer = null
+    entrada.introAmostras = faixa.introAmostras
+  }
+
+  // Monta os AudioBuffer em segundo plano; quem pedir antes de terminar monta na hora
   function montarDepois(id, entrada) {
     const canais = entrada.canais
     void Promise.resolve(montarBuffer(canais, sampleRate)).then((buffer) => {
@@ -135,13 +170,21 @@ export function criarCacheDeFaixas({
       entrada.buffer = buffer
       entrada.canais = null
     }, () => {})
+
+    const introCanais = entrada.introCanais
+    if (!introCanais) return
+    void Promise.resolve(montarBuffer(introCanais, sampleRate)).then((buffer) => {
+      if (!buffer || entradas.get(id) !== entrada || entrada.introBuffer || entrada.introCanais !== introCanais) return
+      entrada.introBuffer = buffer
+      entrada.introCanais = null
+    }, () => {})
   }
 
   function preparar(id, { urgente = false } = {}) {
     let entrada = entradas.get(id)
 
     if (!entrada) {
-      entrada = { canais: null, buffer: null, promessa: null, tarefa: null, usadoEm: 0 }
+      entrada = criarEntrada()
       entradas.set(id, entrada)
       const atual = entrada
       atual.promessa = new Promise((resolve) => {
@@ -155,11 +198,12 @@ export function criarCacheDeFaixas({
             }
             return Promise.resolve()
               .then(() => renderizar(id, sampleRate))
-              .then((canais) => {
+              .then((resultado) => {
                 if (entradas.get(id) !== atual) return resolve(false)
-                if (!atual.canais && !atual.buffer) {
-                  if (!canaisValidos(canais)) throw new Error('A preparação da trilha não produziu canais válidos.')
-                  atual.canais = canais
+                if (!pronta(atual)) {
+                  const faixa = normalizarFaixa(resultado)
+                  if (!faixa) throw new Error('A preparação da trilha não produziu canais válidos.')
+                  preencher(atual, faixa)
                   montarDepois(id, atual)
                 }
                 resolve(true)
@@ -186,43 +230,59 @@ export function criarCacheDeFaixas({
 
     usar(entrada)
     liberarExcesso(id)
-    return entrada.canais || entrada.buffer ? Promise.resolve(true) : entrada.promessa
+    return pronta(entrada) ? Promise.resolve(true) : entrada.promessa
   }
 
   function estaPronta(id) {
-    const entrada = entradas.get(id)
-    return Boolean(entrada && (entrada.canais || entrada.buffer))
+    return pronta(entradas.get(id))
   }
 
-  // Guarda canais já gerados (ex.: a "A Vila Espera" gerada na hora, sem worker)
-  function guardar(id, canais) {
-    if (!canaisValidos(canais)) throw new TypeError('Canais inválidos para o cache da trilha.')
+  // Guarda uma faixa já gerada (ex.: a "A Vila Espera" gerada na hora, sem worker).
+  // Aceita { canais, intro, introAmostras } ou só os canais do corpo.
+  function guardar(id, resultado) {
+    const faixa = normalizarFaixa(resultado)
+    if (!faixa) throw new TypeError('Canais inválidos para o cache da trilha.')
     let entrada = entradas.get(id)
     if (!entrada) {
-      entrada = { canais: null, buffer: null, promessa: null, tarefa: null, usadoEm: 0 }
+      entrada = criarEntrada()
       entrada.promessa = Promise.resolve(true)
       entradas.set(id, entrada)
     }
-    entrada.canais = canais
-    entrada.buffer = null
+    preencher(entrada, faixa)
     usar(entrada)
     liberarExcesso(id)
   }
 
+  function montarAgora(canais, context) {
+    const [esquerdo, direito] = canais
+    const buffer = context.createBuffer(2, esquerdo.length, sampleRate)
+    buffer.getChannelData(0).set(esquerdo)
+    buffer.getChannelData(1).set(direito)
+    return buffer
+  }
+
+  // AudioBuffer do corpo (a parte em loop)
   function obterBuffer(id, context) {
     const entrada = entradas.get(id)
     if (!entrada) return null
     usar(entrada)
     if (entrada.buffer) return entrada.buffer
     if (!entrada.canais) return null
-
-    const [esquerdo, direito] = entrada.canais
-    const buffer = context.createBuffer(2, esquerdo.length, sampleRate)
-    buffer.getChannelData(0).set(esquerdo)
-    buffer.getChannelData(1).set(direito)
-    entrada.buffer = buffer
+    entrada.buffer = montarAgora(entrada.canais, context)
     entrada.canais = null
-    return buffer
+    return entrada.buffer
+  }
+
+  // Introdução da faixa: { buffer, duracao } (duracao = onde o corpo começa, em segundos), ou null
+  function obterIntro(id, context) {
+    const entrada = entradas.get(id)
+    if (!entrada || !(entrada.introAmostras > 0)) return null
+    if (!entrada.introBuffer && entrada.introCanais) {
+      entrada.introBuffer = montarAgora(entrada.introCanais, context)
+      entrada.introCanais = null
+    }
+    if (!entrada.introBuffer) return null
+    return { buffer: entrada.introBuffer, duracao: entrada.introAmostras / sampleRate }
   }
 
   function liberar(id) {
@@ -241,6 +301,7 @@ export function criarCacheDeFaixas({
     estaPronta,
     guardar,
     obterBuffer,
+    obterIntro,
     liberar,
     ids: () => [...entradas.keys()],
     get tamanho() {

@@ -1,19 +1,18 @@
 // A Vila Espera — trilha externa de TBOTT (ciclo contínuo, registro mais grave).
 // Blues-rock com harmonia jazzística: shuffle real, riffs marcantes e clima noturno.
 //
-// LOOP SEM EMENDA
-//   A música não tem introdução nem final, e o áudio também não começa nem termina
-//   numa fronteira de seção. A sequência é girada: toca do compasso 5 ao 31, depois
-//   do 0 ao 4, e volta ao compasso 5.
-//   - O ponto de loop (compasso 4 → 5) é uma passagem que já existia no meio do tema
-//     (G7 → G#dim7), com baixo caminhando, ride em shuffle e órgão: a mesma textura
-//     dos dois lados.
-//   - A virada V→I (compasso 31 → 0) e o rulo de caixa ficam no meio do áudio,
-//     onde as notas longas soam inteiras.
-//   - O compasso 4 (último do áudio) não tem notas longas passando do fim, e o
-//     compasso 5 (primeiro) não depende de nenhuma nota anterior.
-//   - O trecho esparso (compassos 12–15) fica no meio do ciclo, como interlúdio.
-//
+// INTRODUÇÃO E LOOP
+//   A faixa começa por uma introdução de VILA_ESPERA_INTRO_COMPASSOS compassos (3 × 2,4 s = 7,2 s a
+//   ♩ = 100), que toca uma vez só: órgão sustentado e baixo, depois o vibrafone apresenta a célula
+//   do Tung com o ride baixinho, e no último compasso a bateria cresce, o baixo desce até o Ré e o
+//   tung-tung-tung e o Dó# do sax levam ao tema. A harmonia é I – IV – V (D9 – G13 – A7#9), no
+//   mesmo tom e com os mesmos timbres do corpo. Ela fica no fim deste arquivo.
+//   Depois dela, o corpo (compassos 0 a 31) fica em loop. A emenda 31 → 0 é a virada V → I que já
+//   faz parte do tema (A7#9 → D7, com o rulo de caixa e o Dó# do sax), e a cauda das notas do
+//   compasso 31 volta para o começo do corpo (loop contínuo do ZzFXM): o loop não aparece.
+//   A introdução termina no mesmo A7#9 com o mesmo Dó#, então a primeira entrada do tema soa
+//   igual a todas as outras voltas.
+
 // Grade rítmica: 12 passos por compasso (tercinas de colcheia).
 //   Cada tempo = 3 passos (0, 1, 2). Colcheias com swing caem nos passos 0 e 2.
 //   Com bpm 75 no ZzFXM (cada passo = semicolcheia), o andamento percebido é ♩ = 100.
@@ -41,7 +40,16 @@
 //   24-31 Retorno ao riff e ao tema B; o compasso 31 (A7#9) resolve no compasso 0
 
 import { INSTRUMENTOS, notaDoInstrumento } from './instrumentos.js'
-import { passosDoTungTungTung, TUNG_TUNG_TUNG_ATENUACAO } from './motivos.js'
+import { celulaDoTung, passosDoTungTungTung, TUNG_TUNG_TUNG_ATENUACAO } from './motivos.js'
+import {
+  bateria as batidasDaIntro,
+  comAtenuacao,
+  criarGrade,
+  linha as linhaDaIntro,
+  montarMusica,
+  notas as notasDaIntro,
+  voz as vozDaIntro,
+} from './partitura.js'
 
 export const VILA_ESPERA_META = Object.freeze({
   id: 'a-vila-espera',
@@ -51,9 +59,10 @@ export const VILA_ESPERA_META = Object.freeze({
   signature: '4/4 shuffle (12 passos por compasso)',
   stepsPerBar: 12,
   bars: 32,
-  loopStart: 5,
+  // O corpo começa no tema (compasso 0), logo depois da introdução
+  loopStart: 0,
   tonalidade: 'Ré blues (D7)',
-  estrutura: 'Tema blues 12 · Interlúdio 4 · Desenvolvimento 8 · Retorno 8 (ciclo contínuo, áudio gira a partir do compasso 5)',
+  estrutura: 'Introdução 3 (uma vez) · Tema blues 12 · Interlúdio 4 · Desenvolvimento 8 · Retorno 8 (em loop)',
   loop: true,
   // Envio para a reverb de sala do master (0 a 1)
   reverb: 0.16,
@@ -663,3 +672,127 @@ export function buildVilaEsperaSong() {
 }
 
 export const VILA_ESPERA_SONG = buildVilaEsperaSong()
+// --------------------------------------------------
+// INTRODUÇÃO (toca uma vez antes do corpo; ver o topo do arquivo)
+// --------------------------------------------------
+
+// Duração da introdução em compassos. Cada compasso dura 2,4 s (♩ = 100): 2 = 4,8 s, 3 = 7,2 s.
+// Com 2, ela vai direto do órgão para a virada; com 4 ou mais, o órgão fica mais tempo sozinho.
+export const VILA_ESPERA_INTRO_COMPASSOS = 3
+
+const GRADE_DA_INTRO = criarGrade(3, 4)
+
+export const VILA_ESPERA_INTRO_INSTRUMENTOS = Object.freeze([
+  'orgaoSustentado', 'contrabaixo', 'vibrafone', 'ride', 'chimbal', 'bumbo', 'caixa', 'caixaCorpo', 'madeira', 'saxTenor',
+])
+
+// O papel de cada compasso: o último é a virada, o penúltimo apresenta a célula (com 3 ou mais) e o
+// resto é o órgão com o baixo
+function secaoDaIntro(compasso, total) {
+  if (compasso === total - 1) return 'virada'
+  if (total >= 3 && compasso === total - 2) return 'celula'
+  return 'pad'
+}
+
+// Crescendo: atenuação somada a tudo, de 0,4 no primeiro compasso até 0 no último
+const crescendo = (compasso, total) => (total <= 1 ? 0 : 0.4 * (1 - compasso / (total - 1)))
+
+// Acordes sustentados (do grave ao agudo), os mesmos voicings do corpo
+const ACORDE_DA_SECAO = Object.freeze({ pad: VOICINGS.D9, celula: VOICINGS.G13, virada: VOICINGS['A7#9'] })
+
+const BAIXO_DA_SECAO = Object.freeze({
+  pad: 'D2 . . | . . . | A1 . . | . . .',
+  celula: 'G2 . . | . . . | D2 . . | . . G#2',
+  // A mesma descida do compasso 31 (LOOP_BASS): Lá, Sol, Fá#, Mi → Ré no tema
+  virada: 'A2 . . | . . . | G2 . . | F#2 . E2',
+})
+
+const VOZ_DA_INTRO = Object.freeze({
+  orgao: vozDaIntro('orgaoSustentado', 'comping', { semente: 21 }),
+  baixo: vozDaIntro('contrabaixo', 'baixo', { semente: 22 }),
+  vibrafone: vozDaIntro('vibrafone', 'melodia', { semente: 23 }),
+  sax: vozDaIntro('saxTenor', 'melodia', { semente: 24 }),
+})
+
+function canalDaIntro(gerar) {
+  return (compasso) => gerar(secaoDaIntro(compasso, VILA_ESPERA_INTRO_COMPASSOS), crescendo(compasso, VILA_ESPERA_INTRO_COMPASSOS), compasso)
+}
+
+// Órgão: um acorde por compasso, no tempo 1 (o ataque lento faz o acorde crescer sozinho)
+const orgaoDaIntro = (voice) => canalDaIntro((secao, extra, compasso) => (
+  notasDaIntro([{ passo: 0, midi: ACORDE_DA_SECAO[secao][voice], atenuacao: extra }], VOZ_DA_INTRO.orgao, compasso, GRADE_DA_INTRO)
+))
+
+const baixoDaIntro = canalDaIntro((secao, extra, compasso) => (
+  linhaDaIntro(BAIXO_DA_SECAO[secao], VOZ_DA_INTRO.baixo, compasso, GRADE_DA_INTRO, 0, extra)
+))
+
+// Vibrafone: a célula do Tung em Ré (Lá – Dó – Ré – Dó – Lá), leve, no compasso da célula
+const vibrafoneDaIntro = canalDaIntro((secao, extra, compasso) => {
+  if (secao !== 'celula') return null
+  const lista = celulaDoTung(62, GRADE_DA_INTRO.passosPorTempo).map((nota) => ({ ...nota, atenuacao: nota.atenuacao + extra }))
+  return notasDaIntro(lista, VOZ_DA_INTRO.vibrafone, compasso, GRADE_DA_INTRO)
+})
+
+const rideDaIntro = canalDaIntro((secao, extra) => {
+  if (secao === 'pad') return null
+  const texto = secao === 'virada' ? 'x . s | X . s | x . s | . . .' : 'x . s | x . s | x . s | x . s'
+  return batidasDaIntro(texto, comAtenuacao(RIDE_MAP, extra + (secao === 'celula' ? 0.15 : 0)), GRADE_DA_INTRO)
+})
+
+const pedalDaIntro = canalDaIntro((secao, extra) => {
+  if (secao === 'pad') return null
+  const texto = secao === 'virada' ? '. . . | c . . | . . . | . . .' : '. . . | c . . | . . . | c . .'
+  return batidasDaIntro(texto, comAtenuacao(HAT_MAP, extra), GRADE_DA_INTRO)
+})
+
+const bumboDaIntro = canalDaIntro((secao, extra) => (
+  secao === 'virada' ? batidasDaIntro('K . . | . . . | k . . | . . .', comAtenuacao(KICK_MAP, extra + 0.15), GRADE_DA_INTRO) : null
+))
+
+// Caixa: um toque no 2 e o rulo em crescendo no 3; o 4 é do tung-tung-tung
+const caixaDaIntro = (mapa) => canalDaIntro((secao, extra) => (
+  secao === 'virada' ? batidasDaIntro('. . . | x . . | p q X | . . .', comAtenuacao(mapa, extra), GRADE_DA_INTRO) : null
+))
+
+// Madeira: o tung-tung-tung no último tempo, na mesma altura do corpo, levando ao tema
+const madeiraDaIntro = canalDaIntro((secao) => {
+  if (secao !== 'virada') return null
+  const passos = Array(GRADE_DA_INTRO.passos).fill(0)
+  passosDoTungTungTung(GRADE_DA_INTRO.passosPorTempo).forEach((passo, indice) => {
+    passos[passo] = notaDoInstrumento(INSTRUMENTOS.madeira.baseMidi, 'madeira', TUNG_TUNG_TUNG_ATENUACAO[indice])
+  })
+  return passos
+})
+
+// Sax: o Dó# do fim do compasso 31 (LOOP_PICKUP), que resolve no Ré do tema
+const saxDaIntro = canalDaIntro((secao, extra, compasso) => (
+  secao === 'virada' ? linhaDaIntro(LOOP_PICKUP, VOZ_DA_INTRO.sax, compasso, GRADE_DA_INTRO, 0, extra) : null
+))
+
+export const VILA_ESPERA_INTRO_SONG = montarMusica({
+  instrumentos: VILA_ESPERA_INTRO_INSTRUMENTOS,
+  canais: [
+    ['orgaoSustentado', 0.18, orgaoDaIntro(0)],
+    ['orgaoSustentado', 0.32, orgaoDaIntro(1)],
+    ['orgaoSustentado', 0.25, orgaoDaIntro(2)],
+    ['contrabaixo', 0, baixoDaIntro],
+    ['vibrafone', -0.12, vibrafoneDaIntro],
+    ['ride', 0.22, rideDaIntro],
+    ['chimbal', -0.2, pedalDaIntro],
+    ['bumbo', 0, bumboDaIntro],
+    ['caixa', 0, caixaDaIntro(SNARE_MAP)],
+    ['caixaCorpo', 0, caixaDaIntro(SNARE_BODY_MAP)],
+    ['madeira', 0.08, madeiraDaIntro],
+    ['saxTenor', 0, saxDaIntro],
+  ],
+  compassos: VILA_ESPERA_INTRO_COMPASSOS,
+  grade: GRADE_DA_INTRO,
+  andamento: VILA_ESPERA_META.perceivedBpm,
+})
+
+export const VILA_ESPERA_INTRO_META = Object.freeze({
+  compassos: VILA_ESPERA_INTRO_COMPASSOS,
+  // segundos: compassos × 4 tempos × 60 / ♩
+  duracao: (VILA_ESPERA_INTRO_COMPASSOS * 4 * 60) / VILA_ESPERA_META.perceivedBpm,
+})
