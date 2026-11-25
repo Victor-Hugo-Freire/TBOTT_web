@@ -4,10 +4,11 @@
 //   Soul-jazz de trio de órgão em Fá menor (groove dórico), ♩ = 112. Grade de 12 passos por
 //   compasso (swing). bpm do ZzFXM = 112 × 3/4 = 84.
 //
-// MATERIAL
-//   Tema A (o head): abre com a célula do Tung (Dó – Mi♭ – Fá – Mi♭ – Dó em Fá) no órgão (no A1 em
-//   quartas paralelas); a célula volta em sequência sobre Si♭ e, no compasso 5, com outro fim (sobe ao Sol).
-//   Tema B: respostas da guitarra na ponte, no agudo.
+// MATERIAL (ver MELODIA: as figuras rítmicas e as notas próprias da Piazza)
+//   Tema A (o head): frases em tercina de semínima no órgão (no A1 em quartas paralelas), em Fá
+//   dórico, com saltos de quarta e sexta e notas ligadas por cima da barra.
+//   Tema B: respostas da guitarra na ponte, também em tercinas, com sextas e a nona bemol.
+//   A célula do Tung (Dó – Mi♭ – Fá – Mi♭ – Dó em Fá) aparece exata só no fim do C.
 //   O tung-tung-tung (madeira, em Fá) fecha algumas seções, nunca todas.
 //
 // FORMA (42 compassos, ~90 s; editar em FORMA)
@@ -30,10 +31,11 @@
 //   O áudio começa no A1; o Tag (C7#9 com o tung-tung-tung) leva ao A1 como uma virada V → i.
 //
 // ONDE AJUSTAR
-//   FORMA · HEAD (tema A e variações por seção) · RESPOSTAS (tema B) · FRAGMENTOS (seção C) ·
+//   FORMA · FIGURAS (ritmos da melodia) · HEAD (tema A e variações por seção) · RESPOSTAS (tema B) ·
+//   LUA (seção C) ·
 //   GROOVES (bateria) · DINAMICA (intensidade por seção) · TUNG
 
-import { bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
+import { aplicarFigura, bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
 
 const A = ['Fm7', 'Fm7', 'Bb7', 'Bb7', 'Fm7', 'Fm7', 'Bb7', 'C7#9']
 
@@ -67,7 +69,7 @@ export const PIAZZA_HARMONIA = Object.freeze(COMPASSOS.map((c) => c.acorde))
 const GRADE = criarGrade(PIAZZA_META.passosPorTempo, PIAZZA_META.temposPorCompasso)
 
 export const PIAZZA_INSTRUMENTOS = Object.freeze([
-  'orgaoBaixo', 'orgao', 'orgaoLeslieLento', 'orgaoLeslieRapido', 'orgaoSustentado', 'guitarraJazz',
+  'orgaoBaixo', 'orgao', 'orgaoLongo', 'orgaoLeslieLento', 'orgaoLeslieRapido', 'orgaoSustentado', 'guitarraJazz', 'guitarraJazzLonga',
   'ride', 'chimbal', 'caixaAro', 'caixa', 'caixaCorpo', 'bumbo', 'madeira',
 ])
 
@@ -75,85 +77,106 @@ const VOZ = Object.freeze({
   baixo: voz('orgaoBaixo', 'baixo', { semente: 41 }),
   head: voz('orgao', 'riff', { semente: 42 }),
   headFrase: voz('orgao', 'melodia', { semente: 47 }),
-  headQuarta: voz('orgao', 'riff', { semente: 43 }),
+  headLonga: voz('orgaoLongo', 'melodia', { semente: 50 }),
+  headQuarta: voz('orgao', 'comping', { semente: 43 }),
   comping: voz('orgaoLeslieLento', 'comping', { semente: 44 }),
   ponte: voz('orgaoLeslieRapido', 'comping', { semente: 45 }),
   pad: voz('orgaoSustentado', 'comping', { semente: 48 }),
   guitarra: voz('guitarraJazz', 'melodia', { semente: 46 }),
-  guitarraRiff: voz('guitarraJazz', 'riff', { semente: 49 }),
+  guitarraLonga: voz('guitarraJazzLonga', 'melodia', { semente: 51 }),
 })
 
 const cel = (tonica) => ({ celula: tonica })
-const tocar = (entrada, v, compasso, transpor = 0) => {
-  if (!entrada) return null
-  if (typeof entrada === 'string') return linha(entrada, v, compasso, GRADE, transpor)
-  return celula(entrada.celula + transpor, v, compasso, GRADE)
-}
 
 // --------------------------------------------------
-// HEAD (tema A): a base é a do A1; o A2 e o A3 trocam o fim da frase
+// MELODIA: o que distingue a Piazza dos outros andares
+//   Figura rítmica: a tercina de semínima (três notas iguais em dois tempos, passos 0, 2 e 4 ou 6, 8
+//   e 10), que cruza o swing e cai na tercina do meio, que nenhum outro andar usa; e a nota ligada
+//   por cima da barra (entra no último passo e segura).
+//   Notas: Fá dórico (com o Ré natural, a sexta maior), com saltos de quarta, quinta e sexta.
+//   A célula do Tung aparece exata só no fim do C (sobre Si♭ e Dó), como lembrança antes da volta.
 // --------------------------------------------------
 
+// 'x' = nota curta, 'X' = nota longa (versão longa do órgão ou da guitarra)
+const FIGURAS = Object.freeze({
+  tercina: 'x . x | . x . | . . . | . . .',
+  tercinaLonga: 'x . x | . X . | . . . | . . .',
+  tercinaNoFim: '. . . | . . . | x . x | . x .',
+  tercinaLiga: 'x . x | . x . | . . . | . . X',
+  tercinaDupla: 'x . x | . x . | x . x | . x .',
+  quarta: 'X . . | . . . | x . . | . . .',
+  longa: 'X . . | . . . | . . . | . . .',
+})
+
+const f = (nome, ...notasDaFrase) => aplicarFigura(FIGURAS[nome], notasDaFrase)
+
+// Head (tema A) do A1; o A2 troca a segunda frase e o A3 (na guitarra) troca o fim
 const HEAD_A1 = Object.freeze({
-  0: cel(65), 1: '. . . | . . Ab4 | Bb4 . . | C5 . .',
-  2: cel(58), 3: '. . . | . . D5 | C5 . . | Ab4 . .',
-  4: 'C5 . Eb5 | F5 . Eb5 | G5 . . | . . .', 5: '. . F5 | . . Eb5 | C5 . . | . . .',
-  6: 'Bb4 . . | . . C5 | D5 . . | F5 . .', 7: 'E5 . . | . . . | . . . | . . .',
+  0: f('tercinaLonga', 'C5', 'F5', 'Eb5'), 1: f('tercinaNoFim', 'Ab4', 'C5', 'D5'),
+  2: f('tercinaLiga', 'F5', 'Bb4', 'D5', 'Ab4'), 3: f('quarta', 'G4', 'C5'),
+  4: f('tercina', 'Ab4', 'Eb5', 'C5'), 5: f('tercinaNoFim', 'F5', 'C5', 'G5'),
+  6: f('tercinaLiga', 'D5', 'F5', 'Ab4', 'G4'), 7: f('longa', 'E5'),
 })
 
 const HEAD = Object.freeze({
   A1: HEAD_A1,
-  A2: { ...HEAD_A1, 6: 'Ab4 . . | . . Bb4 | C5 . . | Eb5 . .', 7: 'D5 . . | . . E5 | . . . | . . .' },
-  A3: { ...HEAD_A1, 6: 'F5 . . | . . Eb5 | C5 . . | Bb4 . .', 7: 'C5 . . | . . . | . . . | . . .' },
+  A2: {
+    ...HEAD_A1,
+    4: f('tercina', 'C5', 'G5', 'F5'), 5: f('tercinaNoFim', 'Eb5', 'C5', 'Ab4'),
+    6: f('tercinaLiga', 'Bb4', 'F5', 'D5', 'C5'), 7: f('quarta', 'G5', 'E5'),
+  },
+  A3: { ...HEAD_A1, 6: f('tercinaLiga', 'F5', 'C5', 'Ab4', 'Bb4'), 7: f('longa', 'C5') },
 })
 
-// C: só pedaços da célula (as três primeiras notas), cada vez mais espaçados
-const FRAGMENTOS = Object.freeze({
-  1: 'C4 . Eb4 | F4 . . | . . . | . . .',
-  3: 'Eb4 . F4 | . . . | . . . | . . .',
-  5: 'C4 . . | Eb4 . . | F4 . . | . . .',
+// C: pedaços da célula transformados em tercina de semínima; no fim, a célula exata (Si♭ e Dó)
+const LUA = Object.freeze({
+  1: f('tercina', 'C4', 'Eb4', 'F4'), 3: f('tercinaNoFim', 'Eb4', 'F4', 'C4'), 5: f('quarta', 'F4', 'C4'),
+  6: cel(58), 7: cel(60),
 })
 
-function orgaoHead(compasso) {
-  const { secao, indice } = COMPASSOS[compasso]
-  if (secao === 'A1' || secao === 'A2') {
-    const entrada = HEAD[secao][indice]
-    return tocar(entrada, typeof entrada === 'string' ? VOZ.headFrase : VOZ.head, compasso)
+// O órgão em dois canais: as notas curtas no orgao e as longas ('~') no orgaoLongo
+function orgaoHead(articulacao) {
+  return (compasso) => {
+    const { secao, indice } = COMPASSOS[compasso]
+    const entrada = secao === 'A1' || secao === 'A2' ? HEAD[secao][indice] : secao === 'C' ? LUA[indice] : null
+    if (!entrada) return null
+    if (typeof entrada !== 'string') return articulacao === 'curta' ? celula(entrada.celula, VOZ.head, compasso, GRADE) : null
+    return linha(entrada, articulacao === 'longa' ? VOZ.headLonga : VOZ.headFrase, compasso, GRADE, 0, 0, articulacao)
   }
-  if (secao === 'C' && FRAGMENTOS[indice]) return linha(FRAGMENTOS[indice], VOZ.headFrase, compasso, GRADE)
-  return null
 }
 
-// Quartas paralelas na célula do A1 (o som de trio de órgão); no A2 quem engrossa a célula é a guitarra
+// Quartas paralelas nas duas primeiras frases do A1 (o som de trio de órgão), uma quarta abaixo
 function orgaoQuarta(compasso) {
   const { secao, indice } = COMPASSOS[compasso]
   if (secao !== 'A1' || ![0, 2].includes(indice)) return null
-  return tocar(HEAD.A1[indice], VOZ.headQuarta, compasso, -5)
+  return linha(HEAD.A1[indice], VOZ.headQuarta, compasso, GRADE, -5)
 }
 
 // --------------------------------------------------
-// GUITARRA: dobra a célula no A2 (uma oitava abaixo), responde na ponte, assume o head no A3
+// GUITARRA: dobra o começo do head no A2 (uma oitava abaixo), responde na ponte, assume o head no A3
 // --------------------------------------------------
 
+// Ponte: respostas em tercina de semínima, com sextas e a nona bemol
 const RESPOSTAS = Object.freeze({
-  1: '. . F5 | . . Ab5 | . . F5 | Eb5 . .',
-  3: '. . G5 | . . E5 | . . Db5 | C5 . .',
-  5: '. . Db5 | . . F5 | . . Ab5 | . . .',
-  7: '. . Eb5 | . . E5 | G5 . . | . . .',
+  1: f('tercinaNoFim', 'F5', 'Db5', 'Ab4'),
+  3: f('tercinaLonga', 'E5', 'G5', 'Db5'),
+  5: f('tercinaNoFim', 'Bb4', 'F5', 'Db5'),
+  7: f('quarta', 'G5', 'E5'),
 })
 
-function guitarra(compasso) {
-  const { secao, indice } = COMPASSOS[compasso]
-  if (secao === 'A2' && (indice === 0 || indice === 2)) {
-    const entrada = HEAD.A2[indice]
-    return tocar(entrada, typeof entrada === 'string' ? VOZ.guitarra : VOZ.guitarraRiff, compasso, -12)
+function guitarra(articulacao) {
+  return (compasso) => {
+    const { secao, indice } = COMPASSOS[compasso]
+    let texto = null
+    let transpor = 0
+    if (secao === 'A2' && (indice === 0 || indice === 2)) {
+      texto = HEAD.A2[indice]
+      transpor = -12
+    } else if (secao === 'B') texto = RESPOSTAS[indice]
+    else if (secao === 'A3') texto = HEAD.A3[indice]
+    if (!texto) return null
+    return linha(texto, articulacao === 'longa' ? VOZ.guitarraLonga : VOZ.guitarra, compasso, GRADE, transpor, 0, articulacao)
   }
-  if (secao === 'B' && RESPOSTAS[indice]) return linha(RESPOSTAS[indice], VOZ.guitarra, compasso, GRADE)
-  if (secao === 'A3') {
-    const entrada = HEAD.A3[indice]
-    return tocar(entrada, typeof entrada === 'string' ? VOZ.guitarra : VOZ.guitarraRiff, compasso)
-  }
-  return null
 }
 
 // --------------------------------------------------
@@ -304,7 +327,8 @@ const madeira = (compasso) => (temTung(compasso) ? tungTungTung(ALTURA_DO_TUNG, 
 
 const CANAIS = [
   ['orgaoBaixo', 0, baixo],
-  ['orgao', 0.14, orgaoHead],
+  ['orgao', 0.14, orgaoHead('curta')],
+  ['orgaoLongo', 0.14, orgaoHead('longa')],
   ['orgao', 0.2, orgaoQuarta],
   ['orgaoLeslieLento', 0.2, comping(0)],
   ['orgaoLeslieLento', 0.3, comping(1)],
@@ -314,7 +338,8 @@ const CANAIS = [
   ['orgaoSustentado', 0.2, pad(0)],
   ['orgaoSustentado', 0.3, pad(1)],
   ['orgaoSustentado', 0.26, pad(2)],
-  ['guitarraJazz', -0.28, guitarra],
+  ['guitarraJazz', -0.28, guitarra('curta')],
+  ['guitarraJazzLonga', -0.28, guitarra('longa')],
   ['ride', 0.22, peca('ride', RIDE)],
   ['chimbal', -0.2, peca('pedal', PEDAL)],
   ['caixaAro', 0.04, peca('aro', ARO)],
@@ -334,9 +359,9 @@ export const PIAZZA_SONG = montarMusica({
 })
 
 export const PIAZZA_MOTIVO = Object.freeze({
-  riff: [
-    { instrumento: 'orgao', compassos: { 0: 65, 2: 58, 8: 65, 10: 58 } },
-    { instrumento: 'guitarraJazz', compassos: { 8: 53, 10: 46, 24: 65, 26: 58 } },
-  ],
+  riff: [{ instrumento: 'orgao', compassos: { 38: 58, 39: 60 } }],
   tung: { compassos: COMPASSOS.map((_, compasso) => compasso).filter(temTung) },
 })
+
+// Vozes de melodia (analiseMelodica.js): o órgão (curto e longo) e a guitarra (curta e longa)
+export const PIAZZA_MELODIA = Object.freeze([[['orgao', 0], ['orgaoLongo', 0]], [['guitarraJazz', 0], ['guitarraJazzLonga', 0]]])

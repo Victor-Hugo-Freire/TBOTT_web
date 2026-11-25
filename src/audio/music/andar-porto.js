@@ -302,3 +302,7 @@ export const PORTO_MOTIVO = Object.freeze({
   ],
   tung: { compassos: COMPASSOS.map((_, compasso) => compasso).filter(temTung) },
 })
+
+// Vozes de melodia (cada voz: os canais [instrumento, ordem] que formam uma linha), para a análise
+// melódica (analiseMelodica.js)
+export const PORTO_MELODIA = Object.freeze([[['trompete', 0]], [['trombone', 0]]])

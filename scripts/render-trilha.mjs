@@ -19,7 +19,8 @@ import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../src/audio
 import { CADEIA_DO_MASTER, prepararFaixa } from '../src/audio/masterizacao.js'
 import { INSTRUMENTOS, midiParaFrequencia } from '../src/audio/music/instrumentos.js'
 import { FAIXAS as REGISTRO, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
-import { INSTRUMENTOS_DAS_MUSICAS, obterFaixa, obterMusica, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
+import { INSTRUMENTOS_DAS_MUSICAS, MELODIAS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, obterFaixa, obterMusica, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
+import { chavesDaCelula, distanciaMelodica, impressaoMelodica } from '../src/audio/music/analiseMelodica.js'
 import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
 import { ENTRADA_DO_CORPO } from '../src/audio/fonteComIntro.js'
 import { aplicarCadeiaDoMaster, distribuicaoEspectral, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav } from './trilha/analise.mjs'
@@ -288,6 +289,26 @@ for (const faixa of FAIXAS) {
     console.log(`  pico ${numero(medida.picoDb)} dBFS · clipadas ${medida.clipadas}`)
   }
   if (medirCanais) imprimirCanais(faixa.song, 0.89 / picoBruto)
+}
+
+// Impressão digital das melodias dos andares e a distância entre elas (0 = iguais, 1 = nada em comum)
+const ANDARES = Object.keys(MELODIAS_DAS_MUSICAS).filter((id) => filtro.length === 0 || filtro.includes(id))
+if (ANDARES.length) {
+  const pct = (valor) => `${Math.round(valor * 100)}%`
+  const impressoes = Object.fromEntries(ANDARES.map((id) => [id, impressaoMelodica(obterMusica(id), INSTRUMENTOS_DAS_MUSICAS[id], MELODIAS_DAS_MUSICAS[id], chavesDaCelula(MOTIVOS_DAS_MUSICAS[id]))]))
+  console.log('\nMelodias dos andares (impressão digital)')
+  for (const id of ANDARES) {
+    const m = impressoes[id].medidas
+    console.log(`  ${id.padEnd(17)} ${String(impressoes[id].total).padStart(3)} notas · célula ${pct(m.celula)} · tercina do meio ${pct(m.tercinaDoMeio)} · fora do tempo ${pct(m.foraDoTempo)} · antecipações ${pct(m.antecipacoes)}`)
+    console.log(`  ${''.padEnd(17)} repetidas ${pct(m.repetidas)} · semitons ${pct(m.semitons)} · quarta a sexta ${pct(m.quartaSexta)} · saltos ≥ 6ª ${pct(m.saltos)} · tempo e meio ${pct(m.hemiola)} · longas ${pct(m.longas)}`)
+  }
+  if (ANDARES.length > 1) {
+    console.log('  distância entre as melodias:')
+    for (const id of ANDARES) {
+      const linha = ANDARES.map((outro) => (outro === id ? '   · ' : distanciaMelodica(impressoes[id], impressoes[outro]).toFixed(2).padStart(5)))
+      console.log(`    ${id.replace('andar-', '').padEnd(11)} ${linha.join(' ')}`)
+    }
+  }
 }
 
 console.log(`\nArquivos em ${PASTA}`)

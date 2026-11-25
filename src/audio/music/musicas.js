@@ -2,11 +2,11 @@
 // script de render e os testes importam este arquivo: a thread principal usa faixas.js.
 
 import { VILA_ESPERA_INSTRUMENTOS, VILA_ESPERA_INTRO_INSTRUMENTOS, VILA_ESPERA_INTRO_SONG, VILA_ESPERA_SONG } from './vila-espera.js'
-import { CANTINA_INSTRUMENTOS, CANTINA_MOTIVO, CANTINA_SECOES, CANTINA_SONG } from './andar-cantina.js'
-import { CUCINA_INSTRUMENTOS, CUCINA_MOTIVO, CUCINA_SECOES, CUCINA_SONG } from './andar-cucina.js'
-import { PIAZZA_INSTRUMENTOS, PIAZZA_MOTIVO, PIAZZA_SECOES, PIAZZA_SONG } from './andar-piazza.js'
-import { PASTIFICIO_INSTRUMENTOS, PASTIFICIO_MOTIVO, PASTIFICIO_SECOES, PASTIFICIO_SONG } from './andar-pastificio.js'
-import { PORTO_INSTRUMENTOS, PORTO_MOTIVO, PORTO_SECOES, PORTO_SONG } from './andar-porto.js'
+import { CANTINA_INSTRUMENTOS, CANTINA_MELODIA, CANTINA_MOTIVO, CANTINA_SECOES, CANTINA_SONG } from './andar-cantina.js'
+import { CUCINA_INSTRUMENTOS, CUCINA_MELODIA, CUCINA_MOTIVO, CUCINA_SECOES, CUCINA_SONG } from './andar-cucina.js'
+import { PIAZZA_INSTRUMENTOS, PIAZZA_MELODIA, PIAZZA_MOTIVO, PIAZZA_SECOES, PIAZZA_SONG } from './andar-piazza.js'
+import { PASTIFICIO_INSTRUMENTOS, PASTIFICIO_MELODIA, PASTIFICIO_MOTIVO, PASTIFICIO_SECOES, PASTIFICIO_SONG } from './andar-pastificio.js'
+import { PORTO_INSTRUMENTOS, PORTO_MELODIA, PORTO_MOTIVO, PORTO_SECOES, PORTO_SONG } from './andar-porto.js'
 
 export const MUSICAS = Object.freeze({
   'a-vila-espera': VILA_ESPERA_SONG,
@@ -34,6 +34,15 @@ export const MOTIVOS_DAS_MUSICAS = Object.freeze({
   'andar-piazza': PIAZZA_MOTIVO,
   'andar-pastificio': PASTIFICIO_MOTIVO,
   'andar-porto': PORTO_MOTIVO,
+})
+
+// Vozes de melodia de cada faixa de andar (analiseMelodica.js): medições e testes
+export const MELODIAS_DAS_MUSICAS = Object.freeze({
+  'andar-cantina': CANTINA_MELODIA,
+  'andar-cucina': CUCINA_MELODIA,
+  'andar-piazza': PIAZZA_MELODIA,
+  'andar-pastificio': PASTIFICIO_MELODIA,
+  'andar-porto': PORTO_MELODIA,
 })
 
 // Seções de cada faixa ({ nome, papel, inicio, compassos }): medições e testes

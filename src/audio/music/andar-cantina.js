@@ -4,8 +4,9 @@
 //   Blues shuffle em Lá menor, ♩ = 88. Grade de 12 passos por compasso (colcheias em tercina; o
 //   swing cai nos passos 0 e 2 de cada tempo). bpm do ZzFXM = 88 × 3/4 = 66.
 //
-// MATERIAL
-//   Tema A: a célula do Tung (5 – ♭7 – 1' – ♭7 – 5, motivos.js) como riff, com respostas curtas.
+// MATERIAL (ver MELODIA: as figuras rítmicas e as notas próprias da Cantina)
+//   Tema A: a célula do Tung (5 – ♭7 – 1' – ♭7 – 5, motivos.js) como riff, com respostas no
+//   "lamento" (nota longa e corrida em tercina, com a blue note).
 //   Tema B: a mesma célula em valores longos (cada nota dura um tempo e meio), na guitarra, sobre
 //   uma harmonia nova. O tung-tung-tung (madeira, em Lá) fecha algumas frases, nunca todas.
 //
@@ -29,10 +30,11 @@
 //   virada V → I; a cauda das notas do fim volta para o começo (loop contínuo do ZzFXM).
 //
 // ONDE AJUSTAR
-//   FORMA (seções e harmonia) · BAIXO (linhas por seção) · RHODES e GUITARRA (temas e respostas) ·
+//   FORMA (seções e harmonia) · FIGURAS (ritmos da melodia) · BAIXO (linhas por seção) · RHODES e
+//   GUITARRA (temas e respostas) ·
 //   GROOVES (bateria por seção) · TUNG (onde entra o tung-tung-tung)
 
-import { bateria, celula, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
+import { aplicarFigura, bateria, celula, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
 
 const BLUES = ['Am7', 'Dm7', 'Am7', 'Am7', 'Dm7', 'Dm7', 'Am7', 'Am7', 'E7#9', 'Dm7', 'Am7', 'E7#9']
 
@@ -64,7 +66,7 @@ export const CANTINA_HARMONIA = Object.freeze(COMPASSOS.map((c) => c.acorde))
 const GRADE = criarGrade(CANTINA_META.passosPorTempo, CANTINA_META.temposPorCompasso)
 
 export const CANTINA_INSTRUMENTOS = Object.freeze([
-  'contrabaixo', 'rhodes', 'guitarraJazz', 'vassourinha', 'bumbo', 'chimbal', 'ride', 'caixa', 'caixaCorpo', 'caixaAro', 'madeira',
+  'contrabaixo', 'rhodes', 'guitarraJazz', 'guitarraJazzLonga', 'vassourinha', 'bumbo', 'chimbal', 'ride', 'caixa', 'caixaCorpo', 'caixaAro', 'madeira',
 ])
 
 const VOZ = Object.freeze({
@@ -73,7 +75,8 @@ const VOZ = Object.freeze({
   rhodesResposta: voz('rhodes', 'melodia', { semente: 7 }),
   guitarra: voz('guitarraJazz', 'melodia', { semente: 3 }),
   guitarraRiff: voz('guitarraJazz', 'riff', { semente: 8 }),
-  guitarraDobra: voz('guitarraJazz', 'melodia', { semente: 9 }),
+  guitarraDobra: voz('guitarraJazzLonga', 'comping', { semente: 9 }),
+  guitarraLonga: voz('guitarraJazzLonga', 'melodia', { semente: 10 }),
   compingGrave: voz('rhodes', 'comping', { semente: 4 }),
   compingAgudo: voz('rhodes', 'comping', { semente: 5 }),
 })
@@ -120,11 +123,36 @@ const baixo = (compasso) => {
 // RHODES: o riff (A1), a célula em sequência (A2), fragmentos (R) e respostas
 // --------------------------------------------------
 
+// --------------------------------------------------
+// MELODIA: o que distingue a Cantina dos outros andares
+//   Figura rítmica: o lamento, uma nota longa seguida de uma corrida em tercina (três notas num tempo,
+//   passando pela tercina do meio) e um tempo inteiro de silêncio; quase nunca nota repetida.
+//   Notas: Lá menor com a blue note (Mi♭), em graus e cromatismo. A célula do Tung é o riff: a
+//   Cantina é a casa dela.
+// --------------------------------------------------
+
+// 'x' = nota curta, 'X' = nota longa
+const FIGURAS = Object.freeze({
+  lamento: 'X . . | . . . | x x x | . . .', // longa no 1, corrida no 3
+  lamentoNo4: 'X . . | . . . | . . . | x x x', // longa no 1, corrida no 4
+  corridaELonga: '. . . | x x x | X . . | . . .', // corrida no 2, longa no 3
+  lamentoComFim: 'X . . | . . . | x x x | x . .', // longa, corrida e mais uma nota no 4
+  lamentoDuplo: 'X . . | . x x | x x x | . . .', // longa e uma corrida de cinco notas (2 e 3)
+  corridaDupla: '. . . | . x x | x x x | . . .', // só a corrida de cinco notas
+  corridaNo3: '. . . | . . . | x x x | . . .', // só três notas em tercina no 3
+})
+
+const f = (nome, ...notasDaFrase) => aplicarFigura(FIGURAS[nome], notasDaFrase)
+
 const RHODES = Object.freeze({
-  A1: { 0: cel(45), 1: '. . . | . . D5 | C5 . . | A4 . .', 4: cel(50), 5: '. . . | . . F5 | E5 . . | C5 . .', 8: cel(40), 9: cel(38), 10: '. . E5 | . . . | C5 . . | . . .' },
+  A1: {
+    0: cel(45), 1: f('lamento', 'D5', 'E5', 'F5', 'E5'), 2: f('corridaDupla', 'A4', 'C5', 'D5', 'Eb5', 'E5'),
+    4: cel(50), 5: f('lamentoNo4', 'F5', 'E5', 'Eb5', 'D5'), 6: f('lamentoNo4', 'E5', 'G5', 'E5', 'D5'),
+    8: cel(40), 9: cel(38), 10: f('lamentoDuplo', 'C5', 'B4', 'C5', 'D5', 'Eb5', 'E5'),
+  },
   A2: { 8: cel(40), 9: 'A2 . C3 | D3 . C3 | E3 . . | . . .' },
   // Respiro: só o começo da célula (Mi – Sol – Lá; Lá – Dó – Ré), e o tung-tung-tung responde
-  R: { 0: 'E4 . . | . . G4 | A4 . . | . . .', 2: 'A4 . . | . . C5 | D5 . . | . . .' },
+  R: { 0: f('corridaNo3', 'E4', 'G4', 'A4'), 2: f('corridaNo3', 'A4', 'C5', 'D5') },
 })
 
 const rhodes = (compasso) => {
@@ -156,25 +184,33 @@ function comping(indiceDaVoz, v) {
 // --------------------------------------------------
 
 const GUITARRA = Object.freeze({
+  // A2: o riff uma oitava acima e respostas no lamento (longa e corrida em tercina)
   A2: {
-    0: cel(57), 1: '. . F5 | . . E5 | D5 . . | . . .', 3: '. . E5 | . . C5 | A4 . . | . . .',
-    4: cel(62), 5: '. . A5 | . . G5 | F5 . . | D5 . .', 7: '. . E5 | . . Eb5 | D5 . . | . . .',
-    10: '. . G5 | A5! . . | E5 . . | . . .', 11: '. . G#5 | . . F5 | D5 . . | . . .',
+    0: cel(57), 1: f('lamento', 'F5', 'E5', 'Eb5', 'D5'), 2: f('corridaDupla', 'E5', 'D5', 'C5', 'B4', 'A4'),
+    3: f('corridaELonga', 'C5', 'D5', 'E5', 'A5'),
+    4: cel(62), 5: f('lamentoDuplo', 'A5', 'G5', 'F5', 'E5', 'Eb5', 'D5'), 6: f('corridaDupla', 'C5', 'D5', 'Eb5', 'E5', 'G5'),
+    7: f('lamento', 'E5', 'D5', 'Eb5', 'E5'),
+    10: f('corridaELonga', 'G5', 'A5', 'G5', 'E5'), 11: f('lamento', 'G#5', 'F5', 'E5', 'D5'),
   },
-  // Tema B: Mi . Sol | Lá . . Sol (a célula alongada); na segunda vez o fim muda (Sol# em vez de Sol)
+  // Tema B: a célula alongada (Mi . Sol | Lá . . Sol), em notas seguradas; na segunda vez o fim
+  // muda (Sol# em vez de Sol)
   B: {
-    0: 'E5 . . | . . . | G5 . . | . . .', 1: 'A5 . . | . . . | . . . | G5 . .',
-    2: 'F5 . . | . . E5 | D5 . . | . . .', 3: 'E5 . . | . . . | . . . | . . .',
-    4: 'E5 . . | . . . | G5 . . | . . .', 5: 'A5 . . | . . . | G#5 . . | . . .',
-    6: 'F5 . . | . . E5 | D5 . . | . . C5', 7: 'B4 . . | . . . | G#4 . . | . . .',
+    0: 'E5~ . . | . . . | G5~ . . | . . .', 1: 'A5~ . . | . . . | . . . | G5 . .',
+    2: 'F5~ . . | . . E5 | D5~ . . | . . .', 3: 'E5~ . . | . . . | . . . | D5 E5 G5',
+    4: 'E5~ . . | . . . | G5~ . . | . . .', 5: 'A5~ . . | . . . | G#5~ . . | . . .',
+    6: 'F5~ . . | . . E5 | D5~ . . | . . C5', 7: 'B4~ . . | . . . | G#4~ . . | . . .',
   },
 })
 
-const guitarra = (compasso) => {
-  const { secao, indice } = COMPASSOS[compasso]
-  const entrada = GUITARRA[secao]?.[indice]
-  if (!entrada) return null
-  return tocar(entrada, typeof entrada === 'string' ? VOZ.guitarra : VOZ.guitarraRiff, compasso)
+// A guitarra em dois canais: as notas curtas na guitarraJazz e as longas ('~') na guitarraJazzLonga
+function guitarra(articulacao) {
+  return (compasso) => {
+    const { secao, indice } = COMPASSOS[compasso]
+    const entrada = GUITARRA[secao]?.[indice]
+    if (!entrada) return null
+    if (typeof entrada !== 'string') return articulacao === 'curta' ? celula(entrada.celula, VOZ.guitarraRiff, compasso, GRADE) : null
+    return linha(entrada, articulacao === 'longa' ? VOZ.guitarraLonga : VOZ.guitarra, compasso, GRADE, 0, 0, articulacao)
+  }
 }
 
 // Na segunda metade do B uma segunda guitarra dobra o tema uma oitava abaixo (mais corpo no clímax)
@@ -281,8 +317,9 @@ const madeira = (compasso) => (temTung(compasso) ? tungTungTung(ALTURA_DO_TUNG, 
 const CANAIS = [
   ['contrabaixo', 0, baixo],
   ['rhodes', 0.12, rhodes],
-  ['guitarraJazz', -0.28, guitarra],
-  ['guitarraJazz', -0.16, guitarraDobrada],
+  ['guitarraJazz', -0.28, guitarra('curta')],
+  ['guitarraJazzLonga', -0.28, guitarra('longa')],
+  ['guitarraJazzLonga', -0.16, guitarraDobrada],
   ['rhodes', 0.22, comping(0, VOZ.compingGrave)],
   ['rhodes', 0.3, comping(1, VOZ.compingAgudo)],
   ['vassourinha', 0.06, peca('vassourinha', VASSOURINHA)],
@@ -312,3 +349,7 @@ export const CANTINA_MOTIVO = Object.freeze({
   ],
   tung: { compassos: COMPASSOS.map((_, compasso) => compasso).filter(temTung) },
 })
+
+// Vozes de melodia (cada voz: os canais [instrumento, ordem] que formam uma linha), para a análise
+// melódica (analiseMelodica.js)
+export const CANTINA_MELODIA = Object.freeze([[['rhodes', 0]], [['guitarraJazz', 0], ['guitarraJazzLonga', 0]], [['guitarraJazzLonga', 1]]])

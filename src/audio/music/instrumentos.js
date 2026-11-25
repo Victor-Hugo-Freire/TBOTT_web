@@ -135,6 +135,14 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(3000),
   }),
 
+  // Órgão com a nota segurada (sem o ataque lento do sustentado): notas longas da melodia
+  orgaoLongo: instrumento({
+    baseMidi: 48, registro: [48, 84],
+    volume: 0.2, aleatoriedade: 0.002, forma: TRIANGULO,
+    ataque: 0.01, decaimento: 0.05, nivelSustentacao: 0.85, sustentacao: 0.9, soltura: 0.14,
+    filtro: passaBaixa(3000),
+  }),
+
   orgao16: instrumento({
     baseMidi: 48, transposicao: -12, registro: [48, 79],
     volume: 0.13, aleatoriedade: 0.002, forma: SENO,
@@ -186,6 +194,14 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(2500),
   }),
 
+  // Guitarra de jazz com a nota segurando mais (frases ligadas)
+  guitarraJazzLonga: instrumento({
+    baseMidi: 48, registro: [40, 81],
+    volume: 0.3, aleatoriedade: 0.003, forma: TRIANGULO,
+    ataque: 0.004, decaimento: 0.3, nivelSustentacao: 0.55, sustentacao: 0.5, soltura: 0.45,
+    filtro: passaBaixa(2500),
+  }),
+
   // Guitarra com o tremolo do amplificador (~6 Hz): o balanço da água no Porto. Notas longas.
   guitarraTremolo: instrumento({
     baseMidi: 48, registro: [40, 76],
@@ -223,6 +239,24 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(2000),
   }),
 
+  // Articulações do sax tenor (o mesmo timbre, outra duração): a curta para notas repetidas e
+  // "honks", a longa para notas seguradas
+  saxTenorCurto: instrumento({
+    baseMidi: 48, registro: [44, 77],
+    volume: 0.28, aleatoriedade: 0.003, forma: SERRA,
+    ataque: 0.02, decaimento: 0.05, nivelSustentacao: 0.75, sustentacao: 0.04, soltura: 0.07,
+    ruido: 0.03,
+    filtro: passaBaixa(2000),
+  }),
+
+  saxTenorLongo: instrumento({
+    baseMidi: 48, registro: [44, 77],
+    volume: 0.26, aleatoriedade: 0.003, forma: SERRA,
+    ataque: 0.035, decaimento: 0.1, nivelSustentacao: 0.8, sustentacao: 0.7, soltura: 0.22,
+    ruido: 0.03, repeticao: 0.18, tremolo: 0.07,
+    filtro: passaBaixa(2000),
+  }),
+
   saxBaritono: instrumento({
     baseMidi: 36, registro: [33, 64],
     volume: 0.16, aleatoriedade: 0.003, forma: SERRA,
@@ -238,6 +272,13 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(2500),
   }),
 
+  trompeteLongo: instrumento({
+    baseMidi: 60, registro: [52, 79],
+    volume: 0.19, aleatoriedade: 0.002, forma: SERRA,
+    ataque: 0.025, decaimento: 0.08, nivelSustentacao: 0.78, sustentacao: 0.6, soltura: 0.18,
+    filtro: passaBaixa(2500),
+  }),
+
   trompeteSurdina: instrumento({
     baseMidi: 60, registro: [52, 79],
     volume: 0.18, aleatoriedade: 0.002, forma: TRIANGULO, curva: 0.85,
@@ -249,6 +290,13 @@ export const INSTRUMENTOS = Object.freeze({
     baseMidi: 48, registro: [34, 70],
     volume: 0.17, aleatoriedade: 0.003, forma: SERRA,
     ataque: 0.045, decaimento: 0.08, nivelSustentacao: 0.85, sustentacao: 0.18, soltura: 0.14,
+    filtro: passaBaixa(1400),
+  }),
+
+  tromboneLongo: instrumento({
+    baseMidi: 48, registro: [34, 70],
+    volume: 0.16, aleatoriedade: 0.003, forma: SERRA,
+    ataque: 0.05, decaimento: 0.08, nivelSustentacao: 0.85, sustentacao: 0.65, soltura: 0.2,
     filtro: passaBaixa(1400),
   }),
 

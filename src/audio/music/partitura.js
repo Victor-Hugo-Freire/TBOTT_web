@@ -3,8 +3,14 @@
 //
 // LINHAS
 //   Uma linha é um compasso: um token por passo da grade, separados por espaço ('|' só organiza a
-//   leitura). Nota em altura real ('E3', 'Bb4', 'F#2'), '.' é pausa. Um '!' no fim acentua a nota e
-//   um '_' deixa a nota mais suave. A linha precisa ter exatamente o número de passos da grade.
+//   leitura). Nota em altura real ('E3', 'Bb4', 'F#2'), '.' é pausa. Marcas no fim da nota: '!'
+//   acentua, '_' deixa mais suave e '~' faz a nota longa (vai para a versão longa do instrumento,
+//   ver o filtro de linha()). A linha precisa ter exatamente o número de passos da grade.
+//
+// FIGURAS
+//   Uma figura rítmica é uma linha com 'x' (nota curta) e 'X' (nota longa) no lugar das notas;
+//   aplicarFigura(figura, notas) preenche a figura com as notas, na ordem. Assim o ritmo e as notas
+//   de cada andar ficam em tabelas separadas.
 //
 // DINÂMICA
 //   A atenuação de cada nota (parte decimal da nota do ZzFXM) vem do perfil da voz e da posição no
@@ -18,12 +24,33 @@ export const PAUSA = 0
 
 const CLASSE = Object.freeze({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 })
 
-// 'D4' → { midi: 62, marca: '' }, 'Bb3!' → { midi: 58, marca: '!' }. Pausa ou token inválido → null.
+// 'D4' → { midi: 62, marca: '', longa: false }, 'Bb3!~' → { midi: 58, marca: '!', longa: true }.
+// Pausa ou token inválido → null.
 export function lerNota(token) {
-  const encontrada = /^([A-G])([#b]?)(\d)([!_]?)$/.exec(String(token))
+  const encontrada = /^([A-G])([#b]?)(\d)([!_~]*)$/.exec(String(token))
   if (!encontrada) return null
   const acidente = encontrada[2] === '#' ? 1 : encontrada[2] === 'b' ? -1 : 0
-  return { midi: 12 * (Number(encontrada[3]) + 1) + CLASSE[encontrada[1]] + acidente, marca: encontrada[4] || '' }
+  const marcas = encontrada[4] || ''
+  return {
+    midi: 12 * (Number(encontrada[3]) + 1) + CLASSE[encontrada[1]] + acidente,
+    marca: marcas.includes('!') ? '!' : marcas.includes('_') ? '_' : '',
+    longa: marcas.includes('~'),
+  }
+}
+
+// Preenche uma figura rítmica ('x' = nota curta, 'X' = nota longa) com as notas, na ordem
+export function aplicarFigura(figura, notasDaFigura) {
+  const lista = tokens(figura)
+  const vagas = lista.filter((token) => token === 'x' || token === 'X').length
+  if (vagas !== notasDaFigura.length) {
+    throw new Error(`A figura "${figura}" tem ${vagas} notas, mas recebeu ${notasDaFigura.length}: ${notasDaFigura.join(' ')}`)
+  }
+  let proxima = 0
+  return lista.map((token) => {
+    if (token === 'x') return notasDaFigura[proxima++]
+    if (token === 'X') return `${notasDaFigura[proxima++]}~`
+    return token
+  }).join(' ')
 }
 
 export function tokens(texto) {
@@ -84,7 +111,9 @@ export function compassoVazio(grade) {
 
 // Uma linha de notas → passos do compasso (números de nota do instrumento da voz).
 // extra: atenuação somada a todas as notas (crescendos de uma introdução, por exemplo).
-export function linha(texto, v, compasso, grade, transpor = 0, extra = 0) {
+// articulacao: 'curta' toca só as notas sem '~', 'longa' só as com '~' (cada uma vai para um canal,
+// com a versão curta ou longa do instrumento); sem ela, toca todas.
+export function linha(texto, v, compasso, grade, transpor = 0, extra = 0, articulacao = null) {
   const lista = tokens(texto)
   if (lista.length !== grade.passos) {
     throw new Error(`A linha tem ${lista.length} passos, mas a grade tem ${grade.passos}: "${texto}"`)
@@ -93,6 +122,8 @@ export function linha(texto, v, compasso, grade, transpor = 0, extra = 0) {
     if (token === '.') return PAUSA
     const nota = lerNota(token)
     if (!nota) throw new Error(`Token inválido "${token}" na linha "${texto}"`)
+    if (articulacao === 'curta' && nota.longa) return PAUSA
+    if (articulacao === 'longa' && !nota.longa) return PAUSA
     return notaDoInstrumento(nota.midi + transpor + v.oitava, v.instrumento, atenuacao(v, compasso, passo, grade, nota.marca, extra))
   })
 }

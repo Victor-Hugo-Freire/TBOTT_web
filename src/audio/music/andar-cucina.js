@@ -4,10 +4,11 @@
 //   Jump blues / boogie-woogie em Sol, ♩ = 104. Grade de 12 passos por compasso (shuffle).
 //   bpm do ZzFXM = 104 × 3/4 = 78.
 //
-// MATERIAL
-//   Tema A: uma cabeça de blues de 12 compassos no sax (pergunta, pergunta no IV, resposta). A
-//   célula do Tung (Ré – Fá – Sol – Fá – Ré em Sol) abre cada frase, sobre Sol, Dó e Ré.
-//   Tema B: o "shout" do sax, notas repetidas com a blue note, na seção B.
+// MATERIAL (ver MELODIA: as figuras rítmicas e as notas próprias da Cucina)
+//   Tema A: uma cabeça de blues de 12 compassos no sax, feita de notas repetidas ("panela batendo"),
+//   antecipações e saltos de oitava, em Sol maior com o Si♭ subindo ao Si.
+//   Tema B: o "shout" do sax, notas repetidas com saltos de oitava, na seção B. A célula do Tung
+//   (Ré – Fá – Sol – Fá – Ré em Sol) aparece exata só na virada do B, como citação.
 //   O tung-tung-tung (madeira, em Sol) aparece em lugares diferentes em cada seção.
 //
 // FORMA (44 compassos, ~101 s; editar em FORMA)
@@ -29,10 +30,11 @@
 //   O áudio começa no A1; o fim do C (rulo e tung-tung-tung sobre D7) leva ao A1 como uma virada V → I.
 //
 // ONDE AJUSTAR
-//   FORMA · SAX (temas por seção) · SOLO e MAO_DIREITA (piano) · BOOGIE e CAMINHADA · GROOVES ·
+//   FORMA · FIGURAS (ritmos da melodia) · SAX e SOLO (as frases, feitas com as figuras) ·
+//   MAO_DIREITA (piano) · BOOGIE e CAMINHADA · GROOVES ·
 //   DINAMICA (intensidade da bateria por seção) · TUNG
 
-import { bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
+import { aplicarFigura, bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
 
 const BLUES = ['G7', 'C7', 'G7', 'G7', 'C7', 'C7', 'G7', 'G7', 'D7', 'C7', 'G7', 'D7']
 
@@ -64,7 +66,7 @@ export const CUCINA_HARMONIA = Object.freeze(COMPASSOS.map((c) => c.acorde))
 const GRADE = criarGrade(CUCINA_META.passosPorTempo, CUCINA_META.temposPorCompasso)
 
 export const CUCINA_INSTRUMENTOS = Object.freeze([
-  'contrabaixo', 'pianoBoogie', 'saxTenor', 'chimbal', 'chimbalAberto', 'ride', 'bumbo', 'caixa', 'caixaCorpo', 'caixaAro', 'madeira',
+  'contrabaixo', 'pianoBoogie', 'saxTenor', 'saxTenorLongo', 'chimbal', 'chimbalAberto', 'ride', 'bumbo', 'caixa', 'caixaCorpo', 'caixaAro', 'madeira',
 ])
 
 const VOZ = Object.freeze({
@@ -74,14 +76,11 @@ const VOZ = Object.freeze({
   pianoSolo: voz('pianoBoogie', 'melodia', { semente: 37 }),
   sax: voz('saxTenor', 'riff', { semente: 34 }),
   saxFrase: voz('saxTenor', 'melodia', { semente: 35 }),
-  saxFundo: voz('saxTenor', 'comping', { semente: 36 }),
+  saxLongo: voz('saxTenorLongo', 'melodia', { semente: 36 }),
+  saxFundo: voz('saxTenorLongo', 'comping', { semente: 38 }),
 })
 
 const cel = (tonica) => ({ celula: tonica })
-const tocar = (entrada, v, compasso) => {
-  if (!entrada) return null
-  return typeof entrada === 'string' ? linha(entrada, v, compasso, GRADE) : celula(entrada.celula, v, compasso, GRADE)
-}
 
 // --------------------------------------------------
 // TUNG: lugares diferentes em cada seção (compassos dentro da seção)
@@ -121,38 +120,75 @@ function baixo(compasso) {
 }
 
 // --------------------------------------------------
-// SAX
+// MELODIA: o que distingue a Cucina dos outros andares
+//   Figuras rítmicas: a nota repetida ("panela batendo"), a antecipação no "a" do 4 (a nota entra
+//   antes do tempo 1 e fica soando por cima dele) e o salto de oitava.
+//   Notas: Sol maior com o Si♭ que sobe para o Si e a sexta (Mi), no médio-grave do sax.
+//   A célula do Tung aparece exata só na virada do B (Ré → Dó), como citação.
 // --------------------------------------------------
 
+// 'x' = nota curta, 'X' = nota longa (versão longa do sax)
+const FIGURAS = Object.freeze({
+  panela: 'x . x | x . . | x . . | . . .',
+  panelaAntecipa: 'x . x | x . . | x . . | . . X',
+  martelo: 'x . x | x . x | x . . | . . .',
+  marteloAntecipa: 'x . x | x . x | x . . | . . X',
+  grito: 'x . x | x . x | . . x | . . .',
+  oitava: 'x . . | X . . | . . . | . . .',
+  oitavaAntecipa: 'x . . | X . . | . . . | . . X',
+  gritoAntecipa: 'x . x | x . x | . . x | . . X',
+  resposta: '. . . | x . x | X . . | . . .',
+  respostaAntecipa: '. . . | x . x | x . . | . . X',
+  depoisDoBreque: '. . . | x . x | x . . | . . .',
+  quedaDeOitava: '. . . | x . . | X . . | . . .',
+  longa: 'X . . | . . . | . . . | . . .',
+})
+
+const f = (nome, ...notasDaFrase) => aplicarFigura(FIGURAS[nome], notasDaFrase)
+
 const SAX = Object.freeze({
-  // Tema A: AAB. Cada frase abre com a célula (Sol, Dó, Ré) e termina de um jeito diferente.
+  // Tema A: AAB, cada frase de 4 compassos com uma nota repetida, uma resposta e um salto
   A1: {
-    0: cel(55), 1: 'E4 . . | . . G4 | Bb4 . . | G4 . .', 2: 'D4 . F4 | G4 . . | . . . | . . .', 3: 'B3 . . | D4 . . | . . . | . . .',
-    4: cel(48), 5: 'A3 . . | . . C4 | Eb4 . . | C4 . .', 6: 'D4 . F4 | G4 . . | Bb4 . . | . . .',
-    8: cel(50), 9: 'G3 . Bb3 | C4 . . | . . . | . . .', 10: 'B3 . . | D4 . G4 | . . . | F4 . .', 11: 'F#4 . . | A4 . . | . . . | . . .',
+    0: f('panelaAntecipa', 'G3', 'G3', 'G3', 'Bb3', 'C4'), 1: f('resposta', 'E4', 'G4', 'Bb4'),
+    2: f('oitavaAntecipa', 'G3', 'G4', 'D4'), 3: f('panela', 'D4', 'D4', 'D4', 'B3'),
+    4: f('panelaAntecipa', 'C4', 'C4', 'C4', 'Eb4', 'E4'), 5: f('respostaAntecipa', 'G4', 'Bb4', 'C5', 'D4'),
+    6: f('marteloAntecipa', 'D4', 'D4', 'D4', 'D4', 'B3', 'G3'), 7: f('longa', 'G3'),
+    8: f('oitavaAntecipa', 'D3', 'D4', 'C4'), 9: f('panelaAntecipa', 'C4', 'C4', 'Bb3', 'G3', 'B3'),
+    10: f('panelaAntecipa', 'B3', 'B3', 'D4', 'E4', 'F#4'), 11: f('resposta', 'A4', 'F#4', 'D4'),
   },
-  // B: nos breques o sax enche o silêncio; depois o shout (tema B) e a célula em sequência no fim
+  // B: nos breques o sax entra depois do ataque da banda; no shout, notas repetidas com saltos de
+  // oitava; na virada, a célula exata (Ré e Dó)
   B: {
-    0: cel(55), 2: cel(48), 3: '. . . | . . D4 | F4 . . | G4 . .',
-    4: 'D4 . D4 | . . D4 | F4 . D4 | . . .', 5: 'Eb4 . Eb4 | . . Eb4 | G4 . Eb4 | . . .',
-    6: 'D4 . D4 | . . D4 | F4 . D4 | . . B3', 7: 'D4 . . | . . . | G4 . . | . . .',
-    8: cel(50), 9: cel(48), 10: 'B3 . D4 | G4 . . | . . . | . . .',
+    0: f('depoisDoBreque', 'G3', 'G3', 'G3'), 1: f('depoisDoBreque', 'E4', 'E4', 'C4'),
+    2: f('quedaDeOitava', 'G4', 'G3'), 3: f('depoisDoBreque', 'Bb3', 'B3', 'D4'),
+    4: f('gritoAntecipa', 'C4', 'C4', 'C4', 'C5', 'C4', 'Eb4'), 5: f('marteloAntecipa', 'Eb4', 'E4', 'G4', 'G4', 'Bb4', 'G3'),
+    6: f('gritoAntecipa', 'G3', 'G3', 'G3', 'G4', 'G3', 'Bb3'), 7: f('martelo', 'Bb3', 'B3', 'D4', 'D4', 'D4'),
+    8: cel(50), 9: cel(48),
+    10: f('respostaAntecipa', 'B3', 'D4', 'G4', 'A3'), 11: f('depoisDoBreque', 'F#4', 'A4', 'D4'),
   },
-  // C: notas graves e longas, uma por frase
-  C: { 0: 'G3 . . | . . . | . . . | . . .', 2: 'E3 . . | . . . | G3 . . | . . .', 4: 'D3 . . | . . . | F3 . . | . . .', 6: 'F#3 . . | . . . | . . . | . . .' },
+  // C: a cozinha esvazia; notas graves, longas ou repetidas devagar
+  C: {
+    0: f('longa', 'G3'), 2: f('resposta', 'E3', 'E3', 'G3'),
+    4: f('longa', 'D3'), 6: f('resposta', 'F#3', 'F#3', 'A3'),
+  },
 })
 
 // A2: atrás do piano, notas longas (a terça ou a sétima de cada acorde), a cada dois compassos
-const FUNDO_DO_SAX = Object.freeze({ G7: 59, C7: 58, D7: 60 })
+const FUNDO_DO_SAX = Object.freeze({ G7: 'B3', C7: 'Bb3', D7: 'C4' })
 
-function sax(compasso) {
-  const c = COMPASSOS[compasso]
-  if (c.secao === 'A2') {
-    if (c.indice % 2 === 1 || temTung(compasso)) return null
-    return notas([{ passo: 0, midi: FUNDO_DO_SAX[c.acorde], atenuacao: 0.1 }], VOZ.saxFundo, compasso, GRADE)
+// O sax em dois canais: as notas curtas no saxTenor e as longas ('~') no saxTenorLongo
+function sax(articulacao) {
+  return (compasso) => {
+    const c = COMPASSOS[compasso]
+    if (c.secao === 'A2') {
+      if (articulacao !== 'longa' || c.indice % 2 === 1 || temTung(compasso)) return null
+      return linha(f('longa', FUNDO_DO_SAX[c.acorde]), VOZ.saxFundo, compasso, GRADE, 0, 0.1, 'longa')
+    }
+    const entrada = SAX[c.secao]?.[c.indice]
+    if (!entrada) return null
+    if (typeof entrada !== 'string') return articulacao === 'curta' ? celula(entrada.celula, VOZ.sax, compasso, GRADE) : null
+    return linha(entrada, articulacao === 'longa' ? VOZ.saxLongo : VOZ.saxFrase, compasso, GRADE, 0, 0, articulacao)
   }
-  const entrada = SAX[c.secao]?.[c.indice]
-  return tocar(entrada, typeof entrada === 'string' ? VOZ.saxFrase : VOZ.sax, compasso)
 }
 
 // --------------------------------------------------
@@ -162,11 +198,14 @@ function sax(compasso) {
 // Mão direita: duas notas por acorde, no agudo (acima de 650 Hz)
 const MAO_DIREITA = Object.freeze({ G7: [77, 83], C7: [76, 82], D7: [78, 84] })
 
-// A2: o solo do piano no agudo. Abre com a célula uma oitava acima do sax.
+// A2: o solo do piano no agudo, com as mesmas figuras do sax (repetição, antecipação e oitava)
 const SOLO = Object.freeze({
-  0: cel(67), 1: '. . G5 | . . Bb5 | C6 . . | Bb5 . G5', 2: 'B5 . . | D6 . . | . . B5 | G5 . .', 3: '. . . | . . F5 | G5 . . | . . .',
-  4: cel(60), 5: '. . E5 | G5 . . | Bb5 . . | A5 . G5', 6: 'B5 . D6 | . . B5 | G5 . . | . . .', 7: '. . . | . . . | F5 . G5 | . . .',
-  8: 'A5 . . | . . F#5 | . . A5 | C6 . .', 9: 'Bb5 . . | . . G5 | E5 . . | . . .', 10: 'D6 . B5 | G5 . . | . . . | . . .',
+  0: f('panelaAntecipa', 'D5', 'D5', 'D5', 'G5', 'B5'), 1: f('resposta', 'C6', 'Bb5', 'G5'),
+  2: f('oitavaAntecipa', 'D5', 'D6', 'B5'), 3: f('panela', 'B5', 'B5', 'A5', 'G5'),
+  4: f('panelaAntecipa', 'C5', 'C5', 'C5', 'E5', 'G5'), 5: f('resposta', 'Bb5', 'G5', 'E5'),
+  6: f('marteloAntecipa', 'B5', 'B5', 'B5', 'B5', 'G5', 'F5'), 7: f('panela', 'F5', 'F5', 'F5', 'D5'),
+  8: f('panelaAntecipa', 'A5', 'A5', 'A5', 'F#5', 'D6'), 9: f('resposta', 'C6', 'Bb5', 'G5'),
+  10: f('marteloAntecipa', 'G5', 'G5', 'B5', 'B5', 'D6', 'A5'), 11: f('panela', 'A5', 'A5', 'F#5', 'D5'),
 })
 
 function maoDireita(indiceDaVoz) {
@@ -186,7 +225,7 @@ function maoDireita(indiceDaVoz) {
 
 function pianoSolo(compasso) {
   const c = COMPASSOS[compasso]
-  return c.secao === 'A2' ? tocar(SOLO[c.indice], VOZ.pianoSolo, compasso) : null
+  return c.secao === 'A2' && SOLO[c.indice] ? linha(SOLO[c.indice], VOZ.pianoSolo, compasso, GRADE) : null
 }
 
 function maoEsquerda(compasso) {
@@ -297,7 +336,8 @@ const CANAIS = [
   ['pianoBoogie', 0.28, maoDireita(0)],
   ['pianoBoogie', 0.32, maoDireita(1)],
   ['pianoBoogie', 0.18, pianoSolo],
-  ['saxTenor', 0, sax],
+  ['saxTenor', 0, sax('curta')],
+  ['saxTenorLongo', 0, sax('longa')],
   ['chimbal', -0.2, peca('chimbal', CHIMBAL)],
   ['chimbalAberto', -0.22, peca('aberto', ABERTO)],
   ['ride', 0.22, peca('ride', RIDE)],
@@ -319,9 +359,9 @@ export const CUCINA_SONG = montarMusica({
 
 // Onde estão a célula (exata) e o tung-tung-tung (os testes conferem)
 export const CUCINA_MOTIVO = Object.freeze({
-  riff: [
-    { instrumento: 'saxTenor', compassos: { 0: 55, 4: 48, 8: 50, 24: 55, 26: 48, 32: 50, 33: 48 } },
-    { instrumento: 'pianoBoogie', ordem: 3, compassos: { 12: 67, 16: 60 } },
-  ],
+  riff: [{ instrumento: 'saxTenor', compassos: { 32: 50, 33: 48 } }],
   tung: { compassos: COMPASSOS.map((_, compasso) => compasso).filter(temTung) },
 })
+
+// Vozes de melodia (analiseMelodica.js): o sax (curto e longo) e o solo do piano
+export const CUCINA_MELODIA = Object.freeze([[['saxTenor', 0], ['saxTenorLongo', 0]], [['pianoBoogie', 3]]])
