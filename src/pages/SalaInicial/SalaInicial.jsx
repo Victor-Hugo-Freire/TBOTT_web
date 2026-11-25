@@ -53,6 +53,7 @@ import Opcoes from '../Opcoes/Opcoes.jsx'
 import { ITEM_SPRITES } from '../../data/itemSprites.js'
 import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
 import { canPauseRun } from '../../utils/pause.js'
+import { getGameMusicContext, isSameGameMusicContext, notifyGameMusic } from '../../audio/music/contextoDoJogo.js'
 
 function normalizePauseItemIcon(image) {
   if (!image?.complete || image.dataset.normalized === 'true') return
@@ -164,6 +165,7 @@ export default function SalaInicial() {
   const endingStatus = ending?.status
   const endingStateRef = useRef(null)
   const loadErrorRef = useRef(null)
+  const musicContextRef = useRef(null) // último contexto avisado à música do jogo (só avisa quando muda)
 
   // Troca entre o menu de pausa e as Opções. Ao voltar das Opções, o destaque fica em OPÇÕES
   function setPauseState(nextView) {
@@ -616,6 +618,13 @@ export default function SalaInicial() {
         if (run.finished && !resultSent) {
           resultSent = true
           void finishRun()
+        }
+
+        // Música do jogo: só lê a run e avisa o controlador de música quando o contexto musical muda
+        const musicContext = getGameMusicContext(run, isPaused)
+        if (!isSameGameMusicContext(musicContextRef.current, musicContext)) {
+          musicContextRef.current = musicContext
+          notifyGameMusic(musicContext)
         }
       }
 

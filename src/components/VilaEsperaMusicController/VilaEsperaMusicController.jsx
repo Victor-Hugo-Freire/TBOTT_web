@@ -6,6 +6,7 @@ import {
   shouldPlayVilaEsperaForPathname,
   VILA_ESPERA_MUSIC_NAME,
 } from '../../data/vilaEsperaMusic.js'
+import { useMusicaDoJogo } from './useMusicaDoJogo.js'
 
 export default function VilaEsperaMusicController() {
   const location = useLocation()
@@ -71,6 +72,9 @@ export default function VilaEsperaMusicController() {
       removeInteractionListeners()
     }
   }, [location.pathname, activeMusicName, unlock, playMusic, stopMusic])
+
+  // Música do jogo (/jogo): depois do efeito da Vila, para a Vila sair antes de ela entrar
+  useMusicaDoJogo()
 
   return null
 }
