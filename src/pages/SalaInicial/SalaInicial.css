@@ -76,6 +76,28 @@
   line-height: 1.5;
 }
 
+.sala-inicial__fim-controles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.sala-inicial__fim-controles kbd {
+  min-width: 2.25rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--color-text-light);
+  font: inherit;
+}
+
 .sala-inicial__fim-botoes {
   display: flex;
   flex-wrap: wrap;
@@ -95,7 +117,12 @@
   cursor: pointer;
 }
 
-.sala-inicial__fim-botao:hover {
+.sala-inicial__fim-botao:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.sala-inicial__fim-botao:hover:not(:disabled) {
   background: var(--color-surface-alt);
 }
 

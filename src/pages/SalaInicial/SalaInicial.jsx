@@ -141,8 +141,8 @@ export default function SalaInicial() {
   const roomRef = useRef(null)
   const canvasRef = useRef(null)
   const endingRef = useRef(null)
-  const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
+  const restartRef = useRef(null)
   const retryLoadRef = useRef(null)
   const pauseMenuItemsRef = useRef([])
   const pauseActionRef = useRef(null)
@@ -161,7 +161,6 @@ export default function SalaInicial() {
   const pauseViewRef = useRef('closed')
   const windowPausedRef = useRef(!document.hasFocus())
   const pauseItemsRef = useRef([])
-  const endingStatus = ending?.status
   const endingStateRef = useRef(null)
   const loadErrorRef = useRef(null)
 
@@ -194,8 +193,28 @@ export default function SalaInicial() {
   }, [loadError])
 
   useEffect(() => {
-    if (endingStatus) menuButtonRef.current?.focus()
-  }, [endingStatus])
+    if (!ending) return
+
+    function handleEndingKey(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || event.repeat) return
+
+      if (event.key === 'Escape') {
+        if (ending.status === 'sending') return
+        event.preventDefault()
+        navigate(ROUTES.menuPrincipal)
+        return
+      }
+
+      if (ending.outcome !== 'defeat' || (event.key !== 'Enter' && event.key !== ' ')) return
+      if (ending.status === 'sending') return
+
+      event.preventDefault()
+      restartRef.current?.()
+    }
+
+    window.addEventListener('keydown', handleEndingKey)
+    return () => window.removeEventListener('keydown', handleEndingKey)
+  }, [ending, navigate])
 
   useEffect(() => {
     if (pauseView !== 'menu') return
@@ -443,11 +462,14 @@ export default function SalaInicial() {
     // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
     function restartRun() {
       run = createRun({ seed: createRunSeed(), characterId: run.characterId, catalog: run.catalog, enemyCatalog: run.enemyCatalog })
+      resultSent = false
+      setEnding(null)
       elapsedMs = 0
       restartHoldMs = 0
       enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez
       void saveProgress()
     }
+    restartRef.current = restartRun
 
     // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
     function resize() {
@@ -909,16 +931,11 @@ export default function SalaInicial() {
             )}
             <p className="sala-inicial__fim-tempo">{ending.time}</p>
             <p className="sala-inicial__fim-mensagem" role="status">{getEndingMessage(ending)}</p>
-            <div className="sala-inicial__fim-botoes">
-              <button ref={menuButtonRef} type="button" className="sala-inicial__fim-botao" onClick={() => ending.status !== 'sending' && navigate(ROUTES.menuPrincipal)}>
-                Voltar ao menu
-              </button>
-              {ending.status === 'error' && (
-                <button type="button" className="sala-inicial__fim-botao" onClick={() => retryRef.current?.()}>
-                  Tentar de novo
-                </button>
-              )}
-            </div>
+            {ending.outcome === 'defeat' && ending.status !== 'sending' && (
+              <p className="sala-inicial__fim-controles">
+                <kbd>Espaço</kbd> ou <kbd>Enter</kbd> inicia uma nova run · <kbd>Esc</kbd> volta ao menu
+              </p>
+            )}
           </section>
         </div>
       )}
