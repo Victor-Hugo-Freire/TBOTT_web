@@ -3,6 +3,8 @@ import { describe, test } from 'node:test'
 import { INSTRUMENTOS } from '../src/audio/music/instrumentos.js'
 import { INSTRUMENTOS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, MUSICAS } from '../src/audio/music/musicas.js'
 import { CELULA_DO_TUNG_GRAUS, CELULA_DO_TUNG_TEMPOS, passosDoTungTungTung, temposParaPassos } from '../src/audio/music/motivos.js'
+import { FAIXAS_DOS_ANDARES, getTrackForContext } from '../src/audio/music/trackSelection.js'
+import { FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
 
 const alturaEscrita = (nota, nome) => (nota | 0) - 12 + INSTRUMENTOS[nome].baseMidi
 const tocadas = (canal) => canal.slice(2).flatMap((nota, passo) => (nota > 0 ? [{ passo, nota }] : []))
@@ -43,4 +45,22 @@ describe('o motivo do Tung em cada faixa', () => {
       })
     })
   }
+})
+
+describe('uma faixa diferente em cada andar', () => {
+  test('os cinco andares estão compostos e cada um toca a sua faixa', () => {
+    for (const faixa of FAIXAS_DOS_ANDARES) assert.ok(FAIXAS_COMPOSTAS.includes(faixa), faixa)
+    const tocam = [1, 2, 3, 4, 5].map((floorNumber) => getTrackForContext({ floorNumber, roomType: 'comum' }))
+    assert.deepEqual(tocam, FAIXAS_DOS_ANDARES)
+    assert.equal(new Set(tocam).size, 5)
+  })
+
+  test('o andamento sobe a cada andar', () => {
+    const andamentos = FAIXAS_DOS_ANDARES.map((id) => {
+      const [, padroes, , bpm] = MUSICAS[id]
+      const passosPorTempo = (padroes[0][0].length - 2) / 4
+      return (bpm * 4) / passosPorTempo
+    })
+    assert.deepEqual(andamentos, [88, 104, 112, 124, 136])
+  })
 })
