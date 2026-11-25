@@ -16,8 +16,8 @@ export default defineConfig([
     },
   },
   {
-    // Testes e arquivos de configuração, que rodam no Node
-    files: ['tests/**/*.js', '*.config.js'],
+    // Testes, scripts e arquivos de configuração, que rodam no Node
+    files: ['tests/**/*.js', 'scripts/**/*.{js,mjs}', '*.config.js'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },

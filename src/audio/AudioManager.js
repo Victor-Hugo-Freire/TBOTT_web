@@ -1,3 +1,5 @@
+import { CADEIA_DO_MASTER, criarRespostaDeSala } from './masterizacao.js'
+
 const DEFAULT_EFFECT_VOLUME = 80
 const DEFAULT_MUSIC_VOLUME = 70
 const DEFAULT_FADE_MS = 180
@@ -31,6 +33,8 @@ export class AudioManager {
     this._masterGain = null
     this._effectsGain = null
     this._musicGain = null
+    this._musicBus = null
+    this._reverb = null
     this._state = 'idle'
     this._unlockPromise = null
     this._effects = new Map()
@@ -40,6 +44,7 @@ export class AudioManager {
     this._activeMusicName = null
     this._musicSource = null
     this._musicGainNode = null
+    this._musicSendNode = null
     this._fadeTimers = new Set()
     this._muted = false
     this._destroyed = false
@@ -75,10 +80,12 @@ export class AudioManager {
     this._effects.set(name, { createSource, ...normalizeOptions(options) })
   }
 
-  registerMusic(name, createSource) {
+  // reverb: quanto da faixa vai para a sala do master (0 a 1)
+  registerMusic(name, createSource, { reverb = CADEIA_DO_MASTER.reverbPadrao } = {}) {
     if (typeof name !== 'string' || !name.trim()) throw new TypeError('O nome da música é obrigatório.')
     if (typeof createSource !== 'function') throw new TypeError('A música deve informar uma função criadora.')
-    this._music.set(name, { createSource })
+    const mix = typeof reverb === 'number' && Number.isFinite(reverb) ? Math.min(1, Math.max(0, reverb)) : CADEIA_DO_MASTER.reverbPadrao
+    this._music.set(name, { createSource, reverb: mix })
   }
 
   unregisterEffect(name) {
@@ -108,6 +115,7 @@ export class AudioManager {
       this._effectsGain.connect(this._masterGain)
       this._musicGain.connect(this._masterGain)
       this._masterGain.connect(this._context.destination)
+      this._createMusicChain(this._context)
       this._state = 'ready'
       return this._context
     } catch {
@@ -117,6 +125,60 @@ export class AudioManager {
       this._musicGain = null
       this._state = 'failed'
       return null
+    }
+  }
+
+  // Cadeia do master da música, montada uma vez e usada por todas as faixas:
+  // entrada → passa-alta → passa-baixa → compressor → ganho de saída → volume de música.
+  // Cada faixa também manda um pouco de si para a reverb de sala, que volta na entrada.
+  // Sem suporte a algum desses nós (navegador antigo, testes), a entrada vai direto ao volume.
+  _createMusicChain(context) {
+    const input = context.createGain()
+    this._musicBus = input
+    this._reverb = null
+
+    const supported = ['createBiquadFilter', 'createDynamicsCompressor', 'createConvolver', 'createBuffer']
+      .every((method) => typeof context[method] === 'function')
+    if (!supported) {
+      input.connect(this._musicGain)
+      return
+    }
+
+    try {
+      const highpass = context.createBiquadFilter()
+      highpass.type = 'highpass'
+      highpass.frequency.value = CADEIA_DO_MASTER.passaAltaHz
+      const lowpass = context.createBiquadFilter()
+      lowpass.type = 'lowpass'
+      lowpass.frequency.value = CADEIA_DO_MASTER.passaBaixaHz
+
+      const compressor = context.createDynamicsCompressor()
+      for (const [parameter, value] of Object.entries(CADEIA_DO_MASTER.compressor)) {
+        compressor[parameter].value = value
+      }
+      const output = context.createGain()
+      output.gain.value = CADEIA_DO_MASTER.ganhoDeSaida
+
+      const sampleRate = context.sampleRate || 44100
+      const impulse = criarRespostaDeSala(sampleRate)
+      const buffer = context.createBuffer(2, impulse[0].length, sampleRate)
+      buffer.getChannelData(0).set(impulse[0])
+      buffer.getChannelData(1).set(impulse[1])
+      const reverb = context.createConvolver()
+      reverb.normalize = false
+      reverb.buffer = buffer
+
+      input.connect(highpass)
+      highpass.connect(lowpass)
+      lowpass.connect(compressor)
+      compressor.connect(output)
+      output.connect(this._musicGain)
+      reverb.connect(input)
+      this._reverb = reverb
+    } catch {
+      try { input.disconnect() } catch { /* ainda sem ligações */ }
+      input.connect(this._musicGain)
+      this._reverb = null
     }
   }
 
@@ -256,7 +318,8 @@ export class AudioManager {
     try {
       const previousSource = this._musicSource
       const previousGain = this._musicGainNode
-      if (previousSource) this._stopMusicSource(previousSource, previousGain, fadeMs)
+      const previousSend = this._musicSendNode
+      if (previousSource) this._stopMusicSource(previousSource, previousGain, fadeMs, previousSend)
 
       const source = registration.createSource(context)
       if (!source) return { played: false, reason: 'source-unavailable' }
@@ -264,19 +327,31 @@ export class AudioManager {
       const sourceGain = context.createGain()
       sourceGain.gain.value = 1
       source.connect(sourceGain)
-      sourceGain.connect(this._musicGain)
+      sourceGain.connect(this._musicBus || this._musicGain)
+
+      // Envio para a sala: sai depois do ganho da faixa, então o fade leva a reverb junto
+      let send = null
+      if (this._reverb && registration.reverb > 0) {
+        send = context.createGain()
+        send.gain.value = registration.reverb
+        sourceGain.connect(send)
+        send.connect(this._reverb)
+      }
 
       this._activeMusicName = name
       this._musicSource = source
       this._musicGainNode = sourceGain
+      this._musicSendNode = send
 
       source.onended = () => {
         if (this._musicSource === source) {
           this._musicSource = null
           this._musicGainNode = null
+          this._musicSendNode = null
           this._activeMusicName = null
         }
         try { sourceGain.disconnect() } catch { /* node já desconectado */ }
+        try { send?.disconnect() } catch { /* node já desconectado */ }
       }
 
       source.start()
@@ -286,7 +361,7 @@ export class AudioManager {
     }
   }
 
-  _stopMusicSource(source, sourceGain, fadeMs) {
+  _stopMusicSource(source, sourceGain, fadeMs, send = null) {
     if (!source) return
 
     if (sourceGain && typeof sourceGain.gain.cancelScheduledValues === 'function') {
@@ -303,12 +378,14 @@ export class AudioManager {
         this._fadeTimers.delete(timer)
         try { source.stop() } catch { /* já interrompido */ }
         try { sourceGain.disconnect() } catch { /* já desconectado */ }
+        try { send?.disconnect() } catch { /* já desconectado */ }
       }, Math.max(0, fadeMs)) : null
       if (timer) this._fadeTimers.add(timer)
       return
     }
 
     try { source.stop() } catch { /* já interrompido */ }
+    try { send?.disconnect() } catch { /* já desconectado */ }
   }
 
   stopMusic({ fadeMs = DEFAULT_FADE_MS } = {}) {
@@ -320,10 +397,12 @@ export class AudioManager {
 
     const source = this._musicSource
     const sourceGain = this._musicGainNode
+    const send = this._musicSendNode
     this._musicSource = null
     this._musicGainNode = null
+    this._musicSendNode = null
     this._activeMusicName = null
-    this._stopMusicSource(source, sourceGain, fadeMs)
+    this._stopMusicSource(source, sourceGain, fadeMs, send)
   }
 
   destroy() {
@@ -340,8 +419,11 @@ export class AudioManager {
 
     this._musicSource = null
     this._musicGainNode = null
+    this._musicSendNode = null
     this._activeMusicName = null
 
+    try { this._musicBus?.disconnect() } catch { /* já desconectado */ }
+    try { this._reverb?.disconnect() } catch { /* já desconectado */ }
     try { this._masterGain?.disconnect() } catch { /* já desconectado */ }
     try { this._effectsGain?.disconnect() } catch { /* já desconectado */ }
     try { this._musicGain?.disconnect() } catch { /* já desconectado */ }
@@ -357,6 +439,8 @@ export class AudioManager {
     this._masterGain = null
     this._effectsGain = null
     this._musicGain = null
+    this._musicBus = null
+    this._reverb = null
     this._state = 'destroyed'
   }
 }

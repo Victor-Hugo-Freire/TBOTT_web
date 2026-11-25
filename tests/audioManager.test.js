@@ -114,7 +114,8 @@ describe('AudioManager', () => {
 
     assert.equal(result.played, true)
     assert.equal(source.startCalls, 1)
-    assert.equal(context.createGainCalls, 4)
+    // master, efeitos, música, entrada do barramento de música e a voz do efeito
+    assert.equal(context.createGainCalls, 5)
   })
 
   test('solicitação de efeito inexistente é segura', () => {
@@ -207,6 +208,47 @@ describe('AudioManager', () => {
     assert.equal(manager.state, 'destroyed')
     assert.equal(context.closeCalls, 1)
     assert.equal(source.stopCalls, 1)
+  })
+
+  test('monta a cadeia do master e envia a música para a reverb quando há suporte', () => {
+    const { manager, context } = createManager()
+    const created = []
+    const node = (kind, extra = {}) => {
+      const item = { kind, connections: [], connect(target) { this.connections.push(target) }, disconnect() {}, ...extra }
+      created.push(item)
+      return item
+    }
+    const param = () => ({ value: 0 })
+    const originalCreateGain = context.createGain.bind(context)
+    context.sampleRate = 8000
+    context.createGain = () => {
+      const gain = originalCreateGain()
+      gain.kind = 'gain'
+      gain.connections = []
+      gain.connect = (target) => { gain.connections.push(target) }
+      created.push(gain)
+      return gain
+    }
+    context.createBiquadFilter = () => node('filtro', { type: '', frequency: param() })
+    context.createDynamicsCompressor = () => node('compressor', {
+      threshold: param(), knee: param(), ratio: param(), attack: param(), release: param(),
+    })
+    context.createConvolver = () => node('reverb', { buffer: null, normalize: true })
+    context.createBuffer = (channels, length) => {
+      const data = Array.from({ length: channels }, () => new Float32Array(length))
+      return { getChannelData: (index) => data[index] }
+    }
+
+    manager.registerMusic('faixa', () => createSource(), { reverb: 0.2 })
+    assert.equal(manager.playMusic('faixa', { fadeMs: 0 }).played, true)
+
+    const filtros = created.filter((item) => item.kind === 'filtro')
+    assert.deepEqual(filtros.map((item) => item.type), ['highpass', 'lowpass'])
+    const reverb = created.find((item) => item.kind === 'reverb')
+    assert.equal(reverb.normalize, false)
+    assert.ok(reverb.buffer)
+    const envio = created.find((item) => item.kind === 'gain' && item.connections.includes(reverb))
+    assert.equal(envio.gain.value, 0.2)
   })
 
   test('destroy impede reprodução posterior', () => {

@@ -4,7 +4,12 @@
 
 import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from './zzfxExperimental.js'
 
-export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE) {
+// Opções (extensões do TBOTT; sem elas o resultado é o do ZzFXM original):
+// - loop: a cauda das notas que passa do fim do áudio é somada no começo, como
+//   aconteceria se a música tocasse em ciclo. A emenda do loop fica contínua.
+// - normalize: false deixa os canais sem normalizar (a masterização faz isso depois,
+//   nos dois canais juntos, para não desequilibrar o estéreo).
+export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SAMPLE_RATE, { loop = false, normalize = true } = {}) {
   if (!Array.isArray(song) || song.length < 3) {
     throw new TypeError('A música ZzFXM precisa dos instrumentos, padrões e sequência.')
   }
@@ -53,10 +58,14 @@ export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SA
         const destination = offset + beat * beatLength
         const gain = 1 - attenuation
 
-        for (let index = 0; index < samples.length && destination + index < totalLength; index++) {
-          const sample = samples[index] * gain
-          left[destination + index] = left[destination + index] + sample * (1 - panning)
-          right[destination + index] = right[destination + index] + sample * (1 + panning)
+        const leftGain = gain * (1 - panning)
+        const rightGain = gain * (1 + panning)
+        const end = loop ? samples.length : Math.min(samples.length, totalLength - destination)
+
+        for (let index = 0; index < end; index++) {
+          const position = (destination + index) % totalLength
+          left[position] += samples[index] * leftGain
+          right[position] += samples[index] * rightGain
         }
       }
     }
@@ -64,15 +73,17 @@ export function generateZzfxMusicSamples(song, sampleRate = ZZFX_EXPERIMENTAL_SA
     offset += beatCount * beatLength
   }
 
-  const normalize = (channel) => {
+  const normalizeChannel = (channel) => {
     let peak = 0
     for (let index = 0; index < channel.length; index++) peak = Math.max(peak, Math.abs(channel[index]))
     if (peak <= 1) return
     for (let index = 0; index < channel.length; index++) channel[index] /= peak
   }
 
-  normalize(left)
-  normalize(right)
+  if (normalize) {
+    normalizeChannel(left)
+    normalizeChannel(right)
+  }
   return [left, right]
 }
 

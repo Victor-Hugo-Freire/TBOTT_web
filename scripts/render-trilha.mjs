@@ -1,0 +1,182 @@
+// Renderiza as faixas da trilha em WAV e imprime as medições de cada uma.
+//
+//   npm run trilha:render                      todas as faixas
+//   npm run trilha:render -- --so a-vila-espera  só uma faixa (pode repetir --so)
+//   npm run trilha:render -- --canais           também mede cada canal sozinho
+//   npm run trilha:render -- --instrumentos     mede os timbres da biblioteca
+//
+// Saída em tmp/trilha/ (fora do Git):
+//   <id>.wav       a faixa como o jogador ouve: preparação do worker + cadeia do master
+//   <id>-seco.wav  só a preparação do worker (sem filtros, reverb nem compressor)
+//   vila-espera-antiga.wav  a versão anterior à Fase 1, exatamente como tocava
+
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { generateZzfxMusicSamples } from '../src/audio/zzfxmExperimental.js'
+import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../src/audio/zzfxExperimental.js'
+import { prepararCanaisDaMusica, CADEIA_DO_MASTER } from '../src/audio/masterizacao.js'
+import { INSTRUMENTOS, midiParaFrequencia } from '../src/audio/music/instrumentos.js'
+import { VILA_ESPERA_SONG, VILA_ESPERA_META, VILA_ESPERA_INSTRUMENTOS } from '../src/audio/music/vila-espera.js'
+import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
+import { aplicarCadeiaDoMaster, distribuicaoEspectral, inarmonicidade, medirFaixa, mono, salvarWav } from './trilha/analise.mjs'
+
+const SAMPLE_RATE = ZZFX_EXPERIMENTAL_SAMPLE_RATE
+const PASTA = join(fileURLToPath(new URL('..', import.meta.url)), 'tmp', 'trilha')
+
+// O `randomness` do ZzFX usa Math.random: com semente, dois renders saem iguais
+function fixarAleatorio(semente = 20261125) {
+  let estado = semente >>> 0
+  Math.random = () => {
+    estado = (estado + 0x6d2b79f5) >>> 0
+    let t = Math.imul(estado ^ (estado >>> 15), estado | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// Índices de instrumento que são bateria (ficam de fora da medição "só instrumentos de altura")
+const percussaoDe = (nomes) => nomes.flatMap((nome, indice) => (INSTRUMENTOS[nome].percussao ? [indice] : []))
+
+const FAIXAS = [
+  {
+    id: 'a-vila-espera',
+    song: VILA_ESPERA_SONG,
+    reverb: VILA_ESPERA_META.reverb ?? CADEIA_DO_MASTER.reverbPadrao,
+    percussao: percussaoDe(VILA_ESPERA_INSTRUMENTOS),
+  },
+]
+
+// Na versão antiga: madeira, kick, caixa, ride e chimbal
+const PERCUSSAO_ANTIGA = [4, 5, 6, 7, 8]
+
+// Espectro só dos instrumentos de altura: é onde o aliasing das ondas cruas aparece
+function espectroSemBateria(song, percussao) {
+  const [instrumentos, padroes, sequencia, bpm] = song
+  const semBateria = padroes.map((padrao) => padrao.map((linha) => (
+    percussao.includes(linha[0]) ? linha.map((valor, i) => (i < 2 ? valor : 0)) : linha
+  )))
+  const canais = generateZzfxMusicSamples([instrumentos, semBateria, sequencia, bpm], SAMPLE_RATE, { loop: true })
+  return distribuicaoEspectral(mono(canais), SAMPLE_RATE)
+}
+
+function imprimirSemBateria(espectro) {
+  console.log(`  só instrumentos de altura (sem bateria): acima de 5 kHz ${numero(espectro.acimaPct, 3)}% · entre 2 e 5 kHz ${numero(espectro.faixa2a5kPct, 2)}%`)
+}
+
+const argumentos = process.argv.slice(2)
+const filtro = argumentos.flatMap((valor, indice) => (argumentos[indice - 1] === '--so' ? [valor] : []))
+const medirCanais = argumentos.includes('--canais')
+const medirInstrumentos = argumentos.includes('--instrumentos')
+
+const numero = (valor, casas = 1) => (Number.isFinite(valor) ? valor.toFixed(casas) : '-∞')
+
+function imprimirMedicoes(titulo, m) {
+  console.log(`\n${titulo}`)
+  console.log(`  duração ${numero(m.duracao, 2)} s · pico ${numero(m.picoDb)} dBFS · RMS ${numero(m.rmsDb)} dBFS · clipadas ${m.clipadas}`)
+  console.log(`  energia acima de 5 kHz ${numero(m.acima5kPct, 2)}% · entre 2 e 5 kHz ${numero(m.faixa2a5kPct, 2)}% · centroide ${numero(m.centroideHz, 0)} Hz`)
+  const emenda = Math.max(m.emendaEsquerda, m.emendaDireita)
+  const ok = emenda <= m.saltoP95 ? 'ok' : 'ACIMA DO TÍPICO'
+  console.log(`  emenda do loop E ${m.emendaEsquerda.toFixed(4)} D ${m.emendaDireita.toFixed(4)} · salto típico mediana ${m.saltoMediano.toFixed(4)} p95 ${m.saltoP95.toFixed(4)} → ${ok}`)
+}
+
+// Mede cada canal da música sozinho (mesmo ganho da mistura) e a faixa de alturas que ele toca
+function imprimirCanais(song, ganho) {
+  const [instrumentos, padroes, sequencia, bpm] = song
+  const total = padroes[0].length
+  console.log('  canal  instr  pan    RMS rel.   pico rel.  >5kHz   alturas (MIDI que soam)')
+  const misturaRms = []
+  for (let canal = 0; canal < total; canal++) {
+    // Os outros canais ficam mudos (mesmo tamanho, sem notas): o ZzFXM mede o padrão pelo canal 0
+    const soPadroes = padroes.map((padrao) => padrao.map((linha, indice) => (indice === canal ? linha : linha.map((valor, i) => (i < 2 ? valor : 0)))))
+    const canais = generateZzfxMusicSamples([instrumentos, soPadroes, sequencia, bpm], SAMPLE_RATE, { loop: true, normalize: false })
+    let soma = 0
+    let pico = 0
+    for (const c of canais) {
+      for (let i = 0; i < c.length; i++) {
+        soma += (c[i] * ganho) ** 2
+        pico = Math.max(pico, Math.abs(c[i] * ganho))
+      }
+    }
+    const rms = Math.sqrt(soma / (canais[0].length * 2))
+    misturaRms.push(rms)
+    const { acimaPct } = distribuicaoEspectral(canais[0], SAMPLE_RATE)
+
+    let menor = Infinity
+    let maior = -Infinity
+    const [indiceInstrumento, pan] = padroes[0][canal]
+    const base = instrumentos[indiceInstrumento][2]
+    for (const padrao of padroes) {
+      for (const nota of padrao[canal].slice(2)) {
+        if (!nota || nota <= 0) continue
+        const midi = 69 + 12 * Math.log2(base * 2 ** (((nota | 0) - 12) / 12) / 440)
+        menor = Math.min(menor, midi)
+        maior = Math.max(maior, midi)
+      }
+    }
+    const rmsDb = 20 * Math.log10(rms || 1e-9)
+    console.log(`  ${String(canal).padStart(5)}  ${String(indiceInstrumento).padStart(5)}  ${numero(pan, 2).padStart(5)}  ${numero(rmsDb).padStart(7)} dB  ${numero(20 * Math.log10(pico || 1e-9)).padStart(7)} dB  ${numero(acimaPct, 2).padStart(5)}%  ${Number.isFinite(menor) ? `${Math.round(menor)}–${Math.round(maior)}` : '(mudo)'}`)
+  }
+}
+
+function imprimirInstrumentos() {
+  console.log('\nTimbres da biblioteca (uma nota em cada ponta do registro e no meio)')
+  console.log('  instrumento            nota  >5kHz  centroide  fora da série harmônica')
+  for (const [nome, instrumento] of Object.entries(INSTRUMENTOS)) {
+    const [minimo, maximo] = instrumento.registro
+    const alturas = instrumento.percussao ? [instrumento.baseMidi] : [minimo, Math.round((minimo + maximo) / 2), maximo]
+    for (const midi of alturas) {
+      const parametros = [...instrumento.parametros]
+      parametros[1] = 0
+      parametros[2] = midiParaFrequencia(midi) * (instrumento.parametros[2] / midiParaFrequencia(instrumento.baseMidi))
+      const amostras = generateZzfxSamples(parametros)
+      const { acimaPct, centroideHz } = distribuicaoEspectral(amostras, SAMPLE_RATE, 5000, 2048)
+      const fora = instrumento.percussao ? '-' : `${numero(inarmonicidade(amostras, SAMPLE_RATE, parametros[2]), 2)}%`
+      console.log(`  ${nome.padEnd(22)} ${String(midi).padStart(4)}  ${numero(acimaPct, 2).padStart(5)}%  ${numero(centroideHz, 0).padStart(6)} Hz  ${fora}`)
+    }
+  }
+
+  console.log('\nTimbres da versão antiga (a mesma medição, um Lá acima da frequência-base)')
+  for (const [nome, original] of Object.entries(INSTRUMENTOS_ANTIGOS)) {
+    const parametros = [...original]
+    parametros[1] = 0
+    parametros[2] = original[2] * 2 ** (9 / 12)
+    const amostras = generateZzfxSamples(parametros)
+    const { acimaPct, centroideHz } = distribuicaoEspectral(amostras, SAMPLE_RATE, 5000, 2048)
+    const midi = Math.round(69 + 12 * Math.log2(parametros[2] / 440))
+    console.log(`  ${nome.padEnd(22)} ${String(midi).padStart(4)}  ${numero(acimaPct, 2).padStart(5)}%  ${numero(centroideHz, 0).padStart(6)} Hz  ${numero(inarmonicidade(amostras, SAMPLE_RATE, parametros[2]), 2)}%`)
+  }
+}
+
+mkdirSync(PASTA, { recursive: true })
+fixarAleatorio()
+
+if (medirInstrumentos) imprimirInstrumentos()
+
+if (filtro.length === 0 || filtro.includes('vila-espera-antiga')) {
+  const antiga = generateZzfxMusicSamples(VILA_ESPERA_ANTIGA_SONG, SAMPLE_RATE)
+  salvarWav(join(PASTA, 'vila-espera-antiga.wav'), antiga, SAMPLE_RATE)
+  imprimirMedicoes('vila-espera-antiga (versão anterior, como tocava: sem loop contínuo nem master)', medirFaixa(antiga, SAMPLE_RATE))
+  imprimirSemBateria(espectroSemBateria(VILA_ESPERA_ANTIGA_SONG, PERCUSSAO_ANTIGA))
+  if (medirCanais) imprimirCanais(VILA_ESPERA_ANTIGA_SONG, 1)
+}
+
+for (const faixa of FAIXAS) {
+  if (filtro.length && !filtro.includes(faixa.id)) continue
+
+  const brutos = generateZzfxMusicSamples(faixa.song, SAMPLE_RATE, { loop: true, normalize: false })
+  let picoBruto = 0
+  for (const c of brutos) for (let i = 0; i < c.length; i++) picoBruto = Math.max(picoBruto, Math.abs(c[i]))
+
+  const seco = prepararCanaisDaMusica(faixa.song, SAMPLE_RATE)
+  const final = aplicarCadeiaDoMaster(seco, SAMPLE_RATE, faixa.reverb)
+  salvarWav(join(PASTA, `${faixa.id}-seco.wav`), seco, SAMPLE_RATE)
+  salvarWav(join(PASTA, `${faixa.id}.wav`), final, SAMPLE_RATE)
+
+  imprimirMedicoes(`${faixa.id} (saída do worker; soma bruta dos canais com pico ${picoBruto.toFixed(2)})`, medirFaixa(seco, SAMPLE_RATE))
+  imprimirSemBateria(espectroSemBateria(faixa.song, faixa.percussao))
+  imprimirMedicoes(`${faixa.id} (depois da cadeia do master, reverb ${Math.round(faixa.reverb * 100)}%)`, medirFaixa(final, SAMPLE_RATE))
+  if (medirCanais) imprimirCanais(faixa.song, 0.89 / picoBruto)
+}
+
+console.log(`\nArquivos em ${PASTA}`)

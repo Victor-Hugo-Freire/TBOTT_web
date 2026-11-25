@@ -4,6 +4,7 @@ import { readOptions } from '../utils/options.js'
 import { AudioManagerContext } from './useAudio.js'
 import { installAudioUnlock } from './audioUnlock.js'
 import { createAudioLifecycleCleanup } from './audioLifecycle.js'
+import { createVilaEsperaAudioSource, VILA_ESPERA_MUSIC_NAME, VILA_ESPERA_MUSIC_OPTIONS } from '../data/vilaEsperaMusic.js'
 
 export function AudioProvider({ children }) {
   const [initialOptions] = useState(readOptions)
@@ -29,12 +30,15 @@ export function AudioProvider({ children }) {
     lifecycle.activate()
     const cleanupUnlock = installAudioUnlock(window, unlock)
 
+    manager.registerMusic(VILA_ESPERA_MUSIC_NAME, createVilaEsperaAudioSource, VILA_ESPERA_MUSIC_OPTIONS)
+
     return () => {
       mountedRef.current = false
       cleanupUnlock()
+      manager.unregisterMusic(VILA_ESPERA_MUSIC_NAME)
       lifecycle.deactivate()
     }
-  }, [unlock, lifecycle])
+  }, [unlock, lifecycle, manager])
 
   const setEffectsVolume = useCallback((value) => {
     manager.setEffectsVolume(value)
