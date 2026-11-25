@@ -5,6 +5,7 @@ import Login from '../../components/Login/Login.jsx'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { createProgressSnapshot } from '../../utils/progress.js'
+import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './SessaoPersonagem.css'
 
 const EMPTY_STATE = {
@@ -37,6 +38,8 @@ function getVisibleCharacters(characters, currentIndex) {
 export default function SessaoPersonagem() {
   const navigate = useNavigate()
   const backRef = useRef(null)
+  const userRef = useRef(null)
+  const mainRef = useRef(null)
   const [characters, setCharacters] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedCharacterId, setSelectedCharacterId] = useState(null)
@@ -114,6 +117,50 @@ export default function SessaoPersonagem() {
     setSelectedCharacterId(nextCharacter.id)
   }
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (isTypingTarget(event.target)) return
+      if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
+
+      const key = event.key.toLowerCase()
+
+      if (key === 'arrowleft' || key === 'a') {
+        event.preventDefault()
+        if (key === 'a') {
+          backRef.current?.focus()
+        } else if (characters.length > 1) {
+          setCurrentIndex((previousIndex) => (previousIndex - 1 + characters.length) % characters.length)
+        }
+        return
+      }
+
+      if (key === 'arrowright' || key === 'd') {
+        event.preventDefault()
+        if (key === 'd') {
+          userRef.current?.focus()
+        } else if (characters.length > 1) {
+          setCurrentIndex((previousIndex) => (previousIndex + 1) % characters.length)
+        }
+        return
+      }
+
+      const action = getMenuNavigationAction(event.key)
+      if (action !== 'up' && action !== 'down') return
+
+      event.preventDefault()
+
+      const buttons = Array.from(mainRef.current?.querySelectorAll('button:not(:disabled)') ?? [])
+      if (buttons.length === 0) return
+
+      const currentIndex = buttons.findIndex((button) => button === document.activeElement)
+      const nextIndex = getNextIndex(currentIndex, action, buttons.length)
+      buttons[nextIndex]?.focus()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [characters.length])
+
   async function handleStartGame() {
     if (!selectedCharacter) return
 
@@ -141,14 +188,14 @@ export default function SessaoPersonagem() {
   }
 
   return (
-    <main className="sessao-personagem" aria-label="Seleção de personagem">
+    <main ref={mainRef} className="sessao-personagem" aria-label="Seleção de personagem">
       <title>Seleção de personagem | The Binding of Tung Tung</title>
 
       <div className="sessao-personagem__layout">
         <header className="sessao-personagem__header">
           <BotaoVoltar ref={backRef} label="Voltar para o menu" onClick={() => navigate(ROUTES.menuPrincipal)} />
 
-          <Login className="sessao-personagem__usuario" />
+          <Login ref={userRef} className="sessao-personagem__usuario" />
         </header>
 
         <section className="sessao-personagem__carrossel" aria-live="polite">
@@ -214,15 +261,11 @@ export default function SessaoPersonagem() {
                   )
                 })}
 
-                <div className="sessao-personagem__indicadores" aria-label="Indicadores de personagem">
+                <div className="sessao-personagem__indicadores" aria-hidden="true">
                   {selectionIndicators.map((character) => (
-                    <button
+                    <span
                       key={character.id}
-                      type="button"
                       className={`sessao-personagem__indicador ${character.isActive ? 'sessao-personagem__indicador--ativo' : ''}`}
-                      aria-label={`Selecionar ${character.name}`}
-                      onClick={() => handleSelectCharacter(character.index)}
-                      aria-pressed={character.isActive}
                     />
                   ))}
                 </div>

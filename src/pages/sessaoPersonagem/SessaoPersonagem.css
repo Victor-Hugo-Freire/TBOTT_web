@@ -149,7 +149,7 @@
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.18);
-  cursor: pointer;
+  pointer-events: none;
   transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
@@ -158,12 +158,6 @@
   border-color: #ffffff;
   box-shadow: 0 0 0 0.15rem rgba(255, 255, 255, 0.25);
   transform: scale(1.15);
-}
-
-.sessao-personagem__indicador:hover,
-.sessao-personagem__indicador:focus-visible {
-  background: rgba(255, 255, 255, 0.4);
-  border-color: rgba(255, 255, 255, 0.8);
 }
 
 .sessao-personagem__info {
