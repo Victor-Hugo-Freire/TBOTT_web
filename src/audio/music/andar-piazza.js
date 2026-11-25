@@ -60,6 +60,8 @@ export const PIAZZA_META = Object.freeze({
   compassos: COMPASSOS.length,
   inicioDoLoop: 0,
   tonalidade: 'Fá menor (dórico)',
+  tonica: 'F',
+  modo: 'dorico',
   estrutura: 'A1 8 · A2 8 · B 8 · A3 8 · C 8 · Tag 2',
 })
 

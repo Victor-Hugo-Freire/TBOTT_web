@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { INSTRUMENTOS } from '../src/audio/music/instrumentos.js'
-import { INSTRUMENTOS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, MUSICAS, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
+import { INSTRUMENTOS_DAS_MUSICAS, METAS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, MUSICAS, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
 import { CELULA_DO_TUNG_GRAUS, CELULA_DO_TUNG_TEMPOS, passosDoTungTungTung, temposParaPassos } from '../src/audio/music/motivos.js'
 import { FAIXAS_DOS_ANDARES, getTrackForContext } from '../src/audio/music/trackSelection.js'
 import { FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
@@ -13,8 +13,8 @@ describe('o motivo do Tung em cada faixa', () => {
   for (const [id, motivo] of Object.entries(MOTIVOS_DAS_MUSICAS)) {
     const [, padroes] = MUSICAS[id]
     const nomes = INSTRUMENTOS_DAS_MUSICAS[id]
-    const passosPorCompasso = padroes[0][0].length - 2
-    const passosPorTempo = passosPorCompasso / 4
+    // A grade vem da META da faixa (a valsa tem 3 tempos por compasso)
+    const { passosPorTempo, temposPorCompasso } = METAS_DAS_MUSICAS[id]
     const canaisDe = (nome) => padroes[0].flatMap((canal, indice) => (nomes[canal[0]] === nome ? [indice] : []))
 
     test(`${id}: a célula (5 – ♭7 – 1' – ♭7 – 5) com o ritmo fixo, em pelo menos dois compassos`, () => {
@@ -37,7 +37,7 @@ describe('o motivo do Tung em cada faixa', () => {
 
     test(`${id}: o tung-tung-tung no último tempo, em crescendo, e só nos compassos marcados`, () => {
       const [canal] = canaisDe('madeira')
-      const passos = passosDoTungTungTung(passosPorTempo)
+      const passos = passosDoTungTungTung(passosPorTempo, temposPorCompasso)
       assert.ok(motivo.tung.compassos.length >= 2)
       padroes.forEach((padrao, compasso) => {
         const batidas = tocadas(padrao[canal])
@@ -64,8 +64,11 @@ describe('uma faixa diferente em cada andar', () => {
   test('o andamento sobe a cada andar', () => {
     const andamentos = FAIXAS_DOS_ANDARES.map((id) => {
       const [, padroes, , bpm] = MUSICAS[id]
-      const passosPorTempo = (padroes[0][0].length - 2) / 4
-      return (bpm * 4) / passosPorTempo
+      const { andamento, passosPorTempo, temposPorCompasso } = METAS_DAS_MUSICAS[id]
+      // A grade declarada bate com a música: passos por compasso e o bpm do ZzFXM
+      assert.equal(padroes[0][0].length - 2, passosPorTempo * temposPorCompasso, id)
+      assert.equal((bpm * 4) / passosPorTempo, andamento, id)
+      return andamento
     })
     assert.deepEqual(andamentos, [88, 104, 112, 124, 136])
   })

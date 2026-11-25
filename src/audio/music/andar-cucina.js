@@ -57,6 +57,8 @@ export const CUCINA_META = Object.freeze({
   compassos: COMPASSOS.length,
   inicioDoLoop: 0,
   tonalidade: 'Sol (G7)',
+  tonica: 'G',
+  modo: 'mixolidio',
   estrutura: 'A1 12 · A2 12 · B 12 · C 8',
 })
 

@@ -2,11 +2,11 @@
 // script de render e os testes importam este arquivo: a thread principal usa faixas.js.
 
 import { VILA_ESPERA_INSTRUMENTOS, VILA_ESPERA_INTRO_INSTRUMENTOS, VILA_ESPERA_INTRO_SONG, VILA_ESPERA_SONG } from './vila-espera.js'
-import { CANTINA_INSTRUMENTOS, CANTINA_MELODIA, CANTINA_MOTIVO, CANTINA_SECOES, CANTINA_SONG } from './andar-cantina.js'
-import { CUCINA_INSTRUMENTOS, CUCINA_MELODIA, CUCINA_MOTIVO, CUCINA_SECOES, CUCINA_SONG } from './andar-cucina.js'
-import { PIAZZA_INSTRUMENTOS, PIAZZA_MELODIA, PIAZZA_MOTIVO, PIAZZA_SECOES, PIAZZA_SONG } from './andar-piazza.js'
-import { PASTIFICIO_INSTRUMENTOS, PASTIFICIO_MELODIA, PASTIFICIO_MOTIVO, PASTIFICIO_SECOES, PASTIFICIO_SONG } from './andar-pastificio.js'
-import { PORTO_INSTRUMENTOS, PORTO_MELODIA, PORTO_MOTIVO, PORTO_SECOES, PORTO_SONG } from './andar-porto.js'
+import { CANTINA_HARMONIA, CANTINA_INSTRUMENTOS, CANTINA_MELODIA, CANTINA_META, CANTINA_MOTIVO, CANTINA_SECOES, CANTINA_SONG } from './andar-cantina.js'
+import { CUCINA_HARMONIA, CUCINA_INSTRUMENTOS, CUCINA_MELODIA, CUCINA_META, CUCINA_MOTIVO, CUCINA_SECOES, CUCINA_SONG } from './andar-cucina.js'
+import { PIAZZA_HARMONIA, PIAZZA_INSTRUMENTOS, PIAZZA_MELODIA, PIAZZA_META, PIAZZA_MOTIVO, PIAZZA_SECOES, PIAZZA_SONG } from './andar-piazza.js'
+import { PASTIFICIO_HARMONIA, PASTIFICIO_INSTRUMENTOS, PASTIFICIO_MELODIA, PASTIFICIO_META, PASTIFICIO_MOTIVO, PASTIFICIO_SECOES, PASTIFICIO_SONG } from './andar-pastificio.js'
+import { PORTO_HARMONIA, PORTO_INSTRUMENTOS, PORTO_MELODIA, PORTO_META, PORTO_MOTIVO, PORTO_SECOES, PORTO_SONG } from './andar-porto.js'
 
 export const MUSICAS = Object.freeze({
   'a-vila-espera': VILA_ESPERA_SONG,
@@ -52,6 +52,25 @@ export const SECOES_DAS_MUSICAS = Object.freeze({
   'andar-piazza': PIAZZA_SECOES,
   'andar-pastificio': PASTIFICIO_SECOES,
   'andar-porto': PORTO_SECOES,
+})
+
+// META de cada faixa de andar: andamento, grade (passos por tempo e tempos por compasso), tônica e
+// modo (medições e testes)
+export const METAS_DAS_MUSICAS = Object.freeze({
+  'andar-cantina': CANTINA_META,
+  'andar-cucina': CUCINA_META,
+  'andar-piazza': PIAZZA_META,
+  'andar-pastificio': PASTIFICIO_META,
+  'andar-porto': PORTO_META,
+})
+
+// Harmonia de cada faixa de andar, um item por compasso (analiseDosAndares.js)
+export const HARMONIAS_DAS_MUSICAS = Object.freeze({
+  'andar-cantina': CANTINA_HARMONIA,
+  'andar-cucina': CUCINA_HARMONIA,
+  'andar-piazza': PIAZZA_HARMONIA,
+  'andar-pastificio': PASTIFICIO_HARMONIA,
+  'andar-porto': PORTO_HARMONIA,
 })
 
 // Introduções: tocam uma vez antes do loop (o corpo é a música de MUSICAS)

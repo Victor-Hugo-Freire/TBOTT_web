@@ -19,11 +19,12 @@ import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../src/audio
 import { CADEIA_DO_MASTER, prepararFaixa } from '../src/audio/masterizacao.js'
 import { INSTRUMENTOS, midiParaFrequencia } from '../src/audio/music/instrumentos.js'
 import { FAIXAS as REGISTRO, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
-import { INSTRUMENTOS_DAS_MUSICAS, MELODIAS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, obterFaixa, obterMusica, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
+import { HARMONIAS_DAS_MUSICAS, INSTRUMENTOS_DAS_MUSICAS, MELODIAS_DAS_MUSICAS, METAS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, obterFaixa, obterMusica, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
 import { chavesDaCelula, distanciaMelodica, impressaoMelodica } from '../src/audio/music/analiseMelodica.js'
+import { BAIXOS, distanciaDeLevada, distanciaHarmonica, estatisticasDoBaixo, impressaoDaLevada, impressaoHarmonica, metricaDe, perfilDaMelodia, unissonosPorMinuto, viradasNasPassagens } from '../src/audio/music/analiseDosAndares.js'
 import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
 import { ENTRADA_DO_CORPO } from '../src/audio/fonteComIntro.js'
-import { aplicarCadeiaDoMaster, distribuicaoEspectral, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav } from './trilha/analise.mjs'
+import { aplicarCadeiaDoMaster, distribuicaoEspectral, energiaAcimaDe, energiaPorBanda, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav, volumePercebido } from './trilha/analise.mjs'
 
 const SAMPLE_RATE = ZZFX_EXPERIMENTAL_SAMPLE_RATE
 const PASTA = join(fileURLToPath(new URL('..', import.meta.url)), 'tmp', 'trilha')
@@ -134,6 +135,16 @@ function imprimirSemBateria(espectro) {
   console.log(`  só instrumentos de altura (sem bateria): acima de 5 kHz ${numero(espectro.acimaPct, 3)}% · entre 2 e 5 kHz ${numero(espectro.faixa2a5kPct, 2)}%`)
 }
 
+// A música só com os instrumentos escolhidos (os outros canais ficam mudos, do mesmo tamanho)
+function somente(song, nomes, escolher) {
+  const [instrumentos, padroes, sequencia, bpm] = song
+  const filtrados = padroes.map((padrao) => padrao.map((linha) => (escolher(nomes[linha[0]]) ? linha : linha.map((valor, i) => (i < 2 ? valor : 0)))))
+  return generateZzfxMusicSamples([instrumentos, filtrados, sequencia, bpm], SAMPLE_RATE, { loop: true, normalize: false })
+}
+
+// Medições de equilíbrio (grave/agudo, volume) de cada faixa de andar, para o resumo do fim
+const EQUILIBRIO = {}
+
 const argumentos = process.argv.slice(2)
 const filtro = argumentos.flatMap((valor, indice) => (argumentos[indice - 1] === '--so' ? [valor] : []))
 const medirCanais = argumentos.includes('--canais')
@@ -234,7 +245,9 @@ if (filtro.length === 0 || filtro.includes('vila-espera-antiga')) {
 for (const faixa of FAIXAS) {
   if (filtro.length && !filtro.includes(faixa.id)) continue
 
+  const inicioDoRender = performance.now()
   const brutos = generateZzfxMusicSamples(faixa.song, SAMPLE_RATE, { loop: true, normalize: false })
+  const segundosDeRender = (performance.now() - inicioDoRender) / 1000
   let picoBruto = 0
   for (const c of brutos) for (let i = 0; i < c.length; i++) picoBruto = Math.max(picoBruto, Math.abs(c[i]))
 
@@ -247,6 +260,15 @@ for (const faixa of FAIXAS) {
   const final = aplicarCadeiaDoMaster(seco, SAMPLE_RATE, faixa.reverb)
   imprimirMedicoes(`${faixa.id} (corpo em loop, depois da cadeia do master, reverb ${Math.round(faixa.reverb * 100)}%)`, medirFaixa(final, SAMPLE_RATE))
   imprimirEnergiaPorSecao(faixa, final)
+  if (METAS_DAS_MUSICAS[faixa.id]) {
+    EQUILIBRIO[faixa.id] = {
+      bandas: energiaPorBanda(mono(final), SAMPLE_RATE),
+      peloOuvido: energiaPorBanda(mono(final), SAMPLE_RATE, { peloOuvido: true }),
+      baixoNoNotebook: energiaAcimaDe(mono(somente(faixa.song, faixa.instrumentos, (nome) => BAIXOS.includes(nome))), SAMPLE_RATE, 150),
+      volume: volumePercebido(final, SAMPLE_RATE),
+      segundosDeRender,
+    }
+  }
 
   if (!preparada.intro) {
     salvarWav(join(PASTA, `${faixa.id}-seco.wav`), seco, SAMPLE_RATE)
@@ -295,7 +317,7 @@ for (const faixa of FAIXAS) {
 const ANDARES = Object.keys(MELODIAS_DAS_MUSICAS).filter((id) => filtro.length === 0 || filtro.includes(id))
 if (ANDARES.length) {
   const pct = (valor) => `${Math.round(valor * 100)}%`
-  const impressoes = Object.fromEntries(ANDARES.map((id) => [id, impressaoMelodica(obterMusica(id), INSTRUMENTOS_DAS_MUSICAS[id], MELODIAS_DAS_MUSICAS[id], chavesDaCelula(MOTIVOS_DAS_MUSICAS[id]))]))
+  const impressoes = Object.fromEntries(ANDARES.map((id) => [id, impressaoMelodica(obterMusica(id), INSTRUMENTOS_DAS_MUSICAS[id], MELODIAS_DAS_MUSICAS[id], chavesDaCelula(MOTIVOS_DAS_MUSICAS[id]), metricaDe(obterMusica(id), METAS_DAS_MUSICAS[id]))]))
   console.log('\nMelodias dos andares (impressão digital)')
   for (const id of ANDARES) {
     const m = impressoes[id].medidas
@@ -308,6 +330,58 @@ if (ANDARES.length) {
       const linha = ANDARES.map((outro) => (outro === id ? '   · ' : distanciaMelodica(impressoes[id], impressoes[outro]).toFixed(2).padStart(5)))
       console.log(`    ${id.replace('andar-', '').padEnd(11)} ${linha.join(' ')}`)
     }
+  }
+}
+
+// Identidade de cada andar (harmonia, levada, baixo, modo da melodia) e o equilíbrio grave/agudo
+if (ANDARES.length) {
+  const pct = (valor) => `${numero(100 * valor, 0)}%`
+  const curto = (id) => id.replace('andar-', '')
+  const matriz = (titulo, medir) => {
+    if (ANDARES.length < 2) return
+    console.log(`  ${titulo}:`)
+    for (const id of ANDARES) console.log(`    ${curto(id).padEnd(11)} ${ANDARES.map((outro) => (outro === id ? '   · ' : medir(id, outro).toFixed(2).padStart(5))).join(' ')}`)
+  }
+  const dados = Object.fromEntries(ANDARES.map((id) => {
+    const song = obterMusica(id)
+    const nomes = INSTRUMENTOS_DAS_MUSICAS[id]
+    const meta = METAS_DAS_MUSICAS[id]
+    const metrica = metricaDe(song, meta)
+    return [id, {
+      meta,
+      harmonia: impressaoHarmonica(HARMONIAS_DAS_MUSICAS[id]),
+      levada: impressaoDaLevada(song, nomes, metrica),
+      viradas: viradasNasPassagens(song, nomes, SECOES_DAS_MUSICAS[id]),
+      baixo: estatisticasDoBaixo(song, nomes),
+      unissonos: unissonosPorMinuto(song, nomes),
+      melodia: perfilDaMelodia(song, nomes, MELODIAS_DAS_MUSICAS[id], metrica, meta),
+    }]
+  }))
+  console.log('\nIdentidade dos andares')
+  for (const id of ANDARES) {
+    const { meta, harmonia, viradas, baixo, unissonos, melodia } = dados[id]
+    const qualidades = Object.entries(harmonia.qualidades).sort((a, b) => b[1] - a[1]).map(([q, n]) => `${q} ${numero(n, 0)}`).join(', ')
+    console.log(`  ${curto(id).padEnd(11)} ${meta.tonica} ${meta.modo} · ${meta.temposPorCompasso}/4 em ${meta.passosPorTempo} passos por tempo · acordes: ${qualidades}`)
+    console.log(`  ${''.padEnd(11)} ♭VI → V7 → i: ${harmonia.cadencias.sextaQuintaPrimeira} · 7#9: ${harmonia.cadencias.setimaSustenidoNove} · seções que terminam em virada ${pct(viradas)}`)
+    console.log(`  ${''.padEnd(11)} baixo: mediana ${numero(baixo.medianaHz, 0)} Hz, ${pct(baixo.abaixoDe80)} abaixo de 80 Hz, muda de nota em ${pct(baixo.movimento)} · uníssonos ${numero(unissonos, 1)}/min`)
+    console.log(`  ${''.padEnd(11)} melodia: ${pct(melodia.pentatonica)} na pentatônica menor, ${pct(melodia.notasDoModo)} nas notas do modo, ${pct(melodia.acimaDe660)} acima de 660 Hz, ${melodia.acimaDe880} notas acima de 880 Hz, ${numero(melodia.regiaoDosEfeitos, 2)} ataques/s entre 100 e 650 Hz`)
+  }
+  matriz('distância de harmonia', (a, b) => distanciaHarmonica(dados[a].harmonia, dados[b].harmonia))
+  matriz('distância de levada', (a, b) => distanciaDeLevada(dados[a].levada, dados[b].levada))
+
+  const medidos = ANDARES.filter((id) => EQUILIBRIO[id])
+  if (medidos.length) {
+    console.log('\nEquilíbrio grave/agudo (depois do master; "pelo ouvido" = ponderação A, o ouvido em volume baixo)')
+    console.log(`  ${''.padEnd(11)} ${'sub <60'.padStart(9)} ${'60–250'.padStart(8)} ${'250–500'.padStart(8)} ${'500–2k'.padStart(8)} ${'2–5k'.padStart(8)} ${'>5k'.padStart(8)}`)
+    for (const id of medidos) {
+      const { bandas, peloOuvido, baixoNoNotebook, volume, segundosDeRender } = EQUILIBRIO[id]
+      const linha = (b) => [b.sub, b.grave, b.medioGrave, b.medio, b.presenca, b.agudo].map((v, i) => pct(v).padStart(i === 0 ? 9 : 8)).join(' ')
+      console.log(`  ${curto(id).padEnd(11)} ${linha(bandas)}   (energia)`)
+      console.log(`  ${''.padEnd(11)} ${linha(peloOuvido)}   (pelo ouvido)`)
+      console.log(`  ${''.padEnd(11)} baixo acima de 150 Hz (o que sobra no notebook) ${pct(baixoNoNotebook)} · volume ${numero(volume, 1)} LUFS · render ${numero(segundosDeRender, 1)} s`)
+    }
+    const volumes = medidos.map((id) => EQUILIBRIO[id].volume)
+    console.log(`  diferença de volume entre o andar mais alto e o mais baixo: ${numero(Math.max(...volumes) - Math.min(...volumes), 1)} dB`)
   }
 }
 

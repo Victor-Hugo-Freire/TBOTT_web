@@ -57,6 +57,8 @@ export const CANTINA_META = Object.freeze({
   compassos: COMPASSOS.length,
   inicioDoLoop: 0,
   tonalidade: 'Lá menor',
+  tonica: 'A',
+  modo: 'eolio',
   estrutura: 'A1 12 · A2 12 · B 8 · Respiro 4',
 })
 

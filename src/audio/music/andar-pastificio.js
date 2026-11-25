@@ -62,6 +62,8 @@ export const PASTIFICIO_META = Object.freeze({
   compassos: COMPASSOS.length,
   inicioDoLoop: 0,
   tonalidade: 'Mi (E5)',
+  tonica: 'E',
+  modo: 'eolio',
   estrutura: 'Partida 4 · Riff A 8 · Verso 8 · Riff B 8 · Ponte 8 · Parada 6 · Riff C 8',
 })
 

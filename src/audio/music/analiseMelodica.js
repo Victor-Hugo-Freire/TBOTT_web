@@ -4,6 +4,8 @@
 //
 // Uma faixa declara as vozes de melodia: cada voz é uma lista de canais [instrumento, ordem] (por
 // exemplo o sax curto e o sax longo), que se juntam no tempo como uma linha só.
+//
+// metrica: { passosPorTempo } da faixa (da META). Sem ela, o compasso é de 4 tempos.
 
 import { INSTRUMENTOS } from './instrumentos.js'
 
@@ -13,10 +15,12 @@ function indiceDoCanal(padrao, nomes, instrumento, ordem) {
   return padrao.flatMap((canal, indice) => (nomes[canal[0]] === instrumento ? [indice] : []))[ordem]
 }
 
+const passosPorTempoDe = (passosPorCompasso, metrica) => metrica?.passosPorTempo ?? passosPorCompasso / 4
+
 // Notas de cada voz, em ordem de tempo: { tempo (em tempos), midi, passo, compasso, chave }
-export function notasDasVozes([, padroes], nomes, vozes) {
+export function notasDasVozes([, padroes], nomes, vozes, metrica) {
   const passosPorCompasso = padroes[0][0].length - 2
-  const passosPorTempo = passosPorCompasso / 4
+  const passosPorTempo = passosPorTempoDe(passosPorCompasso, metrica)
   return vozes.map((voz) => {
     const notas = []
     for (const [instrumento, ordem] of voz) {
@@ -43,9 +47,9 @@ const somar = (mapa, chave) => { mapa[chave] = (mapa[chave] || 0) + 1 }
 const fracao = (valor, total) => (total > 0 ? valor / total : 0)
 
 // celulas: Set de chaves `${instrumento}:${ordem}:${compasso}` em que a voz toca a célula exata
-export function impressaoMelodica(song, nomes, vozes, celulas = new Set()) {
+export function impressaoMelodica(song, nomes, vozes, celulas = new Set(), metrica) {
   const passosPorCompasso = song[1][0][0].length - 2
-  const passosPorTempo = passosPorCompasso / 4
+  const passosPorTempo = passosPorTempoDe(passosPorCompasso, metrica)
   const swing = passosPorTempo === 3
   const pos = {}
   const ioi = {}
@@ -55,7 +59,7 @@ export function impressaoMelodica(song, nomes, vozes, celulas = new Set()) {
   let total = 0
   let pares = 0
 
-  for (const notas of notasDasVozes(song, nomes, vozes)) {
+  for (const notas of notasDasVozes(song, nomes, vozes, metrica)) {
     notas.forEach((nota, indice) => {
       total += 1
       const noTempo = nota.passo % passosPorTempo

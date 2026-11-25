@@ -62,6 +62,8 @@ export const PORTO_META = Object.freeze({
   compassos: COMPASSOS.length,
   inicioDoLoop: 0,
   tonalidade: 'Dó menor',
+  tonica: 'C',
+  modo: 'eolio',
   estrutura: 'A1 8 · B1 8 · A2 8 · Tempestade 8 · B2 8 · A3 8 · Calmaria 4',
 })
 

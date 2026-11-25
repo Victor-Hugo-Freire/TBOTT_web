@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { INSTRUMENTOS_DAS_MUSICAS, MELODIAS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, MUSICAS } from '../src/audio/music/musicas.js'
+import { INSTRUMENTOS_DAS_MUSICAS, MELODIAS_DAS_MUSICAS, METAS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, MUSICAS } from '../src/audio/music/musicas.js'
 import { chavesDaCelula, distanciaMelodica, impressaoMelodica } from '../src/audio/music/analiseMelodica.js'
 
-const impressao = (id) => impressaoMelodica(MUSICAS[id], INSTRUMENTOS_DAS_MUSICAS[id], MELODIAS_DAS_MUSICAS[id], chavesDaCelula(MOTIVOS_DAS_MUSICAS[id]))
+const impressao = (id) => impressaoMelodica(MUSICAS[id], INSTRUMENTOS_DAS_MUSICAS[id], MELODIAS_DAS_MUSICAS[id], chavesDaCelula(MOTIVOS_DAS_MUSICAS[id]), METAS_DAS_MUSICAS[id])
 
 // A assinatura melódica de cada andar já reescrito: [medida, 'min' ou 'max', valor]
 const ASSINATURAS = Object.freeze({

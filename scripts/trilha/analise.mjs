@@ -114,6 +114,106 @@ export function distribuicaoEspectral(sinal, sampleRate, hz = 5000, tamanho = 40
   }
 }
 
+// --------------------------------------------------
+// Equilíbrio grave/agudo e volume percebido
+// --------------------------------------------------
+
+// Regiões do espectro usadas no relatório e nos testes de equilíbrio
+export const BANDAS = Object.freeze([
+  Object.freeze({ nome: 'sub', de: 0, ate: 60 }),
+  Object.freeze({ nome: 'grave', de: 60, ate: 250 }),
+  Object.freeze({ nome: 'medioGrave', de: 250, ate: 500 }),
+  Object.freeze({ nome: 'medio', de: 500, ate: 2000 }),
+  Object.freeze({ nome: 'presenca', de: 2000, ate: 5000 }),
+  Object.freeze({ nome: 'agudo', de: 5000, ate: Infinity }),
+])
+
+// Ponderação A (potência): o ouvido em volume baixo, que quase não escuta abaixo de 100 Hz
+function pesoA(frequencia) {
+  const f2 = frequencia * frequencia
+  const r = (12194 ** 2 * f2 * f2) / ((f2 + 20.6 ** 2) * Math.sqrt((f2 + 107.7 ** 2) * (f2 + 737.9 ** 2)) * (f2 + 12194 ** 2))
+  return (r * 10 ** (2 / 20)) ** 2
+}
+
+// Parte da energia (0 a 1) em cada banda; peloOuvido aplica a ponderação A
+export function energiaPorBanda(sinal, sampleRate, { peloOuvido = false, tamanho = 8192 } = {}) {
+  const potencia = espectroMedio(sinal, tamanho)
+  const resolucao = sampleRate / tamanho
+  const soma = Object.fromEntries(BANDAS.map(({ nome }) => [nome, 0]))
+  let total = 0
+  for (let k = 1; k < potencia.length; k++) {
+    const frequencia = k * resolucao
+    const valor = peloOuvido ? potencia[k] * pesoA(frequencia) : potencia[k]
+    total += valor
+    soma[BANDAS.find(({ de, ate }) => frequencia >= de && frequencia < ate).nome] += valor
+  }
+  return Object.fromEntries(Object.entries(soma).map(([nome, valor]) => [nome, total > 0 ? valor / total : 0]))
+}
+
+// Parte da energia (0 a 1) acima de `hz`: num alto-falante de notebook ou celular, o que sobra do
+// baixo é o que fica acima de ~150 Hz
+export function energiaAcimaDe(sinal, sampleRate, hz, tamanho = 8192) {
+  const potencia = espectroMedio(sinal, tamanho)
+  const resolucao = sampleRate / tamanho
+  let total = 0
+  let acima = 0
+  for (let k = 1; k < potencia.length; k++) {
+    total += potencia[k]
+    if (k * resolucao >= hz) acima += potencia[k]
+  }
+  return total > 0 ? acima / total : 0
+}
+
+// Biquad (fórmulas de Robert Bristow-Johnson) aplicado a um canal, com os coeficientes prontos
+function filtrarComCoeficientes(sinal, { b0, b1, b2, a0, a1, a2 }) {
+  const saida = new Float32Array(sinal.length)
+  let x1 = 0
+  let x2 = 0
+  let y1 = 0
+  let y2 = 0
+  for (let i = 0; i < sinal.length; i++) {
+    const y = (b0 * sinal[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0
+    x2 = x1
+    x1 = sinal[i]
+    y2 = y1
+    y1 = y
+    saida[i] = y
+  }
+  return saida
+}
+
+function coeficientesPrateleiraAlta(sampleRate, frequencia, ganhoDb, q) {
+  const A = 10 ** (ganhoDb / 40)
+  const w = 2 * Math.PI * frequencia / sampleRate
+  const cos = Math.cos(w)
+  const alfa = Math.sin(w) / (2 * q)
+  const raiz = 2 * Math.sqrt(A) * alfa
+  return {
+    b0: A * ((A + 1) + (A - 1) * cos + raiz), b1: -2 * A * ((A - 1) + (A + 1) * cos), b2: A * ((A + 1) + (A - 1) * cos - raiz),
+    a0: (A + 1) - (A - 1) * cos + raiz, a1: 2 * ((A - 1) - (A + 1) * cos), a2: (A + 1) - (A - 1) * cos - raiz,
+  }
+}
+
+function coeficientesPassaAlta(sampleRate, frequencia, q) {
+  const w = 2 * Math.PI * frequencia / sampleRate
+  const cos = Math.cos(w)
+  const alfa = Math.sin(w) / (2 * q)
+  return { b0: (1 + cos) / 2, b1: -(1 + cos), b2: (1 + cos) / 2, a0: 1 + alfa, a1: -2 * cos, a2: 1 - alfa }
+}
+
+// Volume percebido em LUFS (ponderação K da ITU-R BS.1770, sem o gate: as faixas são loops sem
+// silêncio). Serve para comparar as faixas entre si.
+export function volumePercebido(canais, sampleRate) {
+  let soma = 0
+  for (const canal of canais) {
+    const filtrado = filtrarComCoeficientes(filtrarComCoeficientes(canal, coeficientesPrateleiraAlta(sampleRate, 1681.97, 4, 0.7072)), coeficientesPassaAlta(sampleRate, 38.135, 0.5003))
+    let quadrados = 0
+    for (let i = 0; i < filtrado.length; i++) quadrados += filtrado[i] * filtrado[i]
+    soma += quadrados / filtrado.length
+  }
+  return -0.691 + 10 * Math.log10(soma || 1e-12)
+}
+
 // Fração da energia de uma nota que NÃO cai na série harmônica de f0: aliasing,
 // ruído e parciais estranhas (o "som de lata" aparece aqui).
 export function inarmonicidade(sinal, sampleRate, f0) {
