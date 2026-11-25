@@ -5,8 +5,10 @@
   gap: 0.35rem;
   padding: 0.25rem 1.5rem 0.25rem 0.35rem;
   border: 0;
+  border: 1px solid rgba(255, 246, 223, 0.28);
   border-radius: var(--radius-sm);
   background: var(--color-card-user);
+  box-shadow: 0 0.35rem 1.25rem rgba(0, 0, 0, 0.18);
   color: var(--color-card-user-text);
   font-family: inherit;
   font-size: clamp(0.9rem, 1.7vw, 1.125rem);
