@@ -101,6 +101,43 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(1500),
   }),
 
+  // ---------------- Baixos dos andares (com harmônicos: aparecem em caixa de notebook) ----------------
+
+  // Serra com passa-baixa em 500 Hz: a nota grave chega ao alto-falante pequeno pelos harmônicos
+  // (2ª, 3ª, 4ª…). No Lá1, 32% da energia fica acima de 150 Hz (no contrabaixo da Vila, 5%), com
+  // o mesmo volume. O contrabaixo de triângulo continua igual para a "A Vila Espera".
+  contrabaixoCheio: instrumento({
+    baseMidi: 36, registro: [28, 55],
+    volume: 0.55, aleatoriedade: 0.003, forma: SERRA,
+    ataque: 0.006, decaimento: 0.22, nivelSustentacao: 0.5, sustentacao: 0.1, soltura: 0.16,
+    filtro: passaBaixa(500),
+  }),
+
+  // Baixo de funk: ataque seco e nota curta (as notas fantasma vêm da atenuação)
+  baixoFunk: instrumento({
+    baseMidi: 36, registro: [28, 55],
+    volume: 0.45, aleatoriedade: 0.002, forma: SERRA, curva: 0.8,
+    ataque: 0.003, decaimento: 0.09, nivelSustentacao: 0.5, sustentacao: 0.06, soltura: 0.08,
+    filtro: passaBaixa(1100),
+  }),
+
+  // Baixo de rock pesado: serra mais cheia de harmônicos (curva > 1) e nota segurada
+  baixoDistorcido: instrumento({
+    baseMidi: 36, registro: [28, 55],
+    volume: 0.4, aleatoriedade: 0.002, forma: SERRA, curva: 1.2,
+    ataque: 0.004, decaimento: 0.12, nivelSustentacao: 0.75, sustentacao: 0.12, soltura: 0.08,
+    filtro: passaBaixa(1300),
+  }),
+
+  // Sub: seno puro embaixo das notas longas do baixo (peso em fone e caixa grande). Só em notas
+  // longas e longe do bumbo; nunca na Cucina (no funk o grave fundo é do bumbo).
+  sub: instrumento({
+    baseMidi: 36, registro: [28, 47],
+    volume: 0.42, aleatoriedade: 0.001, forma: SENO,
+    ataque: 0.02, sustentacao: 0.5, soltura: 0.4,
+    filtro: passaBaixa(140),
+  }),
+
   // ---------------- Teclados ----------------
 
   // Decaimento em duas retas (decay curto + release longo) imita a curva do piano elétrico
@@ -157,6 +194,14 @@ export const INSTRUMENTOS = Object.freeze({
     ataque: 0.38, decaimento: 0.1, nivelSustentacao: 0.9, sustentacao: 1.6, soltura: 0.55,
     repeticao: 0.4, tremolo: 0.1,
     filtro: passaBaixa(2600),
+  }),
+
+  // Clavinete (o teclado do funk): serra curta e nasal, que some logo depois do ataque
+  clavinete: instrumento({
+    baseMidi: 60, registro: [52, 76],
+    volume: 0.14, aleatoriedade: 0.002, forma: SERRA, curva: 0.7,
+    ataque: 0.002, decaimento: 0.05, nivelSustentacao: 0.35, sustentacao: 0.03, soltura: 0.06,
+    filtro: passaBaixa(2000),
   }),
 
   // Baixo de órgão (o pedal do trio de órgão): seno arredondado, curto e redondo
@@ -217,7 +262,7 @@ export const INSTRUMENTOS = Object.freeze({
     baseMidi: 48, registro: [40, 76],
     volume: 0.16, aleatoriedade: 0.003, forma: SERRA, curva: 0.6,
     ataque: 0.004, decaimento: 0.1, nivelSustentacao: 0.78, sustentacao: 0.28, soltura: 0.1,
-    filtro: passaBaixa(2800),
+    filtro: passaBaixa(2300),
   }),
 
   guitarraPalmMute: instrumento({
@@ -329,6 +374,15 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(500),
   }),
 
+  // Bumbo seco: o mesmo bumbo com a cauda curta, para semicolcheias (funk) e bumbo duplo (metal)
+  bumboSeco: instrumento({
+    baseMidi: 45, registro: [45, 62], percussao: true,
+    volume: 0.85, forma: SENO,
+    ataque: 0.003, decaimento: 0.05, nivelSustentacao: 0.3, sustentacao: 0.01, soltura: 0.1,
+    slide: -0.8,
+    filtro: passaBaixa(400),
+  }),
+
   // Corpo em triângulo grave + ruído de fase alto (a esteira). O passa-baixa tira o chiado.
   caixa: instrumento({
     baseMidi: 79, registro: [79, 79], percussao: true,
@@ -388,6 +442,26 @@ export const INSTRUMENTOS = Object.freeze({
     ataque: 0.003, decaimento: 0.04, nivelSustentacao: 0.4, sustentacao: 0.04, soltura: 0.4,
     ruido: 3.5,
     filtro: passaAlta(5000),
+  }),
+
+  // Prato de ataque escuro: ruído largo em volta do Lá6 com passa-baixa (sem o chiado do chimbal),
+  // cauda longa. Só nos acentos de começo de seção.
+  pratoEscuro: instrumento({
+    baseMidi: 93, registro: [93, 93], percussao: true,
+    volume: 0.07, forma: SENO,
+    ataque: 0.003, decaimento: 0.12, nivelSustentacao: 0.45, sustentacao: 0.15, soltura: 1.1,
+    ruido: 9,
+    filtro: passaBaixa(5500),
+  }),
+
+  // Sino (o agogô do 12/8 afro): seno achatado (curva < 1, som oco e metálico) com um pouco de
+  // ruído no ataque, na região do Fá5, sem agudo acima de 2,6 kHz
+  campana: instrumento({
+    baseMidi: 77, registro: [74, 84], percussao: true,
+    volume: 0.12, forma: SENO, curva: 0.6,
+    ataque: 0.002, decaimento: 0.03, nivelSustentacao: 0.3, sustentacao: 0.01, soltura: 0.14,
+    ruido: 0.12,
+    filtro: passaBaixa(2600),
   }),
 
   // Madeira: o "tung" do tronco. Seno oco que cai um pouco de altura, com um toque de ruído

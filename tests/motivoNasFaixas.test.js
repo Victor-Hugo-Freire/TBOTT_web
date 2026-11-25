@@ -106,7 +106,7 @@ describe('variação dentro de cada faixa de andar', () => {
     })
 
     test(`${id}: a bateria muda ao longo da faixa (vários padrões e viradas)`, () => {
-      for (const peca of ['bumbo', 'caixa']) {
+      for (const peca of ['bumbo', 'bumboSeco', 'caixa']) {
         const canal = padroes[0].findIndex((c) => nomes[c[0]] === peca)
         if (canal < 0) continue
         const padroesDistintos = new Set(padroes.map((padrao) => padrao[canal].slice(2).map((nota) => (nota > 0 ? Math.floor(nota) : 0)).join(',')))
