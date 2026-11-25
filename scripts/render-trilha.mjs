@@ -1,7 +1,7 @@
 // Renderiza as faixas da trilha em WAV e imprime as medições de cada uma.
 //
-//   npm run trilha:render                      todas as faixas
-//   npm run trilha:render -- --so a-vila-espera  só uma faixa (pode repetir --so)
+//   npm run trilha:render                      todas as faixas compostas (faixas.js)
+//   npm run trilha:render -- --so andar-cantina  só uma faixa (pode repetir --so)
 //   npm run trilha:render -- --canais           também mede cada canal sozinho
 //   npm run trilha:render -- --instrumentos     mede os timbres da biblioteca
 //
@@ -17,7 +17,8 @@ import { generateZzfxMusicSamples } from '../src/audio/zzfxmExperimental.js'
 import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../src/audio/zzfxExperimental.js'
 import { prepararCanaisDaMusica, CADEIA_DO_MASTER } from '../src/audio/masterizacao.js'
 import { INSTRUMENTOS, midiParaFrequencia } from '../src/audio/music/instrumentos.js'
-import { VILA_ESPERA_SONG, VILA_ESPERA_META, VILA_ESPERA_INSTRUMENTOS } from '../src/audio/music/vila-espera.js'
+import { FAIXAS as REGISTRO, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
+import { INSTRUMENTOS_DAS_MUSICAS, obterMusica } from '../src/audio/music/musicas.js'
 import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
 import { aplicarCadeiaDoMaster, distribuicaoEspectral, inarmonicidade, medirFaixa, mono, salvarWav } from './trilha/analise.mjs'
 
@@ -38,14 +39,47 @@ function fixarAleatorio(semente = 20261125) {
 // Índices de instrumento que são bateria (ficam de fora da medição "só instrumentos de altura")
 const percussaoDe = (nomes) => nomes.flatMap((nome, indice) => (INSTRUMENTOS[nome].percussao ? [indice] : []))
 
-const FAIXAS = [
-  {
-    id: 'a-vila-espera',
-    song: VILA_ESPERA_SONG,
-    reverb: VILA_ESPERA_META.reverb ?? CADEIA_DO_MASTER.reverbPadrao,
-    percussao: percussaoDe(VILA_ESPERA_INSTRUMENTOS),
-  },
-]
+const FAIXAS = FAIXAS_COMPOSTAS.map((id) => ({
+  id,
+  song: obterMusica(id),
+  reverb: REGISTRO[id].reverb ?? CADEIA_DO_MASTER.reverbPadrao,
+  instrumentos: INSTRUMENTOS_DAS_MUSICAS[id],
+  percussao: percussaoDe(INSTRUMENTOS_DAS_MUSICAS[id]),
+}))
+
+// Densidade de notas na região dos efeitos sonoros (fundamental entre 100 e 650 Hz), só dos
+// instrumentos de altura: ataques por segundo na média e no compasso mais cheio
+const REGIAO_DOS_EFEITOS = [100, 650]
+function densidadeNaRegiaoDosEfeitos(song, nomes) {
+  const [instrumentos, padroes, sequencia, bpm] = song
+  const passoEmSegundos = ((SAMPLE_RATE / bpm * 60) >> 2) / SAMPLE_RATE
+  let total = 0
+  let maximo = 0
+  let duracao = 0
+  for (const indice of sequencia) {
+    const padrao = padroes[indice]
+    const passos = padrao[0].length - 2
+    duracao += passos * passoEmSegundos
+    let noCompasso = 0
+    for (const canal of padrao) {
+      const nome = nomes[canal[0]]
+      if (INSTRUMENTOS[nome].percussao) continue
+      const base = instrumentos[canal[0]][2]
+      for (const nota of canal.slice(2)) {
+        if (!nota || nota <= 0) continue
+        const frequencia = base * 2 ** (((nota | 0) - 12) / 12)
+        if (frequencia >= REGIAO_DOS_EFEITOS[0] && frequencia <= REGIAO_DOS_EFEITOS[1]) noCompasso++
+      }
+    }
+    total += noCompasso
+    maximo = Math.max(maximo, noCompasso / (passos * passoEmSegundos))
+  }
+  return { mediaPorSegundo: total / duracao, maximoPorSegundo: maximo }
+}
+
+function imprimirDensidade(densidade) {
+  console.log(`  ataques de notas entre ${REGIAO_DOS_EFEITOS[0]} e ${REGIAO_DOS_EFEITOS[1]} Hz (região dos efeitos): ${numero(densidade.mediaPorSegundo, 2)}/s na média, ${numero(densidade.maximoPorSegundo, 2)}/s no compasso mais cheio`)
+}
 
 // Na versão antiga: madeira, kick, caixa, ride e chimbal
 const PERCUSSAO_ANTIGA = [4, 5, 6, 7, 8]
@@ -175,6 +209,7 @@ for (const faixa of FAIXAS) {
 
   imprimirMedicoes(`${faixa.id} (saída do worker; soma bruta dos canais com pico ${picoBruto.toFixed(2)})`, medirFaixa(seco, SAMPLE_RATE))
   imprimirSemBateria(espectroSemBateria(faixa.song, faixa.percussao))
+  imprimirDensidade(densidadeNaRegiaoDosEfeitos(faixa.song, faixa.instrumentos))
   imprimirMedicoes(`${faixa.id} (depois da cadeia do master, reverb ${Math.round(faixa.reverb * 100)}%)`, medirFaixa(final, SAMPLE_RATE))
   if (medirCanais) imprimirCanais(faixa.song, 0.89 / picoBruto)
 }

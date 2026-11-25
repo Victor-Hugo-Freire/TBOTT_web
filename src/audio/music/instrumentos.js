@@ -31,7 +31,8 @@
 //   A nota 12 de cada instrumento é a frequência de baseMidi (um Dó nos instrumentos de
 //   altura; na bateria é a altura do som principal). As linhas são
 //   escritas em altura real ('D4') e convertidas com notaDoInstrumento(). `registro` é a
-//   faixa de alturas (MIDI) em que o timbre soa bem; os testes conferem as músicas contra ela.
+//   faixa de alturas escritas (MIDI, antes da `transposicao`) em que o timbre soa bem; os testes
+//   conferem as músicas contra ela.
 
 export const midiParaFrequencia = (midi) => 440 * 2 ** ((midi - 69) / 12)
 
@@ -161,7 +162,7 @@ export const INSTRUMENTOS = Object.freeze({
   // ---------------- Guitarras ----------------
 
   guitarraJazz: instrumento({
-    baseMidi: 48, registro: [40, 76],
+    baseMidi: 48, registro: [40, 81],
     volume: 0.3, aleatoriedade: 0.003, forma: TRIANGULO,
     ataque: 0.004, decaimento: 0.18, nivelSustentacao: 0.4, sustentacao: 0.1, soltura: 0.24,
     filtro: passaBaixa(2500),
@@ -196,7 +197,7 @@ export const INSTRUMENTOS = Object.freeze({
   }),
 
   saxBaritono: instrumento({
-    baseMidi: 36, registro: [36, 64],
+    baseMidi: 36, registro: [33, 64],
     volume: 0.16, aleatoriedade: 0.003, forma: SERRA,
     ataque: 0.03, decaimento: 0.08, nivelSustentacao: 0.8, sustentacao: 0.2, soltura: 0.12,
     ruido: 0.02,
@@ -218,7 +219,7 @@ export const INSTRUMENTOS = Object.freeze({
   }),
 
   trombone: instrumento({
-    baseMidi: 48, registro: [40, 70],
+    baseMidi: 48, registro: [34, 70],
     volume: 0.17, aleatoriedade: 0.003, forma: SERRA,
     ataque: 0.045, decaimento: 0.08, nivelSustentacao: 0.85, sustentacao: 0.18, soltura: 0.14,
     filtro: passaBaixa(1400),
