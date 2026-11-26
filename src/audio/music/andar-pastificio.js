@@ -14,8 +14,9 @@
 //   Tema A (o riff): a célula do Tung (Si – Ré – Mi – Ré – Si em Mi) em power chords, com o ritmo
 //   longo-curto da grade reta (passos 0, 3, 4, 7 e 8), como uma prensa; ela sobe para o Lá e volta com
 //   outro fim. Os compassos de resposta são galopes no palm mute com os acordes frígios por cima.
-//   A guitarra solo (Verso e Riff C): o DNA aprovado antes, o tresillo 3+3+2 em semicolcheias com o
-//   cromatismo Mi – Fá e Si♭ – Si; no Riff C, duas guitarras em terças respondem ao riff.
+//   A guitarra solo (Verso e Riff C): o galope em cromatismo (Mi – Fá – Mi, Si♭ – Si) e o tresillo
+//   3+3+2 (o DNA aprovado antes), por cima do tresillo da base; no Riff C, duas guitarras em quintas
+//   paralelas respondem ao riff.
 //   Tema B (a ponte): a célula em valores longos no órgão (Si – Ré – Mi – Ré – Si) e o suspiro frígio
 //   Dó → Si no fim.
 //   A "máquina": palm mute no Mi2 (82 Hz), que liga, galopa, para e volta.
@@ -25,14 +26,14 @@
 // FORMA (50 compassos, ~97 s; editar em FORMA)
 //   Partida (4)  a máquina liga sozinha, em crescendo, com o chimbal; virada no fim
 //   Riff A  (8)  o riff da célula e as respostas em galope (E5–F5, G5–F5, A5–B♭5); bumbo seguindo a
-//                guitarra
+//                guitarra, ride em semínimas
 //   Verso   (8)  E5 – F5 – G5 – F5 – E5 – F5 – A5 – B♭5 em tresillo (palm mute, baixo e bumbo juntos)
 //                e a guitarra solo por cima; prato escuro a cada 4 compassos
 //   Riff B  (8)  o riff uma oitava acima, a máquina em semicolcheias; virada grande de tons no fim
 //   Ponte   (8)  meio-tempo (caixa no 3): a descida cromática, o órgão canta a célula alongada
 //   Parada  (6)  a fábrica para: só o baixo (com o sub), a máquina em marcha lenta e o tung-tung-tung
 //                respondido pela prensa; rulo de caixa em crescendo no fim
-//   Riff C  (8)  o riff no grave, duas guitarras em terças nas respostas, bumbo duplo: o ponto mais
+//   Riff C  (8)  o riff no grave, duas guitarras em quintas nas respostas, bumbo duplo: o ponto mais
 //                alto; termina em F5 → (E5 da Partida)
 //   Energia: Partida baixa → Riff A média → Verso média → Riff B alta → Ponte média → Parada a mais
 //   baixa → Riff C a mais alta → (Partida)
@@ -49,7 +50,7 @@
 //
 // ONDE AJUSTAR
 //   FORMA · RIFF (onde a célula entra e como termina) · RESPOSTAS (acordes das respostas) · MAQUINA ·
-//   SOLO e TERCAS (guitarra solo) · CANTO (órgão) · BAIXO · GROOVES · DINAMICA · TUNG
+//   SOLO e QUINTAS (guitarra solo) · CANTO (órgão) · BAIXO · GROOVES · DINAMICA · TUNG
 
 import { bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
 
@@ -62,7 +63,7 @@ const FORMA = Object.freeze([
   { nome: 'Riff B', papel: 'o riff uma oitava acima, máquina em semicolcheias', harmonia: RIFF_E_RESPOSTAS },
   { nome: 'Ponte', papel: 'meio-tempo, a descida cromática e o órgão', harmonia: ['C5', 'B5', 'Bb5', 'A5', 'G5', 'F5', 'E5', 'E5'] },
   { nome: 'Parada', papel: 'a fábrica para: tung-tung-tung e a prensa', harmonia: ['E5', 'E5', 'E5', 'E5', 'E5', 'E5'] },
-  { nome: 'Riff C', papel: 'o riff no grave, guitarras em terças, bumbo duplo', harmonia: RIFF_E_RESPOSTAS },
+  { nome: 'Riff C', papel: 'o riff no grave, guitarras em quintas, bumbo duplo', harmonia: RIFF_E_RESPOSTAS },
 ])
 
 const COMPASSOS = expandirForma(FORMA)
@@ -89,7 +90,7 @@ const GRADE = criarGrade(PASTIFICIO_META.passosPorTempo, PASTIFICIO_META.temposP
 
 export const PASTIFICIO_INSTRUMENTOS = Object.freeze([
   'baixoDistorcido', 'sub', 'guitarraPalmMute', 'guitarraCrunch', 'orgaoSustentado',
-  'bumboSeco', 'caixa', 'caixaCorpo', 'chimbal', 'pratoEscuro', 'madeira',
+  'bumboSeco', 'caixa', 'caixaCorpo', 'chimbal', 'ride', 'pratoEscuro', 'madeira',
 ])
 
 const VOZ = Object.freeze({
@@ -98,8 +99,10 @@ const VOZ = Object.freeze({
   maquina: voz('guitarraPalmMute', 'riff', { semente: 52 }),
   fundamental: voz('guitarraCrunch', 'riff', { semente: 53 }),
   quinta: voz('guitarraCrunch', 'riff', { semente: 54 }),
+  golpeFundamental: voz('guitarraCrunch', 'riff', { semente: 61 }),
+  golpeQuinta: voz('guitarraCrunch', 'riff', { semente: 62 }),
   solo: voz('guitarraCrunch', 'melodia', { semente: 59 }),
-  tercas: voz('guitarraCrunch', 'melodia', { semente: 60 }),
+  quintas: voz('guitarraCrunch', 'melodia', { semente: 60 }),
   orgaoCanto: voz('orgaoSustentado', 'melodia', { semente: 56 }),
 })
 
@@ -139,9 +142,11 @@ const RIFF = Object.freeze({
   'Riff C': { 0: 40, 2: 40, 4: 45, 6: 40 },
 })
 
-function powerChord(intervalo, v) {
+// O riff: a célula em power chords (fundamental e quinta em canais separados), só nos compassos de
+// célula
+function riff(intervalo, v) {
   return (compasso) => {
-    const { secao, indice, acorde } = COMPASSOS[compasso]
+    const { secao, indice } = COMPASSOS[compasso]
     const tonica = RIFF[secao]?.[indice]
     const oitava = secao === 'Riff B' ? 12 : 0
     if (tonica === 'fim') {
@@ -149,7 +154,16 @@ function powerChord(intervalo, v) {
       const lista = [[0, 47], [3, 50], [4, 52], [7, 50], [8, 43]].map(([passo, midi]) => ({ passo, midi: midi + oitava + intervalo }))
       return notas(lista, v, compasso, GRADE)
     }
-    if (tonica) return celula(tonica + intervalo, v, compasso, GRADE)
+    return tonica ? celula(tonica + intervalo, v, compasso, GRADE) : null
+  }
+}
+
+// Os golpes de power chord (acompanhamento): as respostas dos riffs, o verso e a ponte
+function powerChord(intervalo, v) {
+  return (compasso) => {
+    const { secao, indice, acorde } = COMPASSOS[compasso]
+    if (RIFF[secao]?.[indice]) return null
+    const oitava = secao === 'Riff B' ? 12 : 0
     const [primeiro, segundo] = acorde.split(' ')
     let lista
     if (SECOES_DE_RIFF.has(secao)) lista = segundo ? [[0, primeiro], [8, segundo]] : [[0, primeiro], [10, primeiro]]
@@ -194,27 +208,32 @@ function maquina(compasso) {
 }
 
 // --------------------------------------------------
-// GUITARRA SOLO: o tresillo com cromatismo no Verso; as terças do Riff C (duas guitarras respondendo
-// ao riff nos compassos sem a célula)
+// GUITARRA SOLO: no Verso, o galope (colcheia e duas semicolcheias) em cromatismo que cai uma quarta ou
+// uma quinta (as fundamentais dos power chords) na primeira metade e
+// o tresillo grande na segunda (três semínimas pontuadas por compasso, passos 0, 6 e 12), por cima do
+// tresillo da base (o "rangido" frígio Mi – Fá – Mi, a bordadura
+// cromática e a descida Ré – Ré♭ – Dó – Si); no Riff C, duas guitarras em quintas paralelas no tresillo
+// grande, respondendo ao riff nos compassos sem a célula
 // --------------------------------------------------
 
 const SOLO = Object.freeze([
-  'E4 . . F4 | . . E4 . | B3 . . . | . . . .',
-  'F4 . . G4 | . . F4 . | C4 . . . | . . . .',
-  'G4 . . A4 | . . B4 . | D5 . . . | . . . .',
-  'C5 . . B4 | . . A4 . | F4 . . . | . . . .',
-  'E4 . . F4 | . . E4 . | B3 . . . | . . . B3',
-  'F4 . . E4 | . . F4 . | A4 . . . | . . . .',
-  'A4 . . B4 | . . C5 . | E5 . . . | . . . .',
-  'D5 . . C5 | . . Bb4 . | . . B4 . | . . . .',
+  'E4 . F4 E4 | B3 . . . | E4 . F4 E4 | A3 . . .',
+  'F4 . Gb4 F4 | C4 . . . | F4 . Gb4 F4 | Bb3 . . .',
+  'G4 . Ab4 G4 | D4 . . . | G4 . Ab4 G4 | C5 . . .',
+  'C5 . B4 Bb4 | F4 . . . | A4 . Ab4 G4 | E4 . . .',
+  'E4 . . . | . . F4 . | . . . . | E4 . . .',
+  'F4 . . . | . . Gb4 . | . . . . | F4 . . .',
+  'A4 . . . | . . Bb4 . | . . . . | A4 . . .',
+  'D5 . . . | . . Db5 . | . . . . | C5 . B4 .',
 ])
 
-// Riff C: [guitarra de cima, guitarra de baixo (uma terça abaixo, no frígio)] por compasso de resposta
-const TERCAS = Object.freeze({
-  1: ['E4 . . F4 | . . G4 . | F4 . . E4 | . . . .', 'C4 . . D4 | . . E4 . | D4 . . C4 | . . . .'],
-  3: ['G4 . . A4 | . . B4 . | A4 . . G4 | . . . .', 'E4 . . F4 | . . G4 . | F4 . . E4 | . . . .'],
-  5: ['A4 . . B4 | . . C5 . | D5 . . . | . . . .', 'F4 . . G4 | . . A4 . | Bb4 . . . | . . . .'],
-  7: ['C5 . . B4 | . . A4 . | G4 . . F4 | . . . .', 'A4 . . G4 | . . F4 . | E4 . . D4 | . . . .'],
+// Riff C: [guitarra de cima, guitarra de baixo (uma quinta abaixo, em paralelo)] por compasso de
+// resposta: as duas andam por semitom, como um power chord que vira melodia
+const QUINTAS = Object.freeze({
+  1: ['E4 . . . | . . F4 . | . . . . | E4 . F4 .', 'A3 . . . | . . Bb3 . | . . . . | A3 . Bb3 .'],
+  3: ['G4 . . . | . . Ab4 . | . . . . | G4 . F#4 .', 'C4 . . . | . . Db4 . | . . . . | C4 . B3 .'],
+  5: ['A4 . . . | . . Bb4 . | . . . . | B4 . C5 .', 'D4 . . . | . . Eb4 . | . . . . | E4 . F4 .'],
+  7: ['C5 . . . | . . B4 . | . . . . | Bb4 . A4 .', 'F4 . . . | . . E4 . | . . . . | Eb4 . D4 .'],
 })
 
 function solo(indiceDaVoz) {
@@ -222,9 +241,9 @@ function solo(indiceDaVoz) {
     const { secao, indice } = COMPASSOS[compasso]
     let texto = null
     if (secao === 'Verso' && indiceDaVoz === 0) texto = SOLO[indice]
-    if (secao === 'Riff C' && TERCAS[indice]) texto = TERCAS[indice][indiceDaVoz]
+    if (secao === 'Riff C' && QUINTAS[indice]) texto = QUINTAS[indice][indiceDaVoz]
     if (!texto) return null
-    return zerarOFim(linha(texto, indiceDaVoz === 0 ? VOZ.solo : VOZ.tercas, compasso, GRADE), compasso)
+    return zerarOFim(linha(texto, indiceDaVoz === 0 ? VOZ.solo : VOZ.quintas, compasso, GRADE), compasso)
   }
 }
 
@@ -288,10 +307,11 @@ const BUMBO = Object.freeze({ K: 12.42, k: 12.55, d: 12.62, l: 19.25, m: 22.3, h
 const CAIXA = Object.freeze({ X: 12.2, x: 12.44, g: 12.8, r: 12.64 })
 const CAIXA_CORPO = Object.freeze({ X: 12, x: 12.3, g: 12.9, r: 12.75 })
 const CHIMBAL = Object.freeze({ X: 12.3, x: 12.5, s: 12.68 })
+const RIDE = Object.freeze({ X: 12.64, x: 12.76 })
 const PRATO = Object.freeze({ P: 12.1, p: 12.3 })
 
 // Intensidade da bateria por seção (atenuação somada; 0 = cheia)
-const DINAMICA = Object.freeze({ Partida: 0.2, 'Riff A': 0.05, Verso: 0.06, 'Riff B': 0, Ponte: 0.08, Parada: 0.1, 'Riff C': 0 })
+const DINAMICA = Object.freeze({ Partida: 0.2, 'Riff A': 0.05, Verso: 0.1, 'Riff B': 0, Ponte: 0.08, Parada: 0.1, 'Riff C': 0 })
 
 const ehCelula = (secao, i) => Boolean(RIFF[secao]?.[i])
 
@@ -328,10 +348,13 @@ const GROOVES = Object.freeze({
   },
   chimbal: {
     Partida: () => 'X . x . | X . x . | X . x . | X . x .',
-    'Riff A': () => 'X . x . | X . x . | X . x . | X . x .',
     Verso: () => 'X . . . | X . . . | X . . . | X . . .',
     'Riff B': () => 'X s x s | X s x s | X s x s | X s x s',
-    'Riff C': () => 'X . x . | X . x . | X . x . | X . x .',
+  },
+  // Ride em semínimas nos riffs A e C: a levada do metal, por cima do galope
+  ride: {
+    'Riff A': () => 'X . . . | x . . . | X . . . | x . . .',
+    'Riff C': () => 'X . . . | X . . . | X . . . | X . . .',
   },
   prato: {
     'Riff A': (i) => (i === 0 ? 'P . . . | . . . . | . . . . | . . . .' : null),
@@ -365,15 +388,18 @@ const CANAIS = [
   ['baixoDistorcido', 0, baixo],
   ['sub', 0, sub],
   ['guitarraPalmMute', -0.25, maquina],
-  ['guitarraCrunch', -0.3, powerChord(0, VOZ.fundamental)],
-  ['guitarraCrunch', 0.3, powerChord(7, VOZ.quinta)],
+  ['guitarraCrunch', -0.3, riff(0, VOZ.fundamental)],
+  ['guitarraCrunch', 0.3, riff(7, VOZ.quinta)],
   ['guitarraCrunch', 0.16, solo(0)],
   ['guitarraCrunch', -0.16, solo(1)],
+  ['guitarraCrunch', -0.3, powerChord(0, VOZ.golpeFundamental)],
+  ['guitarraCrunch', 0.3, powerChord(7, VOZ.golpeQuinta)],
   ['orgaoSustentado', 0.12, orgaoCanto],
   ['bumboSeco', 0, peca('bumbo', BUMBO)],
   ['caixa', 0, peca('caixa', CAIXA)],
   ['caixaCorpo', 0, peca('caixa', CAIXA_CORPO)],
   ['chimbal', -0.18, peca('chimbal', CHIMBAL)],
+  ['ride', 0.22, peca('ride', RIDE)],
   ['pratoEscuro', 0.2, peca('prato', PRATO)],
   ['madeira', 0.08, madeira],
 ]
@@ -401,5 +427,6 @@ export const PASTIFICIO_MOTIVO = Object.freeze({
 })
 
 // Vozes de melodia (cada voz: os canais [instrumento, ordem] que formam uma linha), para a análise
-// melódica (analiseMelodica.js): o riff, a guitarra solo, as terças e o órgão da ponte
+// melódica (analiseMelodica.js): o riff da célula, a guitarra solo, as quintas e o órgão da ponte (os
+// golpes de power chord são acompanhamento e ficam de fora)
 export const PASTIFICIO_MELODIA = Object.freeze([[['guitarraCrunch', 0]], [['guitarraCrunch', 2]], [['guitarraCrunch', 3]], [['orgaoSustentado', 0]]])
