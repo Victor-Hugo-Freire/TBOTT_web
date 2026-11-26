@@ -120,7 +120,7 @@ const SAVE_INTERVAL_MS = 5000
 // Passo máximo do jogo num quadro: depois de uma pausa longa (aba escondida), nada dá um salto
 const MAX_STEP_MS = 100
 
-// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui (só no aviso de fim da run)
+// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui (só nos botões do aviso de erro ao carregar)
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
 
 // Texto do aviso de fim conforme o resultado (vitória ou morte) e o envio à API.
@@ -183,7 +183,6 @@ export default function SalaInicial() {
     description: 'Personagem principal do jogo.',
   }
 
-  // O aviso de fim já abre com o foco no "Voltar ao menu" (e volta para ele a cada mudança do envio)
   useEffect(() => {
     endingStateRef.current = ending
   }, [ending])
@@ -192,24 +191,32 @@ export default function SalaInicial() {
     loadErrorRef.current = loadError
   }, [loadError])
 
+  // O aviso de fim é só de teclado (a dica das teclas aparece nele). Enquanto o resultado está sendo enviado,
+  // nada sai da sala: o menu leria o progresso antes de a API apagá-lo. Depois:
+  // - Esc volta ao menu;
+  // - Espaço ou Enter: se o envio falhou, tenta enviar de novo (vitória ou derrota); se a derrota já foi enviada,
+  //   começa uma nova run. Na vitória enviada, só o Esc (o tempo já está no ranking).
   useEffect(() => {
     if (!ending) return
 
     function handleEndingKey(event) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || event.repeat) return
+      if (ending.status === 'sending') return
 
       if (event.key === 'Escape') {
-        if (ending.status === 'sending') return
         event.preventDefault()
         navigate(ROUTES.menuPrincipal)
         return
       }
 
-      if (ending.outcome !== 'defeat' || (event.key !== 'Enter' && event.key !== ' ')) return
-      if (ending.status === 'sending') return
-
-      event.preventDefault()
-      restartRef.current?.()
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      if (ending.status === 'error') {
+        event.preventDefault()
+        retryRef.current?.()
+      } else if (ending.outcome === 'defeat') {
+        event.preventDefault()
+        restartRef.current?.()
+      }
     }
 
     window.addEventListener('keydown', handleEndingKey)
@@ -931,9 +938,19 @@ export default function SalaInicial() {
             )}
             <p className="sala-inicial__fim-tempo">{ending.time}</p>
             <p className="sala-inicial__fim-mensagem" role="status">{getEndingMessage(ending)}</p>
-            {ending.outcome === 'defeat' && ending.status !== 'sending' && (
+            {ending.status !== 'sending' && (
               <p className="sala-inicial__fim-controles">
-                <kbd>Espaço</kbd> ou <kbd>Enter</kbd> inicia uma nova run · <kbd>Esc</kbd> volta ao menu
+                {ending.status === 'error' && (
+                  <>
+                    <kbd>Espaço</kbd> ou <kbd>Enter</kbd> tenta enviar de novo ·{' '}
+                  </>
+                )}
+                {ending.status === 'sent' && ending.outcome === 'defeat' && (
+                  <>
+                    <kbd>Espaço</kbd> ou <kbd>Enter</kbd> inicia uma nova run ·{' '}
+                  </>
+                )}
+                <kbd>Esc</kbd> volta ao menu
               </p>
             )}
           </section>

@@ -34,6 +34,8 @@ export default function Ranking() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Ao abrir, o foco vai para o botão de voltar. O atalho de teclado só lê refs, então o efeito roda uma vez:
+  // com dependências (ex.: isLoading), ele rodaria de novo a cada "Carregar mais" e o foco voltaria ao "Voltar".
   useEffect(() => {
     backRef.current?.focus()
 
@@ -63,7 +65,7 @@ export default function Ranking() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hasMore, isLoading])
+  }, [])
 
   // Busca a página atual. Ao pedir "carregar mais", o efeito roda de novo.
   useEffect(() => {
@@ -151,8 +153,11 @@ export default function Ranking() {
               ref={moreRef}
               type="button"
               className="ranking__mais"
-              disabled={isLoading}
-              onClick={() => setRequest((previous) => ({ offset: entries.length, attempt: previous.attempt + 1 }))}
+              // aria-disabled (e não disabled): um botão desabilitado perde o foco, e quem usa o teclado voltaria ao começo
+              aria-disabled={isLoading}
+              onClick={() => {
+                if (!isLoading) setRequest((previous) => ({ offset: entries.length, attempt: previous.attempt + 1 }))
+              }}
             >
               {isLoading ? 'Carregando...' : 'Carregar mais'}
             </button>

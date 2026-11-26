@@ -125,11 +125,11 @@
   cursor: pointer;
 }
 
-.ranking__mais:hover:not(:disabled) {
+.ranking__mais:hover:not([aria-disabled='true']) {
   background: var(--color-surface-alt);
 }
 
-.ranking__mais:disabled {
+.ranking__mais[aria-disabled='true'] {
   opacity: 0.6;
   cursor: progress;
 }

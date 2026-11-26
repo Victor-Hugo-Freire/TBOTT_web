@@ -42,7 +42,7 @@ src/
   routes/            AppRoutes.jsx (lista de rotas) e paths.js (endereço de cada tela)
   pages/             uma pasta por tela, com nome em português (JSX + CSS)
     Inicial/         tela inicial; scene/ desenha a cena animada no canvas
-    MenuPrincipal/   menu principal e telas provisórias (MenuDestino)
+    MenuPrincipal/   menu principal
     Opcoes/          volumes, tela cheia e controles do jogo
     sessaoPersonagem/ seleção de personagem: carrossel com os personagens vindos da API
     SalaInicial/     o jogo em canvas (a pasta mantém o nome antigo); scene/ desenha tudo:
@@ -254,7 +254,7 @@ Obstáculo quebrado não volta quando o jogador sai e entra de novo na sala; o g
 - Cada golpe conta uma batida e escreve "TUNG" acima dele (TUNG, TUNG TUNG, TUNG TUNG TUNG).
 - Na 3ª batida a tela escurece, o próximo andar é gerado e o jogador surge no centro da sala inicial, com a faixa do andar.
 - No andar 5, a run termina em vitória: o contador para, o progresso é salvo uma última vez e o jogo envia `POST /api/runs` com o personagem, o tempo (`durationMs`) e `status: 'victory'`. A API grava a run e apaga o progresso. Depois disso a sala não salva mais nada.
-- Um aviso aparece sobre a tela escura: "Fim da run", o tempo e o estado do envio. Se o envio falhar, aparece a opção estilizada de tentar novamente. O progresso continua salvo, marcado como run encerrada, e o Continue reabre esse aviso (a run não pode ser jogada de novo nem enviada duas vezes sozinha). Enquanto o resultado está sendo enviado, `Esc` e os atalhos de nova run não saem da sala (o menu leria o progresso antes de a API apagá-lo).
+- Um aviso aparece sobre a tela escura: "Fim da run" (ou "Você morreu"), o tempo, o estado do envio e a dica das teclas. O aviso é só de teclado: `Esc` volta ao menu; se o envio falhar, `Espaço` ou `Enter` tentam enviar de novo; na derrota já enviada, `Espaço` ou `Enter` começam uma nova run. Com o envio falhando, o progresso continua salvo, marcado como run encerrada, e o Continue reabre esse aviso (a run não pode ser jogada de novo nem enviada duas vezes sozinha). Enquanto o resultado está sendo enviado, nenhuma tecla sai da sala (o menu leria o progresso antes de a API apagá-lo).
 - Abrir `/jogo` sem partida salva (por exemplo, depois do fim da run) volta para o menu, em vez de começar uma partida que ninguém pediu.
 
 **Vida e morte** (`src/utils/health.js`, `run.js` e `player.js`)

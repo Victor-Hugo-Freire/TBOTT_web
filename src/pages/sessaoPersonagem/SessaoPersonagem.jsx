@@ -40,6 +40,7 @@ export default function SessaoPersonagem() {
   const backRef = useRef(null)
   const userRef = useRef(null)
   const mainRef = useRef(null)
+  const startRef = useRef(null) // "Começar Jogo": o foco volta para ele quando o aviso de substituir fecha
   const [characters, setCharacters] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedCharacterId, setSelectedCharacterId] = useState(null)
@@ -128,6 +129,7 @@ export default function SessaoPersonagem() {
       if (event.key === 'Escape') {
         event.preventDefault()
         setShowOverwriteDialog(false)
+        startRef.current?.focus()
         return
       }
 
@@ -336,6 +338,7 @@ export default function SessaoPersonagem() {
         </section>
 
         <button
+          ref={startRef}
           type="button"
           className="sessao-personagem__inicio"
           disabled={!selectedCharacter}
@@ -354,7 +357,10 @@ export default function SessaoPersonagem() {
               <button
                 type="button"
                 className="sessao-personagem__dialog-cancelar"
-                onClick={() => setShowOverwriteDialog(false)}
+                onClick={() => {
+                  setShowOverwriteDialog(false)
+                  startRef.current?.focus()
+                }}
                 autoFocus
               >
                 Cancelar

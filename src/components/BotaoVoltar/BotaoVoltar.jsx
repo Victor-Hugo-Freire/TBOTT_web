@@ -11,11 +11,11 @@ export default function BotaoVoltar({ ref, label, className = '', onClick }) {
       if (event.key !== 'Escape' || event.repeat) return
       if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return
 
-      const target = event.target
-      if (target instanceof HTMLElement) {
-        if (target.closest('[role="dialog"], [role="alertdialog"]')) return
-        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
-      }
+      // Num modal sem seta de voltar própria (ex.: "Substituir partida salva?" na seleção), o Esc é do modal.
+      // As Opções da pausa também são um modal, mas têm esta seta: lá o Esc volta para a pausa.
+      // O Esc vale também com o foco num campo (o volume é um <input>), como nas outras telas.
+      const dialog = event.target instanceof Element ? event.target.closest('[role="dialog"], [role="alertdialog"]') : null
+      if (dialog && !dialog.querySelector('.botao-voltar')) return
 
       onClick()
     }
