@@ -18,13 +18,13 @@ import { generateZzfxMusicSamples } from '../src/audio/zzfxmExperimental.js'
 import { generateZzfxSamples, ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../src/audio/zzfxExperimental.js'
 import { CADEIA_DO_MASTER, prepararFaixa } from '../src/audio/masterizacao.js'
 import { INSTRUMENTOS, midiParaFrequencia } from '../src/audio/music/instrumentos.js'
-import { FAIXAS as REGISTRO, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
+import { FAIXAS as REGISTRO, FAIXAS_COMPOSTAS, ganhoDoNivel } from '../src/audio/music/faixas.js'
 import { HARMONIAS_DAS_MUSICAS, INSTRUMENTOS_DAS_MUSICAS, MELODIAS_DAS_MUSICAS, METAS_DAS_MUSICAS, MOTIVOS_DAS_MUSICAS, obterFaixa, obterMusica, SECOES_DAS_MUSICAS } from '../src/audio/music/musicas.js'
 import { chavesDaCelula, distanciaMelodica, impressaoMelodica } from '../src/audio/music/analiseMelodica.js'
 import { BAIXOS, distanciaDeLevada, distanciaHarmonica, estatisticasDoBaixo, impressaoDaLevada, impressaoHarmonica, metricaDe, perfilDaMelodia, unissonosPorMinuto, viradasNasPassagens } from '../src/audio/music/analiseDosAndares.js'
 import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
 import { ENTRADA_DO_CORPO } from '../src/audio/fonteComIntro.js'
-import { aplicarCadeiaDoMaster, distribuicaoEspectral, energiaAcimaDe, energiaPonderada, energiaPorBanda, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav, volumePercebido } from './trilha/analise.mjs'
+import { aplicarCadeiaDoMaster, bandasDeEnergia, distribuicaoEspectral, energiaAcimaDe, energiaPonderada, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav, volumePercebido } from './trilha/analise.mjs'
 
 const SAMPLE_RATE = ZZFX_EXPERIMENTAL_SAMPLE_RATE
 const PASTA = join(fileURLToPath(new URL('..', import.meta.url)), 'tmp', 'trilha')
@@ -266,13 +266,14 @@ for (const faixa of FAIXAS) {
   imprimirMedicoes(`${faixa.id} (corpo em loop, saída do worker; soma bruta dos canais com pico ${picoBruto.toFixed(2)})`, medirFaixa(seco, SAMPLE_RATE))
   imprimirSemBateria(espectroSemBateria(faixa.song, faixa.percussao))
   imprimirDensidade(densidadeNaRegiaoDosEfeitos(faixa.song, faixa.instrumentos))
-  const final = aplicarCadeiaDoMaster(seco, SAMPLE_RATE, faixa.reverb)
+  // Como no jogo: o nível da faixa (faixas.js) entra antes da cadeia do master
+  const nivel = ganhoDoNivel(faixa.id)
+  const final = aplicarCadeiaDoMaster(seco.map((canal) => canal.map((valor) => valor * nivel)), SAMPLE_RATE, faixa.reverb)
   imprimirMedicoes(`${faixa.id} (corpo em loop, depois da cadeia do master, reverb ${Math.round(faixa.reverb * 100)}%)`, medirFaixa(final, SAMPLE_RATE))
   imprimirEnergiaPorSecao(faixa, final)
   if (METAS_DAS_MUSICAS[faixa.id]) {
     EQUILIBRIO[faixa.id] = {
-      bandas: energiaPorBanda(mono(final), SAMPLE_RATE),
-      peloOuvido: energiaPorBanda(mono(final), SAMPLE_RATE, { peloOuvido: true }),
+      ...(({ energia, peloOuvido }) => ({ bandas: energia, peloOuvido }))(bandasDeEnergia(mono(final), SAMPLE_RATE)),
       baixoNoNotebook: energiaAcimaDe(mono(somente(faixa.song, faixa.instrumentos, (nome) => BAIXOS.includes(nome))), SAMPLE_RATE, 150),
       baixoNoQueSeOuve: parteNoQueSeOuve(faixa.song, faixa.instrumentos, (nome) => BAIXOS.includes(nome)),
       volume: volumePercebido(final, SAMPLE_RATE),

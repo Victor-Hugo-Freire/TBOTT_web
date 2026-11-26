@@ -395,6 +395,16 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(400),
   }),
 
+  // Tímpano (o chefe): seno grave com queda curta de altura e cauda longa. É afinado: a nota escrita é a
+  // altura que soa (notaDoInstrumento), então o tímpano toca as fundamentais do chefe.
+  timpano: instrumento({
+    baseMidi: 43, registro: [38, 55], percussao: true,
+    volume: 0.8, forma: SENO,
+    ataque: 0.004, decaimento: 0.22, nivelSustentacao: 0.35, sustentacao: 0.06, soltura: 0.55,
+    slide: -0.18,
+    filtro: passaBaixa(700),
+  }),
+
   // Corpo em triângulo grave + ruído de fase alto (a esteira). O passa-baixa tira o chiado.
   caixa: instrumento({
     baseMidi: 79, registro: [79, 79], percussao: true,

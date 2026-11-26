@@ -13,15 +13,21 @@
 //                                       e a do próximo andar sobe em 1,5 s
 //   morte ou fim da run                 fade para silêncio (1,5 s)
 //   pausa                               abafada (passa-baixa e -6 dB) em vez de parar
+//   sala do chefe / palco               a faixa da sala entra desde o começo, com a introdução (faixas.js:
+//                                       doComeco); a faixa do andar volta de onde parou ao sair
+//   fase do chefe, Batuta do palco      a troca espera o fim do compasso (ou do tempo) da faixa que toca e a
+//                                       nova entra com a transição dela
+//   vitória, fim do palco               o final toca uma vez (unica) e a faixa indicada volta em 2,5 s
 //
 // A mesa toca ~3 dB abaixo do menu (NIVEL_DO_JOGO); o volume de música das Opções vem depois, no
 // AudioManager. A música nunca segura o jogo: faixa que ainda não está pronta é pedida ao cache, a
 // atual continua (ou o jogo segue em silêncio) e a nova entra com fade quando ficar pronta.
 
 import { CADEIA_DO_MASTER, criarRespostaDeSala } from '../masterizacao.js'
-import { FAIXAS, FAIXAS_COMPOSTAS } from './faixas.js'
+import { FAIXAS, FAIXAS_COMPOSTAS, ganhoDoNivel } from './faixas.js'
 import { ROUTES } from '../../routes/paths.js'
-import { FAIXA_DO_MENU, getFloorTrack, getTrackForContext } from './trackSelection.js'
+import { FAIXA_DO_MENU, FASES_DO_CHEFE, getBossTrack, getFloorTrack, getTrackForContext, VITORIA_DO_CHEFE } from './trackSelection.js'
+import { LAST_FLOOR } from '../../utils/floorGenerator.js'
 
 export const MUSICA_DO_JOGO = 'musica-do-jogo'
 
@@ -37,6 +43,9 @@ export const FADES = Object.freeze({
   silencio: 1500,
   recomeco: 300,
   saidaDoJogo: 800,
+  faseEntrada: 40, // a transição da fase nova traz o impacto: entra quase sem fade
+  faseSaida: 300,
+  depoisDoFinal: 2500, // a faixa que volta depois de um final (vitória, fim do palco)
 })
 
 // Pausa: passa-baixa em 700 Hz e -6 dB
@@ -55,14 +64,40 @@ export function shouldStartGameMusic({ pathname, audioState, activeMusicName }) 
 }
 
 // O que a música deve fazer quando o contexto muda (função pura)
+// Devolve { faixa, entradaMs, saidaMs, reiniciar, abafada, depois, quantizar }:
+// - depois: a faixa que volta quando um final (faixa unica) acaba
+// - quantizar: 'tempo' ou 'compasso' = a troca espera o fim do tempo/compasso da faixa que toca
 export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {
-  if (!atual) return { faixa: null, entradaMs: 0, saidaMs: FADES.saidaDoJogo, reiniciar: false, abafada: false }
+  if (!atual) return { faixa: null, entradaMs: 0, saidaMs: FADES.saidaDoJogo, reiniciar: false, abafada: false, depois: null, quantizar: null }
 
   const reiniciar = Boolean(anterior) && anterior.seed !== atual.seed
   const silencio = atual.dead || atual.finished
-  const faixa = silencio
+  // Na troca de andar a sala do chefe já é passado: vale a faixa do andar que vem
+  const sala = atual.floorChange ? 'comum' : atual.roomType
+  let faixa = silencio
     ? null
-    : getTrackForContext({ floorNumber: atual.floorNumber, roomType: atual.roomType }, compostas)
+    : getTrackForContext({ floorNumber: atual.floorNumber, roomType: sala, bossPhase: atual.bossPhase, bossState: atual.bossState, palco: atual.palco }, compostas)
+  const mesmaSala = Boolean(anterior) && !reiniciar && !atual.floorChange
+    && anterior.roomType === atual.roomType && anterior.floorNumber === atual.floorNumber
+
+  let depois = null
+  let quantizar = null
+  if (faixa) {
+    const fimDoShow = sala === 'palco' && mesmaSala && anterior.palco === 'show' && atual.palco === 'depois' && compostas.includes('palco-fim')
+    if (fimDoShow) {
+      // A última onda caiu: o final do espetáculo toca uma vez e os bastidores voltam
+      depois = faixa
+      faixa = 'palco-fim'
+      quantizar = 'tempo'
+    } else if (FAIXAS[faixa]?.unica) {
+      // A vitória sobre o chefe: só toca na hora em que o chefe cai (quem entra na sala já vencida ouve o andar)
+      depois = getFloorTrack(atual.floorNumber, compostas)
+      if (mesmaSala && anterior.bossState !== atual.bossState) quantizar = 'tempo'
+      else faixa = depois
+    } else if (mesmaSala && FAIXAS[faixa]?.doComeco && (anterior.bossPhase !== atual.bossPhase || anterior.palco !== atual.palco)) {
+      quantizar = sala === 'palco' ? 'tempo' : 'compasso'
+    }
+  }
 
   let entradaMs = FADES.sala
   let saidaMs = FADES.sala
@@ -74,19 +109,34 @@ export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {
     saidaMs = FADES.saidaDoAndar
   } else if (silencio || faixa === null) {
     saidaMs = FADES.silencio
+  } else if (quantizar) {
+    entradaMs = FADES.faseEntrada
+    saidaMs = FADES.faseSaida
   }
 
-  return { faixa, entradaMs, saidaMs, reiniciar, abafada: Boolean(atual.paused) }
+  return { faixa, entradaMs, saidaMs, reiniciar, abafada: Boolean(atual.paused), depois, quantizar }
 }
 
-// Faixas que vale a pena ter prontas: a que toca, a do andar (para voltar das salas especiais) e a
-// do próximo andar. Quando a run acaba (morte ou fim), a "A Vila Espera": o cache de 3 faixas a
-// libera durante a run, e assim ela já está pronta quando o jogador volta ao menu.
+// Faixas que vale a pena ter prontas: a que toca, a do andar (para voltar das salas especiais) e a do
+// próximo andar. Nos andares, também o chefe (ele é beco: a faixa já está pronta quando o jogador chega);
+// na sala do chefe, as fases seguintes e a vitória; no palco, o show e o final. Quando a run acaba (morte
+// ou fim), a "A Vila Espera": o cache a libera durante a run, e assim ela já está pronta quando o jogador
+// volta ao menu.
 export function faixasParaPreparar(contexto, alvo, compostas = FAIXAS_COMPOSTAS) {
   if (!contexto) return []
   if (contexto.dead || contexto.finished) return [FAIXA_DO_MENU]
   const ids = [alvo, getFloorTrack(contexto.floorNumber, compostas), getFloorTrack(contexto.floorNumber + 1, compostas)]
-  return [...new Set(ids.filter(Boolean))]
+  if (contexto.floorNumber >= 1 && contexto.floorNumber <= LAST_FLOOR && !contexto.floorChange) {
+    const familia = contexto.floorNumber === LAST_FLOOR ? 'final' : 'comum'
+    if (contexto.roomType === 'chefe') {
+      ids.push(...FASES_DO_CHEFE[familia], VITORIA_DO_CHEFE[familia])
+    } else if (contexto.roomType === 'palco') {
+      ids.push('palco', 'palco-show', 'palco-fim')
+    } else {
+      ids.push(getBossTrack(contexto.floorNumber))
+    }
+  }
+  return [...new Set(ids.filter((id) => id && compostas.includes(id)))]
 }
 
 function ajustar(parametro, valor, agora, constante) {
@@ -107,9 +157,13 @@ export function criarMesaDoJogo({
   cache,
   compostas = FAIXAS_COMPOSTAS,
   reverbDe = (id) => FAIXAS[id]?.reverb ?? CADEIA_DO_MASTER.reverbPadrao,
+  nivelDe = ganhoDoNivel,
 } = {}) {
   let anterior = null
   let alvo = null
+  let depoisDoAlvo = null // quando o alvo é um final (unica): a faixa que volta depois dele
+  let quantizar = null // 'tempo' ou 'compasso': a próxima troca espera o fim do tempo/compasso da faixa que toca
+  const unicasTocadas = new Set() // finais já tocados nesta sala (o contexto repete o estado, o final não)
   let fades = { entradaMs: FADES.entradaDaRun, saidaMs: FADES.recomeco }
   let abafada = false
   let forcarEntrada = false
@@ -173,25 +227,40 @@ export function criarMesaDoJogo({
     const indice = vozes.indexOf(voz)
     if (indice >= 0) vozes.splice(indice, 1)
     desligar(voz.fonte)
+    desligar(voz.fonteIntro)
     desligar(voz.ganho)
     desligar(voz.envio)
   }
 
-  function entrar(id, buffer, ms) {
+  // atraso: segundos até a faixa começar (a troca no fim do tempo ou do compasso)
+  function entrar(id, buffer, ms, { atraso = 0, depois = null } = {}) {
     const { context } = grafo
-    const inicio = context.currentTime + ANTECEDENCIA
+    const inicio = context.currentTime + ANTECEDENCIA + atraso
     const duracao = buffer.duration || buffer.length / (buffer.sampleRate || context.sampleRate || 44100)
-    const offset = (posicoes.get(id) ?? 0) % duracao
+    const meta = FAIXAS[id] ?? {}
+    // As faixas das salas começam sempre do começo, com a introdução; as dos andares voltam de onde pararam
+    const offset = meta.doComeco ? 0 : (posicoes.get(id) ?? 0) % duracao
+    const intro = meta.doComeco ? cache.obterIntro?.(id, context) ?? null : null
+    const duracaoDaIntro = intro?.buffer && intro.duracao > 0 ? intro.duracao : 0
 
     const fonte = context.createBufferSource()
     fonte.buffer = buffer
-    fonte.loop = true
+    fonte.loop = !meta.unica
     const ganho = context.createGain()
     ganho.gain.value = 0
     ganho.gain.setValueAtTime(0, inicio)
-    ganho.gain.linearRampToValueAtTime(1, inicio + Math.max(0, ms) / 1000)
+    // Sobe até o nível da faixa (faixas.js), que iguala o volume percebido dos andares
+    ganho.gain.linearRampToValueAtTime(nivelDe(id), inicio + Math.max(0, ms) / 1000)
     fonte.connect(ganho)
     ganho.connect(grafo.barramento)
+
+    // A introdução toca uma vez e o corpo entra em loop no fim dela (num compasso inteiro)
+    let fonteIntro = null
+    if (duracaoDaIntro > 0) {
+      fonteIntro = context.createBufferSource()
+      fonteIntro.buffer = intro.buffer
+      fonteIntro.connect(ganho)
+    }
 
     let envio = null
     const mix = reverbDe(id)
@@ -202,31 +271,45 @@ export function criarMesaDoJogo({
       envio.connect(grafo.reverb)
     }
 
-    const voz = { id, fonte, ganho, envio, inicio, offset, duracao, saindo: false, geracao }
-    fonte.onended = () => soltarVoz(voz)
+    const voz = { id, fonte, fonteIntro, ganho, envio, inicio, offset, duracao, saindo: false, geracao, unica: Boolean(meta.unica), depois }
+    fonte.onended = () => {
+      const terminou = !voz.saindo
+      soltarVoz(voz)
+      if (voz.unica && terminou && voz.geracao === geracao) terminouUnica(voz)
+    }
     vozes.push(voz)
-    fonte.start(inicio, offset)
+    if (fonteIntro) {
+      fonteIntro.start(inicio)
+      fonte.start(inicio + duracaoDaIntro, 0)
+    } else {
+      fonte.start(inicio, offset)
+    }
+    if (voz.unica) unicasTocadas.add(id)
   }
 
-  function sair(voz, ms) {
+  function sair(voz, ms, atraso = 0) {
     const { context } = grafo
     const agora = context.currentTime
-    const fim = agora + Math.max(0, ms) / 1000
+    const inicioDoFade = agora + Math.max(0, atraso)
+    const fim = inicioDoFade + Math.max(0, ms) / 1000
     voz.saindo = true
 
     const parametro = voz.ganho.gain
     const valor = agora < voz.inicio ? 0 : parametro.value
     parametro.cancelScheduledValues(agora)
     parametro.setValueAtTime(valor, agora)
+    if (atraso > 0) parametro.setValueAtTime(valor, inicioDoFade)
     parametro.linearRampToValueAtTime(0, fim)
 
-    if (voz.geracao === geracao) posicoes.set(voz.id, posicaoEm(voz, fim))
+    if (voz.geracao === geracao && !FAIXAS[voz.id]?.doComeco) posicoes.set(voz.id, posicaoEm(voz, fim))
     try { voz.fonte.stop(fim + 0.05) } catch { /* já parada */ }
+    try { voz.fonteIntro?.stop(fim + 0.05) } catch { /* já parada */ }
   }
 
   function pararTodas() {
     for (const voz of [...vozes]) {
       try { voz.fonte.stop() } catch { /* já parada */ }
+      try { voz.fonteIntro?.stop() } catch { /* já parada */ }
       soltarVoz(voz)
     }
   }
@@ -253,11 +336,35 @@ export function criarMesaDoJogo({
       })
   }
 
+  // Segundos até o fim do tempo (ou do compasso) da faixa que toca: a troca de fase cai no tempo forte
+  function atrasoDaQuantizacao(atual) {
+    const meta = atual && FAIXAS[atual.id]
+    if (!quantizar || !meta?.andamento) return 0
+    const tempo = 60 / meta.andamento
+    const unidade = quantizar === 'compasso' ? tempo * (meta.temposPorCompasso ?? 4) : tempo
+    const decorrido = grafo.context.currentTime - atual.inicio
+    if (!(decorrido > 0)) return 0
+    const resto = decorrido % unidade
+    return resto < 0.005 ? 0 : unidade - resto
+  }
+
+  // Um final (faixa unica) acabou: volta a faixa que ele indicou, com um fade longo
+  function terminouUnica(voz) {
+    if (!grafo || !iniciada) return
+    if (alvo === voz.id) alvo = voz.depois
+    if (alvo !== voz.depois) return
+    fades = { entradaMs: FADES.depoisDoFinal, saidaMs: 0 }
+    quantizar = null
+    sincronizar()
+  }
+
   function sincronizar() {
     if (!grafo || !fachadaAtual || !iniciada) return
     const atual = vozes.find((voz) => !voz.saindo) ?? null
 
     if (!forcarEntrada && atual?.id === alvo) return
+    // O final toca até o fim; quando acabar, o alvo (a faixa que volta) entra
+    if (!forcarEntrada && atual?.unica && atual.depois && alvo === atual.depois) return
     if (alvo === null) {
       if (atual) sair(atual, fades.saidaMs)
       forcarEntrada = false
@@ -270,9 +377,11 @@ export function criarMesaDoJogo({
       return
     }
 
-    if (atual) sair(atual, fades.saidaMs)
-    entrar(alvo, buffer, fades.entradaMs)
+    const atraso = forcarEntrada ? 0 : atrasoDaQuantizacao(atual)
+    if (atual) sair(atual, fades.saidaMs, atraso)
+    entrar(alvo, buffer, fades.entradaMs, { atraso, depois: depoisDoAlvo })
     forcarEntrada = false
+    quantizar = null
   }
 
   return {
@@ -317,13 +426,18 @@ export function criarMesaDoJogo({
     // Chamado a cada mudança do contexto musical da run (contextoDoJogo.js)
     definirContexto(contexto) {
       const decisao = decidirMusica(anterior, contexto, compostas)
+      const mudouDeSala = !anterior || !contexto || anterior.roomType !== contexto.roomType || anterior.floorNumber !== contexto.floorNumber
       anterior = contexto
       if (decisao.reiniciar) {
         geracao += 1
         posicoes.clear()
         forcarEntrada = true
       }
-      alvo = decisao.faixa
+      if (mudouDeSala || decisao.reiniciar) unicasTocadas.clear()
+      // O final já tocou nesta sala: o contexto continua dizendo "vitória", mas só a faixa que volta vale
+      alvo = decisao.faixa && unicasTocadas.has(decisao.faixa) && decisao.depois ? decisao.depois : decisao.faixa
+      depoisDoAlvo = decisao.depois
+      quantizar = decisao.quantizar
       fades = { entradaMs: decisao.entradaMs, saidaMs: decisao.saidaMs }
       if (abafada !== decisao.abafada) {
         abafada = decisao.abafada
@@ -340,6 +454,9 @@ export function criarMesaDoJogo({
     limpar() {
       anterior = null
       alvo = null
+      depoisDoAlvo = null
+      quantizar = null
+      unicasTocadas.clear()
       forcarEntrada = false
       geracao += 1
       posicoes.clear()

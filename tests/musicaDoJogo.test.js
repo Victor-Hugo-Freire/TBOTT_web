@@ -40,6 +40,9 @@ const contexto = (mudancas = {}) => ({
   floorNumber: 1,
   roomType: 'comum',
   floorChange: false,
+  bossPhase: 1,
+  bossState: 'luta',
+  palco: null,
   paused: false,
   dead: false,
   finished: false,
@@ -411,15 +414,23 @@ describe('mesa de som do jogo', () => {
 describe('cache das faixas', () => {
   const canais = () => [new Float32Array(8), new Float32Array(8)]
 
-  test('guarda no máximo 3 faixas e solta a usada há mais tempo', async () => {
+  test('guarda no máximo 5 faixas (o limite padrão) e solta a usada há mais tempo', async () => {
     const cache = criarCacheDeFaixas({ renderizar: async () => canais() })
+    for (const id of ['a', 'b', 'c', 'd', 'e']) await cache.preparar(id)
+    await cache.preparar('a') // "a" volta a ser a mais recente
+    await cache.preparar('f')
+    assert.deepEqual(cache.ids().sort(), ['a', 'c', 'd', 'e', 'f'])
+    assert.equal(cache.tamanho, 5)
+  })
+
+  test('o limite pode ser menor (3): sai a usada há mais tempo', async () => {
+    const cache = criarCacheDeFaixas({ renderizar: async () => canais(), limite: 3 })
     await cache.preparar('a')
     await cache.preparar('b')
     await cache.preparar('c')
-    await cache.preparar('a') // "a" volta a ser a mais recente
+    await cache.preparar('a')
     await cache.preparar('d')
     assert.deepEqual(cache.ids().sort(), ['a', 'c', 'd'])
-    assert.equal(cache.tamanho, 3)
   })
 
   test('gera uma faixa de cada vez, com a urgente na frente da fila', async () => {

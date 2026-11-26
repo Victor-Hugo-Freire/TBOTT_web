@@ -29,7 +29,8 @@
 //                guitarra, ride em semínimas
 //   Verso   (8)  E5 – F5 – G5 – F5 – E5 – F5 – A5 – B♭5 em tresillo (palm mute, baixo e bumbo juntos)
 //                e a guitarra solo por cima; prato escuro a cada 4 compassos
-//   Riff B  (8)  o riff uma oitava acima, a máquina em semicolcheias; virada grande de tons no fim
+//   Riff B  (8)  o riff uma oitava acima, a máquina em semicolcheias, ride em colcheias; virada grande
+//                de tons no fim
 //   Ponte   (8)  meio-tempo (caixa no 3): a descida cromática, o órgão canta a célula alongada
 //   Parada  (6)  a fábrica para: só o baixo (com o sub), a máquina em marcha lenta e o tung-tung-tung
 //                respondido pela prensa; rulo de caixa em crescendo no fim
@@ -349,11 +350,11 @@ const GROOVES = Object.freeze({
   chimbal: {
     Partida: () => 'X . x . | X . x . | X . x . | X . x .',
     Verso: () => 'X . . . | X . . . | X . . . | X . . .',
-    'Riff B': () => 'X s x s | X s x s | X s x s | X s x s',
   },
-  // Ride em semínimas nos riffs A e C: a levada do metal, por cima do galope
+  // Ride nos riffs (a levada do metal, por cima do galope): semínimas no A e no C, colcheias no B
   ride: {
     'Riff A': () => 'X . . . | x . . . | X . . . | x . . .',
+    'Riff B': () => 'X . x . | X . x . | X . x . | X . x .',
     'Riff C': () => 'X . . . | X . . . | X . . . | X . . .',
   },
   prato: {

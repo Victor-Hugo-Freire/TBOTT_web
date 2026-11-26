@@ -140,6 +140,40 @@ A implementação central fica em `src/audio/AudioManager.js`, com o provedor Re
 
 Não há música da sala inicial restaurada. Sons de inimigos, chefes, personagens, andares e interface devem ser registrados pelas issues responsáveis, sem acoplar o gameplay ao `AudioContext`.
 
+### Músicas do chefe e do palco
+
+Além das músicas dos andares (`src/audio/music/andar-*.js`), as salas do chefe e do palco têm música própria. Elas usam o mesmo sistema (partituras no formato do ZzFXM, `faixas.js` como registro, `mesaDoJogo.js` para trocar de faixa) e uma grade de **12 passos por tempo** (`escrita12.js`), em que cabem semicolcheias e tercinas no mesmo compasso.
+
+| Faixa (`id`) | Quando toca | Tom, andamento | Arquivo |
+| --- | --- | --- | --- |
+| `chefe`, `chefe-fase2` | Sala do chefe dos andares 1 a 4 (fase 1 e fase 2) | Sol menor ♩ = 140; Si♭ menor ♩ = 152 | `chefe.js` |
+| `chefe-vitoria` | Quando o chefe cai (toca uma vez e a faixa do andar volta) | Sol maior | `chefe.js` |
+| `chefe-final`, `-fase2`, `-fase3` | Sala do chefe do andar 5, o Tralalero Tralala (3 fases) | Sol menor ♩ = 144; Si♭ menor ♩ = 156; Ré♭ menor ♩ = 168 | `chefe.js` |
+| `chefe-final-vitoria` | Quando o Tralalero cai | Sol maior | `chefe.js` |
+| `palco` | Sala do palco aberta (a Batuta no pedestal e depois da luta): os bastidores | Ré maior ♩ = 96, sem bateria | `palco.js` |
+| `palco-show` | Durante as quatro ondas do palco (começa pela abertura) | Ré maior ♩ = 152 | `palco.js` |
+| `palco-fim` | Quando a última onda cai (toca uma vez e os bastidores voltam) | Ré maior | `palco.js` |
+
+**Como a música troca** (`mesaDoJogo.js`, `faixas.js` e `trackSelection.js`):
+
+- Entrar na sala do chefe ou do palco: a faixa do andar sai em 1,5 s e a da sala entra por baixo, **sempre do começo**, com a introdução (`doComeco`). Ao sair, a faixa do andar volta de onde parou.
+- Mudar de fase (chefe) ou pegar a Batuta (palco): a troca espera o fim do compasso (chefe) ou do tempo (palco) da faixa que toca, e a faixa nova entra com a transição dela (introdução de 2 compassos, com o rufo, o tímpano e o tung-tung-tung que levam ao tempo forte).
+- Vitória e fim do palco: o final toca uma vez só (`unica`) e a faixa indicada volta em 2,5 s.
+- Troca de andar na sala do chefe (o 3º golpe no tambor): vale a faixa do andar novo, como antes.
+- O chefe do andar fica pronto no cache enquanto o jogador explora o andar (o cache guarda até 5 faixas).
+
+**O que ainda depende do jogo:** a luta do chefe é a issue #47. O contexto musical (`contextoDoJogo.js`) lê `run.boss = { phase, defeated }`, que ainda não existe: sem ele, a sala do chefe toca a fase 1 até o jogador trocar de andar. Quando a luta existir, basta preencher `run.boss.phase` (1, 2 ou 3) e `run.boss.defeated`. O palco já lê `run.stage` e `room.emptied`.
+
+**Como ouvir:** `npm run trilha:salas` gera os WAV em `tmp/trilha/salas/` (a faixa como o jogador ouve, com a introdução e o corpo duas vezes) e imprime as medições; `-- --so chefe-final` renderiza só uma. Dentro do jogo, o chefe fica no beco mais distante da sala inicial e o palco (andares 2 a 5) numa sala com a porta de máscara; no palco só se entra com a vida cheia.
+
+**Onde ajustar:**
+
+- *Andamento, tom e camadas:* `FASES_DO_CHEFE` em `chefe.js` (andamento, tônica, forma e onde cada camada toca); o andamento também fica em `faixas.js` (`andamento`), e os testes conferem os dois. No palco, `FORMA_DO_SHOW`, `SECOES`, `ACORDES`, `TEMA`, `CRESCENDO`, `CABARET` e `GALOPE` em `palco.js`.
+- *Melodia e ritmo:* o tema do chefe (`TEMA`), as `GROOVES` e a `DINAMICA` em `chefe.js`; `GROOVES` e `DINAMICA` em `palco.js`. As posições são em semicolcheias (`6`), tercinas (`3t`) ou passos crus (`13s`); veja o topo de `escrita12.js`.
+- *Volume:* o `nivel` (dB) de cada faixa em `faixas.js`. `npm run trilha:salas` mostra o volume e o nível ideal para igualar à média dos andares; `tests/salasDoChefeEPalco.test.js` exige no máximo 1 dB de diferença.
+- *Fades e trocas:* `FADES` em `mesaDoJogo.js`.
+- *Tímpano:* instrumento novo em `instrumentos.js`.
+
 ## Seleção de personagem
 
 A tela `/selecao-personagem` busca os personagens em `GET /api/characters` (pelo `apiRequest`) e os mostra em um carrossel de até três cartões: o do meio é o atual e os laterais ficam ao fundo. As setas `<` e `>` e os indicadores trocam de personagem, e clicar no cartão do meio o seleciona. O botão **Começar Jogo** só habilita depois de selecionar e leva a `/jogo`, enviando o personagem escolhido em `location.state.character`. Enquanto a API responde aparece "Carregando personagens..."; se ela falhar ou vier vazia, a tela mostra a mensagem de erro ou "Sem personagens disponíveis no momento." Também há o botão de voltar ao menu e o cartão do usuário, que leva ao perfil.

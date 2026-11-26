@@ -11,8 +11,17 @@
 //   escurecer (switched false) o andar novo ainda não existe; o contexto já aponta para ele.
 // - run.death (morte), run.finished (fim da run) e run.seed (o R recomeça com outra seed)
 // - a pausa vem da tela (isPaused: menu de pausa ou janela sem foco)
+// - Chefe: run.boss ({ phase, defeated }), que a luta do chefe (issue #47) vai criar. Sem ele (hoje), a sala
+//   do chefe está na fase 1, lutando. bossPhase (1, 2 ou 3) e bossState ('luta' ou 'vitoria') mudam a faixa.
+// - Palco: run.stage (a luta das ondas) e room.emptied (a Batuta já saiu do pedestal) dizem em que ponto
+//   está: 'espera' (a Batuta no pedestal), 'show' (as ondas lutando) e 'depois' (luta vencida).
 
 import { getCurrentRoom } from '../../utils/run.js'
+
+function getStageState(run, room) {
+  if (run.stage && !run.stage.won) return 'show'
+  return room.emptied?.length > 0 ? 'depois' : 'espera'
+}
 
 // Roda a cada quadro dentro do laço do jogo: nunca lança erro (devolve null se a run vier estranha)
 export function getGameMusicContext(run, paused = false) {
@@ -30,6 +39,9 @@ export function getGameMusicContext(run, paused = false) {
       floorNumber: floorChange && !transition.switched ? run.floor.number + 1 : run.floor.number,
       roomType: room?.type ?? 'comum',
       floorChange,
+      bossPhase: Number.isInteger(run.boss?.phase) && run.boss.phase > 1 ? run.boss.phase : 1,
+      bossState: run.boss?.defeated ? 'vitoria' : 'luta',
+      palco: room?.type === 'palco' ? getStageState(run, room) : null,
       paused: Boolean(paused),
       dead: Boolean(run.death),
       finished: Boolean(run.finished),
@@ -39,7 +51,7 @@ export function getGameMusicContext(run, paused = false) {
   }
 }
 
-const CAMPOS = ['seed', 'floorNumber', 'roomType', 'floorChange', 'paused', 'dead', 'finished']
+const CAMPOS = ['seed', 'floorNumber', 'roomType', 'floorChange', 'bossPhase', 'bossState', 'palco', 'paused', 'dead', 'finished']
 
 export function isSameGameMusicContext(previous, next) {
   if (previous === next) return true

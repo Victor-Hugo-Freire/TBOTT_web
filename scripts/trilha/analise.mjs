@@ -135,19 +135,31 @@ function pesoA(frequencia) {
   return (r * 10 ** (2 / 20)) ** 2
 }
 
-// Parte da energia (0 a 1) em cada banda; peloOuvido aplica a ponderação A
-export function energiaPorBanda(sinal, sampleRate, { peloOuvido = false, tamanho = 8192 } = {}) {
+// Parte da energia (0 a 1) em cada banda, sem e com a ponderação A, de um espectro só
+export function bandasDeEnergia(sinal, sampleRate, tamanho = 8192) {
   const potencia = espectroMedio(sinal, tamanho)
   const resolucao = sampleRate / tamanho
-  const soma = Object.fromEntries(BANDAS.map(({ nome }) => [nome, 0]))
+  const energia = Object.fromEntries(BANDAS.map(({ nome }) => [nome, 0]))
+  const peloOuvido = { ...energia }
   let total = 0
+  let totalPeloOuvido = 0
   for (let k = 1; k < potencia.length; k++) {
     const frequencia = k * resolucao
-    const valor = peloOuvido ? potencia[k] * pesoA(frequencia) : potencia[k]
-    total += valor
-    soma[BANDAS.find(({ de, ate }) => frequencia >= de && frequencia < ate).nome] += valor
+    const banda = BANDAS.find(({ de, ate }) => frequencia >= de && frequencia < ate).nome
+    const ponderada = potencia[k] * pesoA(frequencia)
+    energia[banda] += potencia[k]
+    peloOuvido[banda] += ponderada
+    total += potencia[k]
+    totalPeloOuvido += ponderada
   }
-  return Object.fromEntries(Object.entries(soma).map(([nome, valor]) => [nome, total > 0 ? valor / total : 0]))
+  const normalizar = (mapa, soma) => Object.fromEntries(Object.entries(mapa).map(([nome, valor]) => [nome, soma > 0 ? valor / soma : 0]))
+  return { energia: normalizar(energia, total), peloOuvido: normalizar(peloOuvido, totalPeloOuvido) }
+}
+
+// Parte da energia (0 a 1) em cada banda; peloOuvido aplica a ponderação A
+export function energiaPorBanda(sinal, sampleRate, { peloOuvido = false, tamanho = 8192 } = {}) {
+  const bandas = bandasDeEnergia(sinal, sampleRate, tamanho)
+  return peloOuvido ? bandas.peloOuvido : bandas.energia
 }
 
 // Energia total com a ponderação A (para comparar o peso de um grupo de instrumentos na mistura)

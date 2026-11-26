@@ -10,17 +10,20 @@ import {
   isKnownTrack,
 } from '../src/audio/music/trackSelection.js'
 
-const SALAS_DO_ANDAR = ['inicial', 'comum', 'chefe', 'tesouro', 'palco', 'adega']
+const SALAS_DO_ANDAR = ['inicial', 'comum', 'tesouro', 'adega']
 const SALAS_PROPRIAS = { loja: 'loja', descanso: 'descanso', god: 'god', fliperama: 'fliperama', pacto: 'pacto' }
-const TODAS = [...FAIXAS_DOS_ANDARES, ...Object.values(SALAS_PROPRIAS)]
+// O chefe e o palco têm faixas de sala (chefe.js e palco.js): veja salasDoChefeEPalco.test.js
+const SALAS_DO_CHEFE_E_DO_PALCO = ['chefe', 'palco']
+const FAIXAS_DAS_SALAS = ['chefe', 'chefe-fase2', 'chefe-vitoria', 'chefe-final', 'chefe-final-fase2', 'chefe-final-fase3', 'chefe-final-vitoria', 'palco', 'palco-show', 'palco-fim']
+const TODAS = [...FAIXAS_DOS_ANDARES, ...Object.values(SALAS_PROPRIAS), ...FAIXAS_DAS_SALAS]
 
 describe('seleção de faixa', () => {
   test('o plano cobre todos os tipos de sala do jogo', () => {
-    assert.deepEqual([...SALAS_DO_ANDAR, ...Object.keys(SALAS_PROPRIAS)].sort(), [...ROOM_TYPES].sort())
+    assert.deepEqual([...SALAS_DO_ANDAR, ...SALAS_DO_CHEFE_E_DO_PALCO, ...Object.keys(SALAS_PROPRIAS)].sort(), [...ROOM_TYPES].sort())
   })
 
   for (let floorNumber = 1; floorNumber <= 5; floorNumber++) {
-    test(`andar ${floorNumber}: salas comuns, tesouro, palco, adega e chefe usam a faixa do andar`, () => {
+    test(`andar ${floorNumber}: salas comuns, tesouro e adega usam a faixa do andar`, () => {
       for (const roomType of SALAS_DO_ANDAR) {
         assert.equal(getPlannedTrack({ floorNumber, roomType }), FAIXAS_DOS_ANDARES[floorNumber - 1], roomType)
         assert.equal(getTrackForContext({ floorNumber, roomType }, TODAS), FAIXAS_DOS_ANDARES[floorNumber - 1], roomType)
@@ -35,11 +38,12 @@ describe('seleção de faixa', () => {
     })
   }
 
-  test('o chefe não tem faixa própria', () => {
+  test('o chefe e o palco têm faixa própria (e o nome "chefe" é uma faixa conhecida)', () => {
+    assert.equal(isKnownTrack('chefe'), true)
     for (let floorNumber = 1; floorNumber <= 5; floorNumber++) {
-      assert.equal(getTrackForContext({ floorNumber, roomType: 'chefe' }, TODAS), FAIXAS_DOS_ANDARES[floorNumber - 1])
+      assert.notEqual(getTrackForContext({ floorNumber, roomType: 'chefe' }, TODAS), FAIXAS_DOS_ANDARES[floorNumber - 1])
+      assert.notEqual(getTrackForContext({ floorNumber, roomType: 'palco' }, TODAS), FAIXAS_DOS_ANDARES[floorNumber - 1])
     }
-    assert.equal(isKnownTrack('chefe'), false)
   })
 
   test('faixa ainda não composta: a sala usa a do andar, e o andar usa a Cantina', () => {

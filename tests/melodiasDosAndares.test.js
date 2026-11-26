@@ -5,11 +5,18 @@ import { chavesDaCelula, distanciaMelodica, impressaoMelodica } from '../src/aud
 
 const impressao = (id) => impressaoMelodica(MUSICAS[id], INSTRUMENTOS_DAS_MUSICAS[id], MELODIAS_DAS_MUSICAS[id], chavesDaCelula(MOTIVOS_DAS_MUSICAS[id]), METAS_DAS_MUSICAS[id])
 
-// A assinatura melódica de cada andar já reescrito: [medida, 'min' ou 'max', valor]
+// A assinatura melódica de cada andar: [medida, 'min' ou 'max', valor]
+//   Cantina: o lamento (corrida em tercina pela tercina do meio e nota longa)
+//   Cucina: a panela batendo (nota repetida), a antecipação; a célula só como citação
+//   Piazza: a tercina de semínima (tercina do meio) e os saltos de quarta a sexta
+//   Pastificio: o cromatismo frígio (semitons) e o tresillo grande (semínima pontuada)
+//   Porto: os saltos largos (sexta, sétima, oitava) no pulso do 12/8, quase tudo na cabeça do tempo
 const ASSINATURAS = Object.freeze({
   'andar-cantina': [['tercinaDoMeio', 'min', 0.15], ['longas', 'min', 0.25]],
   'andar-cucina': [['repetidas', 'min', 0.25], ['antecipacoes', 'min', 0.1], ['celula', 'max', 0.1]],
   'andar-piazza': [['tercinaDoMeio', 'min', 0.2], ['quartaSexta', 'min', 0.3], ['celula', 'max', 0.1]],
+  'andar-pastificio': [['semitons', 'min', 0.3], ['hemiola', 'min', 0.12]],
+  'andar-porto': [['saltos', 'min', 0.15], ['foraDoTempo', 'max', 0.2]],
 })
 
 const NOMES = Object.freeze({
@@ -19,6 +26,10 @@ const NOMES = Object.freeze({
   antecipacoes: 'antecipações (no último passo do compasso)',
   celula: 'notas da célula do Tung',
   quartaSexta: 'intervalos de quarta a sexta',
+  semitons: 'intervalos de semitom',
+  hemiola: 'notas a um tempo e meio da seguinte',
+  saltos: 'saltos de sexta menor ou mais',
+  foraDoTempo: 'notas fora da cabeça do tempo',
 })
 
 describe('cada andar tem melodia própria (figuras rítmicas e notas)', () => {
@@ -33,7 +44,7 @@ describe('cada andar tem melodia própria (figuras rítmicas e notas)', () => {
     })
   }
 
-  test('as melodias dos andares reescritos ficam a pelo menos 0,30 umas das outras', () => {
+  test('as melodias dos cinco andares ficam a pelo menos 0,30 umas das outras', () => {
     const ids = Object.keys(ASSINATURAS)
     const impressoes = Object.fromEntries(ids.map((id) => [id, impressao(id)]))
     for (let i = 0; i < ids.length; i++) {
