@@ -8,7 +8,7 @@ import { CONSUMABLE_INFO } from '../../data/economy.js'
 import { CONSUMABLE_SPRITES } from '../../data/itemSprites.js'
 import { buildBossCatalog, buildEnemyCatalog, buildItemCatalog } from '../../utils/itemCatalog.js'
 import { findNearbyPedestal, getRoomPedestals } from '../../utils/pedestals.js'
-import { normalizeProgressPayload } from '../../utils/progress.js'
+import { applyEndedRun, ENDED_RUN_STORAGE_KEY, normalizeProgressPayload } from '../../utils/progress.js'
 import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
 import { createRunSeed } from '../../utils/random.js'
 import {
@@ -249,6 +249,7 @@ export default function SalaInicial() {
     let saving = null // salvamento em andamento (o fim da run espera por ele)
     let saveAgain = false
     let resultSent = false
+    let endStored = false // o fim da run já foi guardado no navegador (veja applyEndedRun)
     let outcome = 'victory' // resultado da run que acabou: 'victory' (tambor do andar 5) ou 'defeat' (morreu)
     let deathCause = null // o que matou o personagem (id de health.js), para o aviso
     let restartHoldMs = 0 // há quanto tempo o R está segurado (a tela escurece junto)
@@ -308,6 +309,12 @@ export default function SalaInicial() {
           return
         }
         progress = normalizeProgressPayload(response.progress)
+        // Se a morte não chegou à API (servidor fora do ar, F5 na animação), vale a que ficou guardada no navegador
+        try {
+          progress = applyEndedRun(progress, JSON.parse(window.localStorage.getItem(ENDED_RUN_STORAGE_KEY)))
+        } catch {
+          // sem localStorage (ou texto estragado): vale o que veio da API
+        }
         characterId = progress.characterId
         canSave = true
       } catch (error) {
@@ -439,6 +446,11 @@ export default function SalaInicial() {
       try {
         const body = { characterId: run.characterId, durationMs: Math.max(1, Math.round(elapsedMs)), status: outcome }
         await apiRequest('/api/runs', { method: 'POST', credentials: 'include', body: JSON.stringify(body) })
+        try {
+          window.localStorage.removeItem(ENDED_RUN_STORAGE_KEY) // a API já apagou o progresso: não precisa mais
+        } catch {
+          // sem localStorage: o próximo Continue já não acha progresso na API
+        }
         if (!isCancelled) setEnding({ ...result, status: 'sent' })
       } catch (error) {
         if (isCancelled) return
@@ -627,6 +639,16 @@ export default function SalaInicial() {
         if (run.floor.number !== announcedFloor) {
           announcedFloor = run.floor.number
           setFloorInfo({ number: run.floor.number, name: run.floor.name })
+        }
+        // Morreu (ou venceu): guarda o fim no navegador e já manda o PUT com finished, sem esperar a animação nem os 5 s
+        if ((run.death || run.finished) && !endStored && canSave) {
+          endStored = true
+          try {
+            window.localStorage.setItem(ENDED_RUN_STORAGE_KEY, JSON.stringify(createRunSnapshot(run, elapsedMs)))
+          } catch {
+            // sem localStorage: fica só o PUT
+          }
+          void saveProgress()
         }
         if (run.finished && !resultSent) {
           resultSent = true

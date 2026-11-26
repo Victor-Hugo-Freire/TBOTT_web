@@ -204,3 +204,14 @@ export function createProgressSnapshot({
     pactRoomType,
   })
 }
+
+// A run que acabou (morte ou vitória) também fica guardada neste navegador, na hora em que acaba
+export const ENDED_RUN_STORAGE_KEY = 'tbott.runEncerrada'
+
+// O save da API pode ser de antes do fim, se o PUT da morte não chegou (API fora do ar, F5 na animação de morte).
+// Se a run guardada no navegador é a mesma (mesma seed) e já acabou, vale ela: senão o Continue ressuscitaria o Tung.
+export function applyEndedRun(progress, stored) {
+  if (!stored) return progress
+  const ended = normalizeProgressPayload(stored)
+  return ended.finished && ended.seed !== null && ended.seed === progress.seed ? ended : progress
+}
