@@ -26,7 +26,8 @@ export const APPEARANCE_SPRITES = {
     layers: {
       down: { path: '/sprites/characters/tung-tung-sahur/aparencia/chifre-da-sorte-baixo.png', position: 'frente' },
       left: { path: '/sprites/characters/tung-tung-sahur/aparencia/chifre-da-sorte-esquerda.png', position: 'frente' },
-      right: { path: '/sprites/characters/tung-tung-sahur/aparencia/chifre-da-sorte-direita.png', position: 'frente' },
+      // Virado para a direita, o lado esquerdo da cabeça fica do lado de lá: o chifre vai atrás e só a ponta aparece
+      right: { path: '/sprites/characters/tung-tung-sahur/aparencia/chifre-da-sorte-direita.png', position: 'atras' },
       up: { path: '/sprites/characters/tung-tung-sahur/aparencia/chifre-da-sorte-cima.png', position: 'frente' },
     },
   },

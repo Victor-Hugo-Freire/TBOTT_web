@@ -158,10 +158,12 @@ describe('pedestais da sala (getRoomPedestals)', () => {
     }
   })
 
-  test('na sala do chefe o pedestal só aparece com a sala limpa', () => {
+  test('na sala do chefe o pedestal só aparece junto com o tambor (depois da luta)', () => {
     const dirty = fakeRoom('chefe', { cleared: false })
     assert.deepEqual(getRoomPedestals(fakeRun(dirty, ['rolo-de-bronze']), dirty), [])
-    const clean = fakeRoom('chefe')
+    const waiting = fakeRoom('chefe', { drumDropped: false })
+    assert.deepEqual(getRoomPedestals(fakeRun(waiting, ['rolo-de-bronze']), waiting), [], 'chefe morto, tambor ainda no ar')
+    const clean = fakeRoom('chefe', { drumDropped: true })
     assert.equal(getRoomPedestals(fakeRun(clean, ['rolo-de-bronze']), clean).length, 1)
   })
 

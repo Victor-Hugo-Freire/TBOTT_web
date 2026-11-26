@@ -3,6 +3,7 @@ import { describe, test } from 'node:test'
 import {
   createItemEffects,
   getItemBonuses,
+  hitWithSwing,
   isInSaucePuddle,
   MAX_PUDDLES,
   onKills,
@@ -157,7 +158,7 @@ describe('Concha Longa', () => {
     let run = runWithTarget(['concha-longa', 'rolo-de-bronze'])
     const { x, y } = run.targets[0]
     run = swing(run)
-    assert.ok(run.targets[0].y < y - 100, 'o alvo foi empurrado')
+    assert.ok(run.targets[0].y < y - 40, 'o alvo foi empurrado')
     assert.deepEqual([run.puddles[0].x, run.puddles[0].y], [x, y])
     assert.equal(isInSaucePuddle(run.puddles[0], run.targets[0]), false, 'e saiu da poça')
   })
@@ -230,7 +231,7 @@ describe('Muçarela', () => {
     run = steps(run, 4) // 200 ms: o empurrão (150 ms) acabou e os fios (400 ms) ainda aparecem
     const target = run.targets[0]
     const strings = run.flashes.find((flash) => flash.variant === 'fios-de-queijo')
-    assert.ok(target.y < startY - 100, `o alvo foi empurrado para cima (${startY} -> ${target.y})`)
+    assert.ok(target.y < startY - 40, `o alvo foi empurrado para cima (${startY} -> ${target.y})`)
     assert.ok(target.stunMs > 0, 'e continua preso onde parou')
     assert.deepEqual([strings.x, strings.y], [target.x, target.y - target.height / 2])
   })
@@ -263,7 +264,7 @@ describe('Rolo de Bronze', () => {
   test('o golpe que acerta empurra o alvo pushDistance na direção do golpe', () => {
     const run = swing(runWithTarget(['rolo-de-bronze']))
     const target = run.targets[0]
-    assert.ok(Math.abs(target.y - (target.home.y - 120)) < 1e-6, `y ${target.y}`)
+    assert.ok(Math.abs(target.y - (target.home.y - 60)) < 1e-6, `y ${target.y}`)
     assert.equal(target.health, 27, 'sem parede no caminho, só o dano do golpe')
   })
 
@@ -519,5 +520,16 @@ describe('efeitos secundários (valem sempre, enquanto o jogador tem o item)', (
     assert.equal(getRunStats(runWith(['concha-longa'])).attackArea, 1.3)
     assert.equal(swing(belowTarget([])).targets[0].health, 30, 'sem a Concha, não acerta')
     assert.ok(swing(belowTarget(['concha-longa'])).targets[0].health < 30, 'com a Concha, acerta')
+  })
+})
+
+describe('golpe que acaba no mesmo quadro do acerto', () => {
+  // Bug de 2025-11-25: o jogo travava (o laço do quadro quebrava) porque hitWithSwing lia a direção em
+  // run.player.attack, que já era null quando o golpe acabava (ou o dano o cortava) no quadro do acerto
+  test('com o Rolo e o Parmesão, acertar sem run.player.attack não quebra', () => {
+    const run = runWithTarget(['rolo-de-bronze', 'parmesao-curado'])
+    const hitbox = { x: run.targets[0].x - 30, y: run.targets[0].y - 30, width: 60, height: 60 }
+    const noAttack = { ...run, player: { ...run.player, attack: null } }
+    assert.doesNotThrow(() => hitWithSwing(noAttack, hitbox, 'up', getRunStats(noAttack)))
   })
 })

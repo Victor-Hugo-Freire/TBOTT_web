@@ -87,7 +87,7 @@ export function getRoomPedestals(run, room) {
   if (room.type === 'fliperama') return getArcadePedestals(run, room)
   const variant = PEDESTAL_VARIANTS[room.type]
   if (!variant) return []
-  if (room.type === 'chefe' && !room.cleared) return []
+  if (room.type === 'chefe' && !room.drumDropped) return [] // o pedestal do chefe aparece junto com o tambor
 
   const items = run.pedestalItems[`${run.floor.number}:${room.id}`] ?? []
   const points = getLayoutPoints(room.layoutId).items

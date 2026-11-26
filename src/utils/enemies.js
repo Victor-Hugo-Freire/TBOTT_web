@@ -1,7 +1,8 @@
+import { BOSS_BASE_HEIGHT, BOSS_BASE_WIDTH_SHARE, BOSS_BODIES, BOSS_CONTACT_DEPTH, BOSS_SPEEDS, CAPPUCCINO, FLYING_BOSSES } from '../data/bossBehavior.js'
 import { CONTACT_DEPTH, CONTACT_WIDTH_SHARE, ENEMY_BODIES, FLYING_ENEMIES, STAGE, START_WAIT_MS } from '../data/enemyBehavior.js'
-import { ENEMY_SPRITES } from '../data/enemySprites.js'
+import { BOSS_BEHAVIORS, updateClone } from './bossBehaviors.js'
 import { overlaps } from './collision.js'
-import { ENEMY_BEHAVIORS, explodeIfLit, getIdleAnimation, setAnimation, settleOnFloor } from './enemyBehaviors.js'
+import { createEnemyFlash, ENEMY_BEHAVIORS, explodeIfLit, getEnemySprite, getIdleAnimation, setAnimation, settleOnFloor } from './enemyBehaviors.js'
 import { createChaseMap, getHazardBoxes } from './enemyPath.js'
 import { createRandom, mixSeed, pick } from './random.js'
 import { getCellPoint, getLayoutPoints } from './roomLayout.js'
@@ -30,9 +31,9 @@ export function pickRoomEnemies(seed, floorNumber, room, enemyCatalog) {
 
 // Um inimigo parado na casa (col, row), com a vida cheia. Os pés ficam no ponto da casa (a 3/4 da altura, como o
 // alvo de treino), para a caixa da base caber nela. O id é a casa: único na sala.
-export function createEnemy(data, col, row) {
+// body = a caixa do corpo ({ width, height }); o chefe passa a dele (bosses.js).
+export function createEnemy(data, col, row, body = ENEMY_BODIES[data.id]) {
   const point = getCellPoint(col, row)
-  const body = ENEMY_BODIES[data.id]
   const target = createTarget({
     id: `${col}-${row}`,
     x: point.x,
@@ -64,6 +65,42 @@ export function createRoomEnemies(seed, floorNumber, room, enemyCatalog) {
   )
 }
 
+// O chefe: um inimigo grande, com a vida, o dano de encostar e os ataques do catálogo (bosses da API), o nome (para
+// a barra de vida), a velocidade de BOSS_SPEEDS e uma base maior que a dos inimigos (veja getBaseBox em targets.js).
+// O id é sempre 'chefe' (a sala tem um só).
+export function createBoss(data, col, row) {
+  const body = BOSS_BODIES[data.id]
+  return {
+    ...createEnemy(data, col, row, body),
+    id: 'chefe',
+    boss: true,
+    name: data.name,
+    contactDamage: data.damage, // o dano de encostar; damage muda durante a investida (veja bossBehaviors.js)
+    flying: FLYING_BOSSES.includes(data.id), // o Bombardiro voa: passa por cima dos obstáculos e o piso não o afeta
+    speed: BOSS_SPEEDS[data.id],
+    attacks: Array.isArray(data.attacks) ? data.attacks : [], // [{ id, name, damage }]: o id é o nome da animação
+    phase: 1, // a fase em que ele já entrou (a troca de fase toca a animação de transição, veja bossBehaviors.js)
+    attackCount: 0, // quantos ataques de longe ele já fez (os chefes que revezam ataques seguem a ordem)
+    base: { width: Math.round(body.width * BOSS_BASE_WIDTH_SHARE), height: BOSS_BASE_HEIGHT },
+  }
+}
+
+// Um clone do chefe (os clones do Cappuccino) em (x, y): o desenho dele (meio transparente, veja drawEnemy), com a
+// velocidade, a base, os ataques e o dano de encostar dele, mas com pouca vida (CAPPUCCINO.cloneHealth). Não tem
+// barra de vida (não é boss) e morre junto com o chefe (minion). Age por updateClone (bossBehaviors.js).
+export function createClone(boss, { id, x, y }) {
+  const data = { id: boss.enemyId, health: CAPPUCCINO.cloneHealth, damage: boss.contactDamage, speed: boss.speed }
+  return { ...createEnemy(data, 0, 0, BOSS_BODIES[boss.enemyId]), id, x, y, minion: true, clone: true, attacks: boss.attacks, base: boss.base }
+}
+
+// O chefe da sala do chefe, na casa "i" do layout, pronto para entrar em run.targets: [chefe], ou [] sem chefe
+// para o andar (bossId null: catálogo vazio). bossCatalog = chefes do catálogo por id (buildBossCatalog).
+export function createRoomBoss(bossId, bossCatalog, room) {
+  if (!bossId || !bossCatalog[bossId]) return []
+  const { col, row } = getLayoutPoints(room.layoutId).enemies[0]
+  return [createBoss(bossCatalog[bossId], col, row)]
+}
+
 const STAGE_SEED = 7200 // separa o sorteio das ondas do Palco do sorteio das salas comuns
 
 // Os inimigos da onda `wave` (0 a 3) do Palco, nas casas "i" do layout dele (STAGE.waves diz quantos). Os tipos são
@@ -83,10 +120,11 @@ export function createWaveEnemies(seed, floorNumber, room, wave, enemyCatalog) {
   return enemies
 }
 
-// Área de contato no chão, em volta dos pés: encostar nela machuca
+// Área de contato no chão, em volta dos pés: encostar nela machuca. A do chefe é mais funda (o corpo ocupa mais chão).
 export function getEnemyContactBox(enemy) {
   const width = enemy.width * CONTACT_WIDTH_SHARE
-  return { x: enemy.x - width / 2, y: enemy.y - CONTACT_DEPTH, width, height: CONTACT_DEPTH }
+  const depth = enemy.boss || enemy.clone ? BOSS_CONTACT_DEPTH : CONTACT_DEPTH
+  return { x: enemy.x - width / 2, y: enemy.y - depth, width, height: depth }
 }
 
 // O primeiro inimigo vivo que os pés do Tung (feet = { x, y }) estão tocando, ou null
@@ -113,18 +151,49 @@ export function updateEnemies(targets, world) {
   world.chaseMap = createChaseMap(world.pathSolids, world.player)
   world.enemies = targets
   world.shields = []
+  // inimigos que um chefe chamou neste quadro: { enemyId, id, x, y } (as almôndegas da Nonna, do catálogo de inimigos)
+  // ou { cloneOf: chefe, id, x, y } (os clones do Cappuccino)
+  world.spawns = []
   const next = targets.map((target) => {
     if (!target.enemyId) return target
-    // Morto com o pavio aceso, o Peperoncino explode
-    if (target.dead) return target.enemyId === 'peperoncino-kamikaze' ? explodeIfLit(target, world) : target
+    if (target.dead) {
+      // O clone que caiu some numa fumaça (no lugar da morte)
+      if (target.clone && !target.vanished) return vanishClone(target, world)
+      // Morto com o pavio aceso, o Peperoncino explode
+      return target.enemyId === 'peperoncino-kamikaze' ? explodeIfLit(target, world) : target
+    }
     if (target.stunMs > 0 || target.push) return target
     const enemy = { ...target, animationMs: target.animationMs + stepMs }
+    // O Cappuccino conta o tempo sem clones aqui (e não no comportamento, que nem roda durante o descanso pelo waitMs)
+    if (target.cloneCooldownMs > 0) enemy.cloneCooldownMs = Math.max(0, target.cloneCooldownMs - stepMs)
     // O piso (esteira, líquido, grudento) vale depois de agir, também para quem está esperando
     if (enemy.waitMs > 0) return settleOnFloor(setAnimation({ ...enemy, waitMs: Math.max(0, enemy.waitMs - stepMs) }, getIdleAnimation(enemy)), world)
-    const behavior = ENEMY_BEHAVIORS[enemy.enemyId]
+    const behavior = enemy.clone ? updateClone : (ENEMY_BEHAVIORS[enemy.enemyId] ?? BOSS_BEHAVIORS[enemy.enemyId])
     return settleOnFloor(behavior ? behavior(enemy, world) : enemy, world)
   })
-  return next.map((target) => (world.shields.includes(target.id) && isTargetable(target) ? { ...target, shielded: true } : target))
+  const shielded = next.map((target) => (world.shields.includes(target.id) && isTargetable(target) ? { ...target, shielded: true } : target))
+  // O chefe morreu: quem ele chamou (minion) morre junto, até escondido (e o clone some na fumaça)
+  const bossDead = shielded.some((target) => target.boss && target.dead)
+  const result = []
+  for (const target of shielded) {
+    if (!bossDead || !target.minion || target.dead) result.push(target)
+    else if (target.clone) result.push(vanishClone({ ...target, health: 0, dead: true, deadMs: 0 }, world))
+    else result.push({ ...target, health: 0, dead: true, deadMs: 0, hidden: false })
+  }
+  // Os chamados agora entram no fim da lista, com a vida cheia (findNewKills compara pela posição, então quem já
+  // estava continua no mesmo lugar). O chefe só pede: quem cria é aqui (createEnemy mora neste arquivo).
+  for (const spawn of world.spawns) {
+    const data = world.enemyCatalog?.[spawn.enemyId]
+    if (spawn.cloneOf) result.push(createClone(spawn.cloneOf, spawn))
+    else if (data) result.push({ ...createEnemy(data, 0, 0), id: spawn.id, x: spawn.x, y: spawn.y, minion: true })
+  }
+  return result
+}
+
+// O clone morto some: a fumaça (poof) no lugar dele, e nada mais é desenhado (vanished)
+function vanishClone(clone, world) {
+  world.flashes.push(createEnemyFlash('poof', clone.x, clone.y - 60))
+  return { ...clone, vanished: true }
 }
 
 // Os rastros no chão (o gelo do Pinguino e o queijo quente do Fenicottero) envelhecem e somem depois de `ms`
@@ -148,8 +217,9 @@ function withSide(enemy, animations, name) {
 // assim ele não some de repente. O dano toca logo depois de levar um golpe; as outras repetem. Com "reduzir
 // movimento", as que repetem ficam no quadro 0.
 export function getEnemyPose(enemy, reduceMotion = false) {
-  const { animations } = ENEMY_SPRITES[enemy.enemyId]
-  if (enemy.vanished) return null // explodiu (Peperoncino): a explosão toma o lugar da morte
+  const { animations } = getEnemySprite(enemy.enemyId)
+  // Explodiu (Peperoncino) ou é um clone que caiu: a explosão ou a fumaça tomam o lugar da morte
+  if (enemy.vanished || (enemy.clone && enemy.dead)) return null
   if (enemy.dead) {
     const animation = withSide(enemy, animations, 'morte')
     const { durations } = animations[animation]
@@ -159,7 +229,8 @@ export function getEnemyPose(enemy, reduceMotion = false) {
     return alpha > 0 ? { animation, frame: durations.length - 1, alpha } : null
   }
   const hurt = withSide(enemy, animations, 'dano')
-  if (enemy.hurtMs < getTotalDuration(animations[hurt].durations)) {
+  // O chefe não para na animação de dano: com golpes seguidos ela cobriria o andar e os ataques dele (o número de dano e a barra já mostram o acerto)
+  if (!enemy.boss && enemy.hurtMs < getTotalDuration(animations[hurt].durations)) {
     return { animation: hurt, frame: getTimedFrame(animations[hurt].durations, enemy.hurtMs), alpha: 1 }
   }
   const animation = withSide(enemy, animations, enemy.animation)

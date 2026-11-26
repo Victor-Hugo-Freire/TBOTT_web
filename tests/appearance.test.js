@@ -122,6 +122,12 @@ describe('getAppearanceLayers (camadas do quadro atual)', () => {
     assert.equal(findLayer(getAppearanceLayers(concha, walkPose('up', 0)), 'concha-longa').position, 'frente')
   })
 
+  test('o Chifre fica no lado esquerdo da cabeça: virado para a direita, esse lado fica atrás da cabeça', () => {
+    const horn = (direction) => findLayer(getAppearanceLayers(['chifre-da-sorte'], walkPose(direction, 0)), 'chifre-da-sorte')
+    assert.equal(horn('right').position, 'atras')
+    for (const direction of ['down', 'left', 'up']) assert.equal(horn(direction).position, 'frente', direction)
+  })
+
   test('a pose de verdade (getPlayerPose) andando dá o deslocamento do quadro da caminhada', () => {
     const player = { x: 0, y: 0, direction: 'up', walkDistance: 25 }
     const pose = getPlayerPose(player)

@@ -1,4 +1,5 @@
-import { overlaps } from './collision.js'
+import { isLineBlocked, overlaps } from './collision.js'
+import { CELL_HEIGHT, CELL_WIDTH } from './roomLayout.js'
 import { getFeetBox, moveRoomPlayer, ROOM_FLOOR, ROOM_PLAYER_SPEED, ROOM_WALLS } from './roomMovement.js'
 
 // As 7 mecânicas dos obstáculos da sala, em funções puras (sem React, sem canvas), para testar.
@@ -15,6 +16,7 @@ const DIRECTION_VECTORS = {
 }
 
 export const ROLL_SPEED = 520 // u/s do barril deitado e da roda de parmesão depois do golpe
+export const ROLL_DAMAGE = 5 // dano do obstáculo rolando que encosta num inimigo (ele quebra ali)
 // u/s da esteira (o andar é 260). Era 130 e mal se sentia numa esteira de uma casa só; com 220 ainda dá para
 // andar contra ela, bem devagar (40 u/s), e atravessar de lado desvia mais de meia casa.
 export const CONVEYOR_SPEED = 220
@@ -39,10 +41,13 @@ export function getRoomSolids(obstacles, extra = []) {
 // Golpe do bastão: o quebrável que a caixa do golpe toca some (o garrafão vira cacos, com breakMs para a
 // animação de quebrar); o rolante parado começa a rolar na direção do golpe. Os outros não mudam.
 // hitbox é a de getAttackHitbox (null = golpe fora da janela).
-export function hitObstacles(obstacles, hitbox, direction) {
+// O golpe não atravessa obstáculo: com `origin` (os pés do Tung), o obstáculo atrás de outro (a linha até o meio
+// dele passa por dentro de outro obstáculo que bloqueia, ou de um pedestal em `extraBoxes`) não leva o golpe.
+export function hitObstacles(obstacles, hitbox, direction, origin = null, extraBoxes = []) {
   if (!hitbox) return obstacles
   return obstacles.map((obstacle) => {
     if (obstacle.removed || !overlaps(hitbox, obstacle.box)) return obstacle
+    if (origin && isBehindOther(obstacle, obstacles, origin, extraBoxes)) return obstacle
     if (obstacle.mechanic === 'quebravel' && obstacle.kind === 'garrafao') return { ...toShards(obstacle), breakMs: 0 }
     if (obstacle.mechanic === 'quebravel') return { ...obstacle, removed: true }
     if (obstacle.mechanic === 'rolante' && !obstacle.rolling) return { ...obstacle, rolling: { ...DIRECTION_VECTORS[direction] } }
@@ -50,23 +55,47 @@ export function hitObstacles(obstacles, hitbox, direction) {
   })
 }
 
+// O que o golpe não atravessa: os obstáculos que bloqueiam (sem os quebrados e os que estão rolando) e as caixas
+// extras (os pedestais). Cada obstáculo conta com o tamanho da casa dele, e não com a caixa sólida: a caixa sólida
+// (84 x 60) é menor que a casa (105 x 74) para sobrar passagem entre vizinhos, mas o desenho (92 x 92) cobre a casa
+// inteira. Com a caixa sólida, o golpe passava pela folga e pela quina (o caso da mesa do andar 3).
+export function getSwingBlockers(obstacles, extraBoxes = []) {
+  const boxes = []
+  for (const obstacle of obstacles) {
+    if (!obstacle.blocking || obstacle.removed || obstacle.rolling) continue
+    const { box } = obstacle
+    const width = Math.max(box.width, CELL_WIDTH)
+    const height = Math.max(box.height, CELL_HEIGHT)
+    boxes.push({ x: box.x + box.width / 2 - width / 2, y: box.y + box.height / 2 - height / 2, width, height })
+  }
+  return [...boxes, ...extraBoxes]
+}
+
+// Há outro obstáculo que bloqueia (ou uma das caixas extras) entre os pés do Tung e o meio deste obstáculo?
+function isBehindOther(obstacle, obstacles, origin, extraBoxes) {
+  const others = obstacles.filter((other) => other !== obstacle)
+  const middle = { x: obstacle.box.x + obstacle.box.width / 2, y: obstacle.box.y + obstacle.box.height / 2 }
+  return isLineBlocked(origin, middle, getSwingBlockers(others, extraBoxes))
+}
+
 // A caixa saiu do piso? (bateu na parede)
 function isOutsideFloor(box) {
   return box.x < ROOM_FLOOR.left || box.y < ROOM_FLOOR.top || box.x + box.width > ROOM_FLOOR.right || box.y + box.height > ROOM_FLOOR.bottom
 }
 
-// Move os obstáculos que rolam. O que bate na borda do piso ou em outro obstáculo que bloqueia
-// (e não quebrou) quebra também: obstáculo nunca para num lugar novo, então não fecha caminho.
+// Move os obstáculos que rolam. O que bate na borda do piso, em outro obstáculo que bloqueia (e não quebrou) ou numa
+// das caixas extras (os pedestais) quebra também: obstáculo nunca para num lugar novo, então não fecha caminho.
+// (Encostar num inimigo também quebra: veja rollIntoTargets, em enemies.js.)
 // O passo máximo (520 x 0,05 = 26 u) é menor que qualquer obstáculo, então ele não atravessa nenhum.
-export function updateRollingObstacles(obstacles, deltaSeconds) {
+export function updateRollingObstacles(obstacles, deltaSeconds, extraBoxes = []) {
   const distance = ROLL_SPEED * Math.max(0, Math.min(deltaSeconds, 0.05))
   return obstacles.map((obstacle) => {
     if (!obstacle.rolling || obstacle.removed) return obstacle
     const { rolling } = obstacle
     const box = { ...obstacle.box, x: obstacle.box.x + rolling.x * distance, y: obstacle.box.y + rolling.y * distance }
-    const hitsOther = obstacles.some(
-      (other) => other !== obstacle && other.blocking && !other.removed && overlaps(box, other.box),
-    )
+    const hitsOther =
+      obstacles.some((other) => other !== obstacle && other.blocking && !other.removed && overlaps(box, other.box)) ||
+      extraBoxes.some((extra) => overlaps(box, extra))
     if (isOutsideFloor(box) || hitsOther) return { ...obstacle, box, removed: true }
     return { ...obstacle, box }
   })

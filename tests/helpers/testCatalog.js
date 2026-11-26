@@ -1,4 +1,4 @@
-import { buildEnemyCatalog, buildItemCatalog } from '../../src/utils/itemCatalog.js'
+import { buildBossCatalog, buildEnemyCatalog, buildItemCatalog } from '../../src/utils/itemCatalog.js'
 
 // Catálogo de teste no formato de GET /api/catalog, com as salas e os efeitos do seed 0002_items.sql da API,
 // na ordem da API (por nome). Os testes não dependem da API nem do banco.
@@ -88,7 +88,7 @@ const ITEMS = [
     name: 'Rolo de Bronze',
     rarity: 'incomum',
     roomTypes: ['chefe'],
-    effect: { trigger: 'golpe-acerta', pushDistance: 120, wallExtraDamage: 2 },
+    effect: { trigger: 'golpe-acerta', pushDistance: 60, wallExtraDamage: 2 },
   },
   {
     id: 'tiramisu',
@@ -119,3 +119,48 @@ const ENEMIES = [
 ]
 
 export const TEST_ENEMIES = buildEnemyCatalog(ENEMIES).enemies
+
+// Chefes no formato de GET /api/catalog, com os números do seed 0004_bosses.sql da API (na ordem da API: andar
+// mínimo e depois nome). Sem os caminhos dos sprites: o jogo usa os de bossSprites.js.
+const BOSSES = [
+  {
+    id: 'brr-brr-patapim', name: 'Brr Brr Patapim', health: 66, damage: 1, minFloor: 1, maxFloor: 2,
+    attacks: [{ id: 'atacando', name: 'Pisão', damage: 1 }, { id: 'raizes', name: 'Raízes', damage: 1 }],
+  },
+  {
+    id: 'chimpanzini-bananini', name: 'Chimpanzini Bananini', health: 60, damage: 1, minFloor: 1, maxFloor: 2,
+    attacks: [{ id: 'atacando', name: 'Banana-bumerangue', damage: 1 }, { id: 'descascar', name: 'Casca escorregadia', damage: 0 }],
+  },
+  {
+    id: 'cinquecento-turbo', name: 'Cinquecento Turbo', health: 60, damage: 1, minFloor: 1, maxFloor: 2,
+    attacks: [{ id: 'investida', name: 'Investida', damage: 1 }, { id: 'atacando', name: 'Buzina', damage: 1 }],
+  },
+  {
+    id: 'nonna-lasagnona', name: 'Nonna Lasagnona', health: 72, damage: 1, minFloor: 1, maxFloor: 4,
+    attacks: [{ id: 'atacando', name: 'Colherada', damage: 1 }, { id: 'invocar', name: 'Almôndegas', damage: 1 }],
+  },
+  {
+    id: 'ballerina-cappuccina', name: 'Ballerina Cappuccina', health: 84, damage: 1, minFloor: 3, maxFloor: 4,
+    attacks: [{ id: 'pirueta', name: 'Pirueta', damage: 1 }, { id: 'atacando', name: 'Gota de café', damage: 1 }],
+  },
+  {
+    id: 'bombardiro-crocodilo', name: 'Bombardiro Crocodilo', health: 90, damage: 1, minFloor: 3, maxFloor: 4,
+    attacks: [{ id: 'atacando', name: 'Bombardeio', damage: 2 }],
+  },
+  {
+    id: 'cappuccino-assassino', name: 'Cappuccino Assassino', health: 84, damage: 1, minFloor: 3, maxFloor: 4,
+    attacks: [{ id: 'atacando', name: 'Corte de katana', damage: 2 }, { id: 'clones', name: 'Clones', damage: 1 }],
+  },
+  {
+    id: 'tralalero-tralala', name: 'Tralalero Tralala', health: 135, damage: 2, minFloor: 5, maxFloor: 5,
+    attacks: [
+      { id: 'investida', name: 'Investida', damage: 1 },
+      { id: 'atacando', name: 'Mordida', damage: 2 },
+      { id: 'canto-tralala', name: 'Canto', damage: 1 },
+      { id: 'pauta', name: 'Pauta musical', damage: 1 },
+      { id: 'salto-mergulho', name: 'Mergulho', damage: 2 },
+    ],
+  },
+]
+
+export const TEST_BOSSES = buildBossCatalog(BOSSES).bosses

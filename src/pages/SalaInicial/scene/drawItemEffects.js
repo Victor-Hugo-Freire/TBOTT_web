@@ -78,6 +78,11 @@ export function drawFlashes(ctx, flashes) {
       frame = Object.values(sprite.animations)[0].frames - 1
       ctx.globalAlpha = Math.min(1, (flash.durationMs - flash.elapsedMs) / HOLD_FADE_MS)
     }
+    // Espelhado em volta do meio dele (a pauta do Tralalero saindo para a esquerda)
+    if (flash.mirror) {
+      ctx.translate(flash.x * 2, 0)
+      ctx.scale(-1, 1)
+    }
     drawEffectSpriteFrame(ctx, sprite, frame, flash.x, flash.y, flash.scale, flash.angle)
     ctx.restore()
   }
