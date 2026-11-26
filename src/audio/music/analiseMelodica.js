@@ -62,10 +62,13 @@ export function impressaoMelodica(song, nomes, vozes, celulas = new Set(), metri
   for (const notas of notasDasVozes(song, nomes, vozes, metrica)) {
     notas.forEach((nota, indice) => {
       total += 1
+      // Onde a nota cai no tempo: na cabeça, na colcheia (o passo 2, reto ou com swing) ou nas outras
+      // subdivisões, que são diferentes conforme a grade (a tercina do meio no swing, as semicolcheias
+      // na grade reta)
       const noTempo = nota.passo % passosPorTempo
       if (noTempo === 0) somar(pos, 'tempo')
-      else if (swing ? noTempo === 2 : noTempo === 2) somar(pos, 'colcheia')
-      else somar(pos, 'outra')
+      else if (noTempo === 2) somar(pos, 'colcheia')
+      else somar(pos, swing ? 'tercina do meio' : passosPorTempo === 4 ? 'semicolcheia' : 'outra')
       if (noTempo !== 0) contar.foraDoTempo += 1
       if (swing && noTempo === 1) contar.tercinaDoMeio += 1
       if (!swing && noTempo % 2 === 1) contar.semicolcheias += 1

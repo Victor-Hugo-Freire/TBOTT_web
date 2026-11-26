@@ -288,12 +288,14 @@ export const INSTRUMENTOS = Object.freeze({
 
   // Articulações do sax tenor (o mesmo timbre, outra duração): a curta para notas repetidas e
   // "honks", a longa para notas seguradas
+  // As versões curta e longa do sax tenor usadas nos andares: passa-baixa em 1,6 kHz (mais quente,
+  // menos 2–5 kHz que o sax da "A Vila Espera", que fica em 2 kHz)
   saxTenorCurto: instrumento({
     baseMidi: 48, registro: [44, 77],
     volume: 0.28, aleatoriedade: 0.003, forma: SERRA,
     ataque: 0.02, decaimento: 0.05, nivelSustentacao: 0.75, sustentacao: 0.04, soltura: 0.07,
     ruido: 0.03,
-    filtro: passaBaixa(2000),
+    filtro: passaBaixa(1600),
   }),
 
   saxTenorLongo: instrumento({
@@ -301,7 +303,7 @@ export const INSTRUMENTOS = Object.freeze({
     volume: 0.26, aleatoriedade: 0.003, forma: SERRA,
     ataque: 0.035, decaimento: 0.1, nivelSustentacao: 0.8, sustentacao: 0.7, soltura: 0.22,
     ruido: 0.03, repeticao: 0.18, tremolo: 0.07,
-    filtro: passaBaixa(2000),
+    filtro: passaBaixa(1600),
   }),
 
   saxBaritono: instrumento({
