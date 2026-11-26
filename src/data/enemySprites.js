@@ -146,6 +146,18 @@ export const ENEMY_SPRITES = {
       pernas: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-pernas.png',
       tronco: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-tronco.png',
     },
+    // A folha normal só tem menos bolas nos parado-N: andando ou deslizando ele voltava a ter as 3. Estas versões têm
+    // 2 e 1 bolas em todas as animações (getLayerVariant, em enemyBehaviors.js, escolhe pela vida).
+    variantLayers: {
+      bolas2: {
+        pernas: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-bolas2-pernas.png',
+        tronco: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-bolas2-tronco.png',
+      },
+      bolas1: {
+        pernas: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-bolas1-pernas.png',
+        tronco: '/sprites/enemies/pinguino-sorbettino/pinguino-sorbettino-bolas1-tronco.png',
+      },
+    },
     scale: 3,
     frameWidth: 120,
     frameHeight: 130,

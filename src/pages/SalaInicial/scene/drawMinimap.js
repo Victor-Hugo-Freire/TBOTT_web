@@ -1,4 +1,4 @@
-import { getRoomDoors } from '../../../utils/doors.js'
+import { BOSS_BRANCH_TYPES, getRoomDoors } from '../../../utils/doors.js'
 
 const ROOM_ICONS = {
   chefe: 'boss',
@@ -36,6 +36,11 @@ export function getMinimapRoomState(floor, room, currentRoomId) {
   if (room.id === currentRoomId) return 'current'
   if (room.visited) return 'visited'
   if (room.type === 'adega') return 'hidden'
+  // A sala do Pacto/God só aparece com o chefe vencido: a porta dela também, e o tipo só é decidido na morte dele
+  if (BOSS_BRANCH_TYPES.includes(room.type)) {
+    const bossRoom = floor.rooms.find((other) => other.type === 'chefe')
+    if (!bossRoom || !bossRoom.cleared) return 'hidden'
+  }
 
   const adjacentToVisited = Object.values(room.neighbors).some((neighborId) => {
     if (!neighborId) return false

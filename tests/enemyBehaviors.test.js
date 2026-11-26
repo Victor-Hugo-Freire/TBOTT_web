@@ -3,7 +3,8 @@ import { describe, test } from 'node:test'
 import { CHARACTER_STATS } from '../src/data/characterStats.js'
 import { CANNOLO, FORMAGGINO, HAZARD_COOLDOWN_MS, PEPERONCINO, PINGUINO, POLPETTA, START_WAIT_MS } from '../src/data/enemyBehavior.js'
 import { createEnemy, findTouchingEnemy, getEnemyPose, updateEnemies } from '../src/utils/enemies.js'
-import { createIceTrail, explodeIfLit } from '../src/utils/enemyBehaviors.js'
+import { ENEMY_SPRITES } from '../src/data/enemySprites.js'
+import { createIceTrail, explodeIfLit, getLayerVariant } from '../src/utils/enemyBehaviors.js'
 import { generateFloor } from '../src/utils/floorGenerator.js'
 import { createPlayer } from '../src/utils/player.js'
 import { getFloorEffect } from '../src/utils/roomObstacles.js'
@@ -172,6 +173,19 @@ describe('Pinguino Sorbettino', () => {
     assert.equal(idle(enemy), 'parado-2')
     enemy = damageTarget(enemy, 3)
     assert.equal(idle(enemy), 'parado-1')
+  })
+
+  test('andando, atacando e deslizando também mostra só as bolas que restam (a versão da folha)', () => {
+    // Era o defeito: só o parado tinha menos bolas; andando ou deslizando, as 3 voltavam
+    let enemy = spawn('pinguino-sorbettino')
+    assert.equal(getLayerVariant(enemy), null)
+    enemy = damageTarget(enemy, 3)
+    assert.equal(getLayerVariant(enemy), 'bolas2')
+    enemy = damageTarget(enemy, 3)
+    assert.equal(getLayerVariant({ ...enemy, animation: 'deslizando' }), 'bolas1')
+    assert.equal(getLayerVariant(damageTarget(enemy, 3)), 'bolas1', 'morrendo, a da última bola')
+    const { variantLayers } = ENEMY_SPRITES['pinguino-sorbettino']
+    assert.ok(variantLayers.bolas2.tronco && variantLayers.bolas1.pernas)
   })
 
   test('na run, o gelo no chão faz o Tung escorregar', () => {

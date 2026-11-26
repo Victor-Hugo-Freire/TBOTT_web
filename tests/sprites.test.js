@@ -23,6 +23,8 @@ const characters = [...Object.values(ENEMY_SPRITES), ...Object.values(BOSS_SPRIT
 const items = [...Object.values(ITEM_SPRITES), ...Object.values(CONSUMABLE_SPRITES)]
 const sheets = [
   ...characters.flatMap((sprite) => Object.values(sprite.layers).map((src) => ({ ...sprite, path: src }))),
+  // As versões das folhas dos chefes (veja variantLayers em bossSprites.js) usam a mesma grade da folha normal
+  ...characters.flatMap((sprite) => Object.values(sprite.variantLayers ?? {}).flatMap((variant) => Object.values(variant)).map((src) => ({ ...sprite, path: src }))),
   ...items.flatMap((item) => [item, ...Object.values(item.variants)]),
   ...Object.values(EFFECT_SPRITES),
 ]
@@ -126,6 +128,17 @@ describe('sprites de inimigos, chefes, itens, efeitos, salas e HUD', () => {
       assert.equal(anchors.attackHead.length, attack.framesPerRow)
       assert.equal(anchors.hurtHead.length, hurt.framesPerRow)
       assert.deepEqual(anchors.walk[0].head, [0, 0]) // o deslocamento é em relação ao quadro 0, onde a camada foi desenhada
+    }
+  })
+
+  test('as versões das folhas dos chefes têm o mesmo tamanho da normal (as mesmas linhas e quadros)', () => {
+    const withVariants = Object.values(BOSS_SPRITES).filter((sprite) => sprite.variantLayers)
+    assert.deepEqual(withVariants.map((sprite) => sprite.id).sort(), ['chimpanzini-bananini', 'nonna-lasagnona', 'tralalero-tralala'])
+    for (const sprite of withVariants) {
+      for (const [name, variant] of Object.entries(sprite.variantLayers)) {
+        assert.deepEqual(pngSize(variant.pernas), pngSize(sprite.layers.pernas), `${sprite.id} ${name}`)
+        assert.deepEqual(pngSize(variant.tronco), pngSize(sprite.layers.tronco), `${sprite.id} ${name}`)
+      }
     }
   })
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { createProgressSnapshot, normalizeProgressPayload } from '../src/utils/progress.js'
+import { applyEndedRun, createProgressSnapshot, normalizeProgressPayload } from '../src/utils/progress.js'
 import { ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 
 describe('normalizeProgressPayload', () => {
@@ -29,6 +29,7 @@ describe('normalizeProgressPayload', () => {
       grains: 0,
       items: [],
       floorHealsUsed: 0,
+      pactRoomType: null,
     })
   })
 
@@ -141,6 +142,7 @@ describe('normalizeProgressPayload com dados estranhos', () => {
         grains: 0,
         items: [],
         floorHealsUsed: 0,
+        pactRoomType: null,
       })
     }
   })
@@ -172,6 +174,7 @@ describe('createProgressSnapshot', () => {
       grains: 0,
       items: [],
       floorHealsUsed: 0,
+      pactRoomType: null,
     })
   })
 
@@ -262,5 +265,28 @@ describe('itens e pedestais no progresso', () => {
 
   test('createProgressSnapshot guarda os itens', () => {
     assert.deepEqual(createProgressSnapshot({ items: ['dente-de-tubarao'] }).items, ['dente-de-tubarao'])
+  })
+})
+
+describe('applyEndedRun', () => {
+  const alive = normalizeProgressPayload({ seed: 7, health: 4, roomId: '5-6' })
+  const dead = createProgressSnapshot({ seed: 7, health: 0, roomId: '5-6', finished: true, deathCause: 'chapa' })
+
+  test('a morte guardada no navegador, da mesma seed, vale mais que o save vivo da API', () => {
+    const result = applyEndedRun(alive, dead)
+    assert.equal(result.finished, true)
+    assert.equal(result.health, 0)
+    assert.equal(result.deathCause, 'chapa')
+  })
+
+  test('outra seed (run nova) ou run que não acabou: vale o que veio da API', () => {
+    assert.equal(applyEndedRun(normalizeProgressPayload({ seed: 8 }), dead).finished, false)
+    assert.equal(applyEndedRun(alive, { ...dead, finished: false }), alive)
+  })
+
+  test('sem seed, nada guardado ou texto estragado: vale o que veio da API', () => {
+    const noSeed = normalizeProgressPayload({})
+    assert.equal(applyEndedRun(noSeed, createProgressSnapshot({ finished: true })), noSeed)
+    for (const stored of [null, undefined, 'lixo', 3, []]) assert.equal(applyEndedRun(alive, stored), alive, String(stored))
   })
 })

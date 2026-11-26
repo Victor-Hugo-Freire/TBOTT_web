@@ -254,6 +254,7 @@ describe('createRun', () => {
       grains: 0,
       items: [],
       floorHealsUsed: 0,
+      pactRoomType: null,
     })
   })
 

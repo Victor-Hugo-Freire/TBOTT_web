@@ -1,3 +1,4 @@
+import { BOSS_SPRITES } from '../data/bossSprites.js'
 import { ENEMY_SPRITES } from '../data/enemySprites.js'
 import { ITEM_SPRITES } from '../data/itemSprites.js'
 
@@ -54,4 +55,29 @@ export function buildEnemyCatalog(enemies) {
     if (!catalog[id]) missingInCatalog.push(id)
   }
   return { enemies: catalog, missingSprite, missingInCatalog }
+}
+
+// Chefes do catálogo (lista `bosses` da mesma resposta): vida em pontos, damage (encostar) em meios corações, attacks
+// ([{ id, name, damage }], o id é o nome da animação) e os andares em que podem aparecer (minFloor e maxFloor).
+// Chefe sem sprite no jogo fica de fora, e sprite sem chefe no catálogo também (como nos inimigos).
+// Devolve { bosses: { id: chefe }, missingSprite, missingInCatalog }.
+export function buildBossCatalog(bosses) {
+  const catalog = {}
+  const missingSprite = []
+  const missingInCatalog = []
+  const list = Array.isArray(bosses) ? bosses : []
+
+  for (const boss of list) {
+    if (!boss || typeof boss.id !== 'string') continue
+    if (!BOSS_SPRITES[boss.id]) {
+      missingSprite.push(boss.id)
+      continue
+    }
+    catalog[boss.id] = boss
+  }
+
+  for (const id of Object.keys(BOSS_SPRITES)) {
+    if (!catalog[id]) missingInCatalog.push(id)
+  }
+  return { bosses: catalog, missingSprite, missingInCatalog }
 }

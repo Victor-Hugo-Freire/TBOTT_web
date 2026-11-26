@@ -6,9 +6,9 @@ import { formatRunTime } from '../../utils/formatDuration.js'
 import { getDeathCauseLabel } from '../../utils/health.js'
 import { CONSUMABLE_INFO } from '../../data/economy.js'
 import { CONSUMABLE_SPRITES } from '../../data/itemSprites.js'
-import { buildEnemyCatalog, buildItemCatalog } from '../../utils/itemCatalog.js'
+import { buildBossCatalog, buildEnemyCatalog, buildItemCatalog } from '../../utils/itemCatalog.js'
 import { findNearbyPedestal, getRoomPedestals } from '../../utils/pedestals.js'
-import { normalizeProgressPayload } from '../../utils/progress.js'
+import { applyEndedRun, ENDED_RUN_STORAGE_KEY, normalizeProgressPayload } from '../../utils/progress.js'
 import { getSleepFade, getSleepText } from '../../utils/roomInteractions.js'
 import { createRunSeed } from '../../utils/random.js'
 import {
@@ -36,6 +36,7 @@ import {
   updateRestartKey,
   updateRun,
 } from '../../utils/run.js'
+import { drawBossBar, getBossBar } from './scene/drawBossBar.js'
 import { drawDebug, drawDebugPanel } from './scene/drawDebug.js'
 import { drawFloorBanner } from './scene/drawFloorBanner.js'
 import { drawHud, getHudBottom, loadHudImages } from './scene/drawHud.js'
@@ -121,7 +122,7 @@ const SAVE_INTERVAL_MS = 5000
 // Passo máximo do jogo num quadro: depois de uma pausa longa (aba escondida), nada dá um salto
 const MAX_STEP_MS = 100
 
-// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui (só no aviso de fim da run)
+// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui (só nos botões do aviso de erro ao carregar)
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
 
 // Texto do aviso de fim conforme o resultado (vitória ou morte) e o envio à API.
@@ -142,8 +143,8 @@ export default function SalaInicial() {
   const roomRef = useRef(null)
   const canvasRef = useRef(null)
   const endingRef = useRef(null)
-  const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
+  const restartRef = useRef(null)
   const retryLoadRef = useRef(null)
   const pauseMenuItemsRef = useRef([])
   const pauseActionRef = useRef(null)
@@ -162,7 +163,6 @@ export default function SalaInicial() {
   const pauseViewRef = useRef('closed')
   const windowPausedRef = useRef(!document.hasFocus())
   const pauseItemsRef = useRef([])
-  const endingStatus = ending?.status
   const endingStateRef = useRef(null)
   const loadErrorRef = useRef(null)
   const musicContextRef = useRef(null) // último contexto avisado à música do jogo (só avisa quando muda)
@@ -186,7 +186,6 @@ export default function SalaInicial() {
     description: 'Personagem principal do jogo.',
   }
 
-  // O aviso de fim já abre com o foco no "Voltar ao menu" (e volta para ele a cada mudança do envio)
   useEffect(() => {
     endingStateRef.current = ending
   }, [ending])
@@ -195,9 +194,37 @@ export default function SalaInicial() {
     loadErrorRef.current = loadError
   }, [loadError])
 
+  // O aviso de fim é só de teclado (a dica das teclas aparece nele). Enquanto o resultado está sendo enviado,
+  // nada sai da sala: o menu leria o progresso antes de a API apagá-lo. Depois:
+  // - Esc volta ao menu;
+  // - Espaço ou Enter: se o envio falhou, tenta enviar de novo (vitória ou derrota); se a derrota já foi enviada,
+  //   começa uma nova run. Na vitória enviada, só o Esc (o tempo já está no ranking).
   useEffect(() => {
-    if (endingStatus) menuButtonRef.current?.focus()
-  }, [endingStatus])
+    if (!ending) return
+
+    function handleEndingKey(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || event.repeat) return
+      if (ending.status === 'sending') return
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        navigate(ROUTES.menuPrincipal)
+        return
+      }
+
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      if (ending.status === 'error') {
+        event.preventDefault()
+        retryRef.current?.()
+      } else if (ending.outcome === 'defeat') {
+        event.preventDefault()
+        restartRef.current?.()
+      }
+    }
+
+    window.addEventListener('keydown', handleEndingKey)
+    return () => window.removeEventListener('keydown', handleEndingKey)
+  }, [ending, navigate])
 
   useEffect(() => {
     if (pauseView !== 'menu') return
@@ -250,6 +277,7 @@ export default function SalaInicial() {
     let saving = null // salvamento em andamento (o fim da run espera por ele)
     let saveAgain = false
     let resultSent = false
+    let endStored = false // o fim da run já foi guardado no navegador (veja applyEndedRun)
     let outcome = 'victory' // resultado da run que acabou: 'victory' (tambor do andar 5) ou 'defeat' (morreu)
     let deathCause = null // o que matou o personagem (id de health.js), para o aviso
     let restartHoldMs = 0 // há quanto tempo o R está segurado (a tela escurece junto)
@@ -261,16 +289,19 @@ export default function SalaInicial() {
     let view = getRoomView(0, 0)
     let pixelRatio = 1
 
-    // Primeiro o catálogo (GET /api/catalog: itens com os números dos efeitos e inimigos com vida, dano, velocidade
-    // e andar mínimo), depois o progresso. Sem o catálogo a run não começa: aparece o aviso de erro com "Tentar de novo".
+    // Primeiro o catálogo (GET /api/catalog: itens com os números dos efeitos, inimigos com vida, dano, velocidade
+    // e andar mínimo e chefes com vida, dano, ataques e andares), depois o progresso. Sem o catálogo a run não
+    // começa: aparece o aviso de erro com "Tentar de novo".
     async function loadGame() {
       let catalog
       let enemyCatalog
+      let bossCatalog
       try {
         const response = await apiRequest('/api/catalog', { credentials: 'include' })
         if (isCancelled) return
         catalog = buildItemCatalog(response?.items)
         enemyCatalog = buildEnemyCatalog(response?.enemies)
+        bossCatalog = buildBossCatalog(response?.bosses)
       } catch (error) {
         if (isCancelled) return
         // Sessão vencida (401): o apiRequest já leva para a tela de entrar
@@ -284,13 +315,16 @@ export default function SalaInicial() {
       if (enemyCatalog.missingSprite.length > 0 || enemyCatalog.missingInCatalog.length > 0) {
         console.warn('Inimigos ignorados.', { semSprite: enemyCatalog.missingSprite, semCatalogo: enemyCatalog.missingInCatalog })
       }
-      await loadProgress(catalog.items, enemyCatalog.enemies)
+      if (bossCatalog.missingSprite.length > 0 || bossCatalog.missingInCatalog.length > 0) {
+        console.warn('Chefes ignorados.', { semSprite: bossCatalog.missingSprite, semCatalogo: bossCatalog.missingInCatalog })
+      }
+      await loadProgress(catalog.items, enemyCatalog.enemies, bossCatalog.bosses)
     }
     retryLoadRef.current = loadGame
 
     // O andar, a sala, a posição e o tempo vêm da API (e não do state da navegação, que o navegador
     // guarda no histórico e pode estar velho). A partida nova já foi salva pela seleção, sem seed.
-    async function loadProgress(catalog, enemyCatalog) {
+    async function loadProgress(catalog, enemyCatalog, bossCatalog) {
       let progress = normalizeProgressPayload(null)
       let characterId = selectedCharacter.id
       try {
@@ -303,6 +337,12 @@ export default function SalaInicial() {
           return
         }
         progress = normalizeProgressPayload(response.progress)
+        // Se a morte não chegou à API (servidor fora do ar, F5 na animação), vale a que ficou guardada no navegador
+        try {
+          progress = applyEndedRun(progress, JSON.parse(window.localStorage.getItem(ENDED_RUN_STORAGE_KEY)))
+        } catch {
+          // sem localStorage (ou texto estragado): vale o que veio da API
+        }
         characterId = progress.characterId
         canSave = true
       } catch (error) {
@@ -328,6 +368,8 @@ export default function SalaInicial() {
         grains: progress.grains,
         catalog,
         enemyCatalog,
+        bossCatalog,
+        pactRoomType: progress.pactRoomType,
         items: progress.items,
         floorHealsUsed: progress.floorHealsUsed,
       })
@@ -432,6 +474,11 @@ export default function SalaInicial() {
       try {
         const body = { characterId: run.characterId, durationMs: Math.max(1, Math.round(elapsedMs)), status: outcome }
         await apiRequest('/api/runs', { method: 'POST', credentials: 'include', body: JSON.stringify(body) })
+        try {
+          window.localStorage.removeItem(ENDED_RUN_STORAGE_KEY) // a API já apagou o progresso: não precisa mais
+        } catch {
+          // sem localStorage: o próximo Continue já não acha progresso na API
+        }
         if (!isCancelled) setEnding({ ...result, status: 'sent' })
       } catch (error) {
         if (isCancelled) return
@@ -443,13 +490,25 @@ export default function SalaInicial() {
     // Recomeça do andar 1 com outra seed, vida cheia e o tempo zerado, e salva por cima da partida anterior.
     // A tela está preta nesta hora. O tempo segurado volta a 0: a tela clareia na run nova e, com o R ainda
     // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
+    // Também é chamada pelo aviso de morte (Espaço ou Enter, depois de o resultado ser enviado): por isso o aviso some
+    // e as marcas do fim da run voltam ao começo.
     function restartRun() {
-      run = createRun({ seed: createRunSeed(), characterId: run.characterId, catalog: run.catalog, enemyCatalog: run.enemyCatalog })
+      run = createRun({
+        seed: createRunSeed(),
+        characterId: run.characterId,
+        catalog: run.catalog,
+        enemyCatalog: run.enemyCatalog,
+        bossCatalog: run.bossCatalog,
+      })
+      resultSent = false
+      endStored = false // a run nova ainda não acabou: a próxima morte também é guardada no navegador
+      setEnding(null)
       elapsedMs = 0
       restartHoldMs = 0
       enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez
       void saveProgress()
     }
+    restartRef.current = restartRun
 
     // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
     function resize() {
@@ -615,6 +674,16 @@ export default function SalaInicial() {
           announcedFloor = run.floor.number
           setFloorInfo({ number: run.floor.number, name: run.floor.name })
         }
+        // Morreu (ou venceu): guarda o fim no navegador e já manda o PUT com finished, sem esperar a animação nem os 5 s
+        if ((run.death || run.finished) && !endStored && canSave) {
+          endStored = true
+          try {
+            window.localStorage.setItem(ENDED_RUN_STORAGE_KEY, JSON.stringify(createRunSnapshot(run, elapsedMs)))
+          } catch {
+            // sem localStorage: fica só o PUT
+          }
+          void saveProgress()
+        }
         if (run.finished && !resultSent) {
           resultSent = true
           void finishRun()
@@ -710,6 +779,18 @@ export default function SalaInicial() {
       // Itens pegos, na ordem, embaixo do minimapa (com o mapa ampliado, ele cobriria a lista)
       if (!showMinimap) {
         drawItemList(ctx, run.items, { right: minimapRight, top: minimapBottom + Math.round(8 * pixelRatio), size: Math.round(26 * pixelRatio) })
+      }
+
+      // Barra de vida do chefe, embaixo da tela, no meio (some na transição de sala e quando a morte dele acaba)
+      const bossBar = run.transition ? null : getBossBar(run.targets)
+      if (bossBar) {
+        drawBossBar(ctx, bossBar, {
+          centerX: Math.round((canvas.clientWidth / 2) * pixelRatio),
+          bottom: toScreenY(visibleTop + visibleHeight) - pixelSize * 4,
+          pixelSize,
+          timeMs: performance.now(),
+          reduceMotion,
+        })
       }
 
       // Entrada na run, troca de andar, fim da run, R segurado e sono na rede: a tela escurece por cima da sala e do HUD
@@ -918,16 +999,21 @@ export default function SalaInicial() {
             )}
             <p className="sala-inicial__fim-tempo">{ending.time}</p>
             <p className="sala-inicial__fim-mensagem" role="status">{getEndingMessage(ending)}</p>
-            <div className="sala-inicial__fim-botoes">
-              <button ref={menuButtonRef} type="button" className="sala-inicial__fim-botao" onClick={() => ending.status !== 'sending' && navigate(ROUTES.menuPrincipal)}>
-                Voltar ao menu
-              </button>
-              {ending.status === 'error' && (
-                <button type="button" className="sala-inicial__fim-botao" onClick={() => retryRef.current?.()}>
-                  Tentar de novo
-                </button>
-              )}
-            </div>
+            {ending.status !== 'sending' && (
+              <p className="sala-inicial__fim-controles">
+                {ending.status === 'error' && (
+                  <>
+                    <kbd>Espaço</kbd> ou <kbd>Enter</kbd> tenta enviar de novo ·{' '}
+                  </>
+                )}
+                {ending.status === 'sent' && ending.outcome === 'defeat' && (
+                  <>
+                    <kbd>Espaço</kbd> ou <kbd>Enter</kbd> inicia uma nova run ·{' '}
+                  </>
+                )}
+                <kbd>Esc</kbd> volta ao menu
+              </p>
+            )}
           </section>
         </div>
       )}

@@ -6,7 +6,7 @@ Não há. Nenhuma imagem, fonte ou som de terceiros foi usado nos sprites de `pu
 
 ## Fonte das descrições dos itens
 
-O jogo usa uma fonte de terceiros: a **Pixelify Sans** (Copyright 2021 The Pixelify Sans Project Authors, https://github.com/eifetx/Pixelify-Sans), sob a SIL Open Font License 1.1. O arquivo está em `public/fonts/PixelifySans.ttf` e a licença ao lado, em `public/fonts/PixelifySans-OFL.txt`. Ela é usada na frase do banner e na caixa de descrição dos itens, que precisam de letras minúsculas e acentos (a fonte em pixel do jogo, `src/utils/pixelFont.js`, só tem maiúsculas sem acento). Foi baixada do repositório google/fonts em 2026-11-20.
+O jogo usa uma fonte de terceiros: a **Pixelify Sans** (Copyright 2021 The Pixelify Sans Project Authors, https://github.com/eifetx/Pixelify-Sans), sob a SIL Open Font License 1.1. O arquivo está em `public/fonts/PixelifySans.ttf` e a licença ao lado, em `public/fonts/PixelifySans-OFL.txt`. Ela é a fonte de todas as telas (`src/styles/global.css`, só no peso 400) e também da frase do banner e da caixa de descrição dos itens no canvas, que precisam de letras minúsculas e acentos (a fonte em pixel do jogo, `src/utils/pixelFont.js`, só tem maiúsculas sem acento). Foi baixada do repositório google/fonts em 2026-11-20.
 
 ## Sistema de áudio
 

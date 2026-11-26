@@ -1,4 +1,5 @@
-import { moveAndCollide, overlaps } from './collision.js'
+import { BOSS_STUN_MS } from '../data/bossBehavior.js'
+import { isLineBlocked, moveAndCollide, overlaps } from './collision.js'
 
 // Alvo: tudo o que o golpe e os efeitos dos itens podem acertar. Hoje é só o alvo de treino (F3 + T, só no
 // npm run dev); na issue dos inimigos, cada inimigo vai ser um alvo também, e os efeitos passam a valer neles.
@@ -45,15 +46,17 @@ export function getTargetBox(target) {
   return { x: target.x - target.width / 2, y: target.y - target.height, width: target.width, height: target.height }
 }
 
-// Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda
+// Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda.
+// O chefe tem uma base maior (target.base, veja bosses.js); os outros usam BASE_BOX.
 export function getBaseBox(target) {
-  return { x: target.x - BASE_BOX.width / 2, y: target.y - BASE_BOX.height, width: BASE_BOX.width, height: BASE_BOX.height }
+  const size = target.base ?? BASE_BOX
+  return { x: target.x - size.width / 2, y: target.y - size.height, width: size.width, height: size.height }
 }
 
-// Dá para acertar o alvo? Morto não, e escondido também não (a Polpetta debaixo do molho): nenhum golpe, lasca,
-// raio, onda, poça ou empurrão chega nele
+// Dá para acertar o alvo? Morto não, escondido também não (a Polpetta debaixo do molho) e invencível também não (o
+// Tralalero trocando de fase): nenhum golpe, lasca, raio, onda, poça ou empurrão chega nele
 export function isTargetable(target) {
-  return !target.dead && !target.hidden
+  return !target.dead && !target.hidden && !target.invincible
 }
 
 // Tira `amount` pontos de vida e mostra o número. Com 0 de vida o alvo morre; morto, não leva mais dano.
@@ -74,16 +77,19 @@ export function slowTarget(target, multiplier, ms) {
 
 // Fica preso por `ms`: não anda nem ataca. Se já estava preso, vale o tempo maior.
 // immuneMs: depois de preso, só pode ser preso de novo passado esse tempo (contado agora); até lá, nada muda.
+// O chefe fica preso no máximo BOSS_STUN_MS.
 export function stunTarget(target, ms, immuneMs = 0) {
   if (!isTargetable(target) || target.stunImmuneMs > 0) return target
-  return { ...target, stunMs: Math.max(target.stunMs, ms), stunImmuneMs: immuneMs }
+  const stunMs = target.boss ? Math.min(ms, BOSS_STUN_MS) : ms
+  return { ...target, stunMs: Math.max(target.stunMs, stunMs), stunImmuneMs: immuneMs }
 }
 
 // Empurrão: desliza `distance` na direção (directionX, directionY) em PUSH_MS, parando no que bloqueia.
 // A direção tem tamanho 1: { x: 1, y: 0 } empurra para a direita.
 // wallDamage = dano a mais se ele bater numa parede ou obstáculo no caminho (Rolo de Bronze); 0 = nenhum.
 export function pushTarget(target, directionX, directionY, distance, wallDamage = 0) {
-  if (!isTargetable(target)) return target
+  // O chefe não é empurrado: empurrado, ele para de agir e ficaria sem reação enquanto o Tung bate
+  if (!isTargetable(target) || target.boss) return target
   const speed = distance / (PUSH_MS / 1000)
   return { ...target, push: { x: directionX * speed, y: directionY * speed, ms: PUSH_MS, wallDamage } }
 }
@@ -138,8 +144,8 @@ export function updateTarget(target, deltaSeconds, solids) {
     const dx = target.push.x * seconds
     const dy = target.push.y * seconds
     const moved = moveAndCollide(box, dx, dy, solids)
-    next.x = moved.x + BASE_BOX.width / 2
-    next.y = moved.y + BASE_BOX.height
+    next.x = moved.x + box.width / 2
+    next.y = moved.y + box.height
     // Bateu em alguma coisa (andou menos que o pedido) ou o tempo acabou: o empurrão para
     const blocked = moved.x !== box.x + dx || moved.y !== box.y + dy
     const ms = target.push.ms - stepMs
@@ -165,12 +171,16 @@ export function updateTargets(targets, deltaSeconds, solids) {
 
 // Posições (na lista) dos alvos vivos que a caixa do golpe (hitbox) toca e que ainda não levaram dano DESTE golpe
 // (hitIds). Assim cada alvo é acertado uma vez por golpe, mesmo com a caixa ativa por vários quadros.
+// O golpe não atravessa obstáculo: com `origin` (os pés de quem bate), o alvo só conta se a linha até os pés dele não
+// passa por dentro de nenhum dos `solids` (obstáculos e pedestais). Quem voa está no ar, por cima deles: sempre conta.
 // Quem chama aplica o dano e os efeitos dos itens (itemEffects.js).
-export function findSwingHits(targets, hitbox, hitIds) {
+export function findSwingHits(targets, hitbox, hitIds, origin = null, solids = []) {
   const indexes = []
   for (let index = 0; index < targets.length; index++) {
     const target = targets[index]
-    if (isTargetable(target) && !hitIds.includes(target.id) && overlaps(hitbox, getTargetBox(target))) indexes.push(index)
+    if (!isTargetable(target) || hitIds.includes(target.id) || !overlaps(hitbox, getTargetBox(target))) continue
+    if (origin && !target.flying && isLineBlocked(origin, target, solids)) continue
+    indexes.push(index)
   }
   return indexes
 }

@@ -31,7 +31,7 @@ export function getHeartStates(health, maxHealth) {
   return states
 }
 
-// O que matou o personagem, para o aviso de morte. A causa é o id do obstáculo ou do inimigo (e, depois, do chefe).
+// O que matou o personagem, para o aviso de morte. A causa é o id do obstáculo, do inimigo ou do chefe.
 // O texto completa a frase "O Tung Tung morreu para ...".
 const DEATH_CAUSES = {
   chapa: 'a chapa quente',
@@ -49,6 +49,15 @@ const DEATH_CAUSES = {
   'polpetta-sotterranea': 'a Polpetta Sotterranea',
   'vespina-lambrettina': 'a Vespina Lambrettina',
   'zanzarina-tarantella': 'a Zanzarina Tarantella',
+  // Chefes (a causa é o id do chefe: encostar, ataque ou projétil dele)
+  'ballerina-cappuccina': 'a Ballerina Cappuccina',
+  'bombardiro-crocodilo': 'o Bombardiro Crocodilo',
+  'brr-brr-patapim': 'o Brr Brr Patapim',
+  'cappuccino-assassino': 'o Cappuccino Assassino',
+  'chimpanzini-bananini': 'o Chimpanzini Bananini',
+  'cinquecento-turbo': 'o Cinquecento Turbo',
+  'nonna-lasagnona': 'a Nonna Lasagnona',
+  'tralalero-tralala': 'o Tralalero Tralala',
 }
 
 export function getDeathCauseLabel(cause) {
