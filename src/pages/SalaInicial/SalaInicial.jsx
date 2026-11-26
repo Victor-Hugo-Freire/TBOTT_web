@@ -121,7 +121,7 @@ const SAVE_INTERVAL_MS = 5000
 // Passo máximo do jogo num quadro: depois de uma pausa longa (aba escondida), nada dá um salto
 const MAX_STEP_MS = 100
 
-// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui (só no aviso de fim da run)
+// A sala é só de teclado: cliques e menu de contexto não fazem nada aqui (só nos botões do aviso de erro ao carregar)
 const BLOCKED_MOUSE_EVENTS = ['mousedown', 'mouseup', 'click', 'contextmenu']
 
 // Texto do aviso de fim conforme o resultado (vitória ou morte) e o envio à API.
@@ -142,8 +142,8 @@ export default function SalaInicial() {
   const roomRef = useRef(null)
   const canvasRef = useRef(null)
   const endingRef = useRef(null)
-  const menuButtonRef = useRef(null)
   const retryRef = useRef(null)
+  const restartRef = useRef(null)
   const retryLoadRef = useRef(null)
   const pauseMenuItemsRef = useRef([])
   const pauseActionRef = useRef(null)
@@ -162,7 +162,6 @@ export default function SalaInicial() {
   const pauseViewRef = useRef('closed')
   const windowPausedRef = useRef(!document.hasFocus())
   const pauseItemsRef = useRef([])
-  const endingStatus = ending?.status
   const endingStateRef = useRef(null)
   const loadErrorRef = useRef(null)
 
@@ -185,7 +184,6 @@ export default function SalaInicial() {
     description: 'Personagem principal do jogo.',
   }
 
-  // O aviso de fim já abre com o foco no "Voltar ao menu" (e volta para ele a cada mudança do envio)
   useEffect(() => {
     endingStateRef.current = ending
   }, [ending])
@@ -194,9 +192,37 @@ export default function SalaInicial() {
     loadErrorRef.current = loadError
   }, [loadError])
 
+  // O aviso de fim é só de teclado (a dica das teclas aparece nele). Enquanto o resultado está sendo enviado,
+  // nada sai da sala: o menu leria o progresso antes de a API apagá-lo. Depois:
+  // - Esc volta ao menu;
+  // - Espaço ou Enter: se o envio falhou, tenta enviar de novo (vitória ou derrota); se a derrota já foi enviada,
+  //   começa uma nova run. Na vitória enviada, só o Esc (o tempo já está no ranking).
   useEffect(() => {
-    if (endingStatus) menuButtonRef.current?.focus()
-  }, [endingStatus])
+    if (!ending) return
+
+    function handleEndingKey(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || event.repeat) return
+      if (ending.status === 'sending') return
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        navigate(ROUTES.menuPrincipal)
+        return
+      }
+
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      if (ending.status === 'error') {
+        event.preventDefault()
+        retryRef.current?.()
+      } else if (ending.outcome === 'defeat') {
+        event.preventDefault()
+        restartRef.current?.()
+      }
+    }
+
+    window.addEventListener('keydown', handleEndingKey)
+    return () => window.removeEventListener('keydown', handleEndingKey)
+  }, [ending, navigate])
 
   useEffect(() => {
     if (pauseView !== 'menu') return
@@ -462,6 +488,8 @@ export default function SalaInicial() {
     // Recomeça do andar 1 com outra seed, vida cheia e o tempo zerado, e salva por cima da partida anterior.
     // A tela está preta nesta hora. O tempo segurado volta a 0: a tela clareia na run nova e, com o R ainda
     // segurado, escurece de novo e recomeça outra vez (uma run atrás da outra, como no Isaac).
+    // Também é chamada pelo aviso de morte (Espaço ou Enter, depois de o resultado ser enviado): por isso o aviso some
+    // e as marcas do fim da run voltam ao começo.
     function restartRun() {
       run = createRun({
         seed: createRunSeed(),
@@ -470,11 +498,15 @@ export default function SalaInicial() {
         enemyCatalog: run.enemyCatalog,
         bossCatalog: run.bossCatalog,
       })
+      resultSent = false
+      endStored = false // a run nova ainda não acabou: a próxima morte também é guardada no navegador
+      setEnding(null)
       elapsedMs = 0
       restartHoldMs = 0
       enterMs = 0 // a run nova também clareia do preto, em vez de aparecer de uma vez
       void saveProgress()
     }
+    restartRef.current = restartRun
 
     // Ajusta a resolução do canvas à tela (e ao zoom/telas de alta densidade)
     function resize() {
@@ -958,16 +990,21 @@ export default function SalaInicial() {
             )}
             <p className="sala-inicial__fim-tempo">{ending.time}</p>
             <p className="sala-inicial__fim-mensagem" role="status">{getEndingMessage(ending)}</p>
-            <div className="sala-inicial__fim-botoes">
-              <button ref={menuButtonRef} type="button" className="sala-inicial__fim-botao" onClick={() => ending.status !== 'sending' && navigate(ROUTES.menuPrincipal)}>
-                Voltar ao menu
-              </button>
-              {ending.status === 'error' && (
-                <button type="button" className="sala-inicial__fim-botao" onClick={() => retryRef.current?.()}>
-                  Tentar de novo
-                </button>
-              )}
-            </div>
+            {ending.status !== 'sending' && (
+              <p className="sala-inicial__fim-controles">
+                {ending.status === 'error' && (
+                  <>
+                    <kbd>Espaço</kbd> ou <kbd>Enter</kbd> tenta enviar de novo ·{' '}
+                  </>
+                )}
+                {ending.status === 'sent' && ending.outcome === 'defeat' && (
+                  <>
+                    <kbd>Espaço</kbd> ou <kbd>Enter</kbd> inicia uma nova run ·{' '}
+                  </>
+                )}
+                <kbd>Esc</kbd> volta ao menu
+              </p>
+            )}
           </section>
         </div>
       )}

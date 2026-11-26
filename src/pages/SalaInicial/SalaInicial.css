@@ -1,12 +1,3 @@
-/* Fonte das descrições dos itens (frase do banner e caixa de descrição), desenhadas no canvas.
-   Tem minúsculas e acentos; licença OFL (public/fonts/PixelifySans-OFL.txt e docs/sprites/CREDITS.md). */
-@font-face {
-  font-family: 'Pixelify Sans';
-  src: url('/fonts/PixelifySans.ttf') format('truetype');
-  font-weight: 400 700;
-  font-display: swap;
-}
-
 /* A sala ocupa exatamente a janela. O canvas desenha a sala com escala
    uniforme (veja getRoomView, que corta até 30 u das paredes de cima e de baixo); a sobra fica na cor de fundo do jogo. */
 .sala-inicial {
@@ -43,9 +34,10 @@
   gap: 0.75rem;
   width: min(100%, 26rem);
   padding: clamp(1.5rem, 4vw, 2.25rem);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border-strong);
+  outline: 1px solid rgba(36, 21, 15, 0.9);
   border-radius: var(--radius-md);
-  background: var(--color-background-panel);
+  background: rgba(29, 23, 19, 0.97);
   box-shadow: var(--shadow-soft);
   color: var(--color-text);
   text-align: center;
@@ -73,6 +65,28 @@
 .sala-inicial__fim-mensagem {
   color: var(--color-text-muted);
   line-height: 1.5;
+}
+
+.sala-inicial__fim-controles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 1rem; /* menor que isso, a Pixelify Sans junta os pixels e o "c" de "Esc" vira "o" */
+  line-height: 1.4;
+}
+
+.sala-inicial__fim-controles kbd {
+  min-width: 2.25rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--color-text-light);
+  font: inherit;
 }
 
 .sala-inicial__fim-botoes {
@@ -222,7 +236,7 @@
   padding-bottom: 0.4rem;
   border-bottom: 1px solid rgba(198, 177, 140, 0.45);
   color: #f2dfbc;
-  font-size: clamp(0.78rem, 1.6vw, 1rem);
+  font-size: clamp(1.125rem, 1.6vw, 1.25rem); /* abaixo de ~18 px, o C de COLETADOS vira O (Pixelify Sans) */
   letter-spacing: 0.04em;
   text-align: center;
 }
@@ -230,7 +244,8 @@
 .sala-inicial__itens {
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* 6 por linha: os 12 itens do jogo cabem em 2 linhas e o painel da pausa não cresce demais (no celular, 4) */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: start;
   gap: clamp(0.5rem, 1vw, 0.75rem);
 }
@@ -312,7 +327,7 @@
   }
 
   .sala-inicial__inventario h3 {
-    font-size: clamp(0.68rem, 2.8vw, 0.82rem);
+    font-size: 1.125rem;
   }
 
   .sala-inicial__itens {

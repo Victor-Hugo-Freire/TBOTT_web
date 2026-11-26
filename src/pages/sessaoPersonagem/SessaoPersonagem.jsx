@@ -5,6 +5,7 @@ import Login from '../../components/Login/Login.jsx'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { createProgressSnapshot } from '../../utils/progress.js'
+import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './SessaoPersonagem.css'
 
 const EMPTY_STATE = {
@@ -37,11 +38,16 @@ function getVisibleCharacters(characters, currentIndex) {
 export default function SessaoPersonagem() {
   const navigate = useNavigate()
   const backRef = useRef(null)
+  const userRef = useRef(null)
+  const mainRef = useRef(null)
+  const startRef = useRef(null) // "Começar Jogo": o foco volta para ele quando o aviso de substituir fecha
   const [characters, setCharacters] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedCharacterId, setSelectedCharacterId] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showOverwriteDialog, setShowOverwriteDialog] = useState(false)
+  const [isStartingGame, setIsStartingGame] = useState(false)
 
   useEffect(() => {
     backRef.current?.focus()
@@ -114,16 +120,92 @@ export default function SessaoPersonagem() {
     setSelectedCharacterId(nextCharacter.id)
   }
 
-  async function handleStartGame() {
-    if (!selectedCharacter) return
+  useEffect(() => {
+    if (!showOverwriteDialog) return
 
-    try {
-      const response = await apiRequest('/api/progress/exists', { credentials: 'include' })
+    function handleOverwriteKey(event) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || event.repeat) return
 
-      if (response?.exists && !window.confirm('Já existe uma partida salva. Deseja sobrescrevê-la?')) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setShowOverwriteDialog(false)
+        startRef.current?.focus()
         return
       }
 
+      const key = event.key.toLowerCase()
+      if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'a', 'd', 'w', 's'].includes(key)) {
+        event.preventDefault()
+        const buttons = Array.from(document.querySelectorAll('.sessao-personagem__dialog-acoes button:not(:disabled)'))
+        if (buttons.length === 0) return
+
+        const currentIndex = buttons.findIndex((button) => button === document.activeElement)
+        const direction = ['arrowright', 'd', 'arrowdown', 's'].includes(key) ? 1 : -1
+        const nextIndex = currentIndex === -1
+          ? (direction === 1 ? 0 : buttons.length - 1)
+          : (currentIndex + direction + buttons.length) % buttons.length
+        buttons[nextIndex]?.focus()
+      }
+
+    }
+
+    document.querySelector('.sessao-personagem__dialog-cancelar')?.focus()
+    window.addEventListener('keydown', handleOverwriteKey)
+    return () => window.removeEventListener('keydown', handleOverwriteKey)
+  }, [showOverwriteDialog])
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (showOverwriteDialog) return
+      if (isTypingTarget(event.target)) return
+      if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
+
+      const key = event.key.toLowerCase()
+
+      if (key === 'arrowleft' || key === 'a') {
+        event.preventDefault()
+        if (key === 'a') {
+          backRef.current?.focus()
+        } else if (characters.length > 1) {
+          setCurrentIndex((previousIndex) => (previousIndex - 1 + characters.length) % characters.length)
+        }
+        return
+      }
+
+      if (key === 'arrowright' || key === 'd') {
+        event.preventDefault()
+        if (key === 'd') {
+          userRef.current?.focus()
+        } else if (characters.length > 1) {
+          setCurrentIndex((previousIndex) => (previousIndex + 1) % characters.length)
+        }
+        return
+      }
+
+      const action = getMenuNavigationAction(event.key)
+      if (action !== 'up' && action !== 'down') return
+
+      event.preventDefault()
+
+      const buttons = Array.from(mainRef.current?.querySelectorAll('button:not(:disabled)') ?? [])
+      if (buttons.length === 0) return
+
+      const currentIndex = buttons.findIndex((button) => button === document.activeElement)
+      const nextIndex = getNextIndex(currentIndex, action, buttons.length)
+      buttons[nextIndex]?.focus()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [characters.length, showOverwriteDialog])
+
+  async function startSelectedGame() {
+    if (!selectedCharacter || isStartingGame) return
+
+    setIsStartingGame(true)
+    setShowOverwriteDialog(false)
+
+    try {
       // A partida nova substitui a salva já aqui (a API troca o progresso do usuário pelo novo).
       // A sala carrega o progresso da API, então nunca depende do state da navegação.
       const newRun = createProgressSnapshot({ characterId: selectedCharacter.id })
@@ -137,18 +219,36 @@ export default function SessaoPersonagem() {
       }
 
       setError(error?.message || 'Não foi possível iniciar a partida.')
+      setIsStartingGame(false)
+    }
+  }
+
+  async function handleStartGame() {
+    if (!selectedCharacter || isStartingGame) return
+
+    try {
+      const response = await apiRequest('/api/progress/exists', { credentials: 'include' })
+
+      if (response?.exists) {
+        setShowOverwriteDialog(true)
+        return
+      }
+
+      await startSelectedGame()
+    } catch (error) {
+      setError(error?.message || 'Não foi possível verificar a partida salva.')
     }
   }
 
   return (
-    <main className="sessao-personagem" aria-label="Seleção de personagem">
+    <main ref={mainRef} className="sessao-personagem" aria-label="Seleção de personagem">
       <title>Seleção de personagem | The Binding of Tung Tung</title>
 
       <div className="sessao-personagem__layout">
         <header className="sessao-personagem__header">
           <BotaoVoltar ref={backRef} label="Voltar para o menu" onClick={() => navigate(ROUTES.menuPrincipal)} />
 
-          <Login className="sessao-personagem__usuario" />
+          <Login ref={userRef} className="sessao-personagem__usuario" />
         </header>
 
         <section className="sessao-personagem__carrossel" aria-live="polite">
@@ -214,15 +314,11 @@ export default function SessaoPersonagem() {
                   )
                 })}
 
-                <div className="sessao-personagem__indicadores" aria-label="Indicadores de personagem">
+                <div className="sessao-personagem__indicadores" aria-hidden="true">
                   {selectionIndicators.map((character) => (
-                    <button
+                    <span
                       key={character.id}
-                      type="button"
                       className={`sessao-personagem__indicador ${character.isActive ? 'sessao-personagem__indicador--ativo' : ''}`}
-                      aria-label={`Selecionar ${character.name}`}
-                      onClick={() => handleSelectCharacter(character.index)}
-                      aria-pressed={character.isActive}
                     />
                   ))}
                 </div>
@@ -242,6 +338,7 @@ export default function SessaoPersonagem() {
         </section>
 
         <button
+          ref={startRef}
           type="button"
           className="sessao-personagem__inicio"
           disabled={!selectedCharacter}
@@ -250,6 +347,36 @@ export default function SessaoPersonagem() {
           Começar Jogo
         </button>
       </div>
+
+      {showOverwriteDialog && (
+        <div className="sessao-personagem__dialog-fundo" role="presentation">
+          <section className="sessao-personagem__dialog" role="alertdialog" aria-modal="true" aria-labelledby="sessao-personagem-dialog-titulo">
+            <h2 id="sessao-personagem-dialog-titulo">Substituir partida salva?</h2>
+            <p>Começar uma nova run apagará o progresso atual.</p>
+            <div className="sessao-personagem__dialog-acoes">
+              <button
+                type="button"
+                className="sessao-personagem__dialog-cancelar"
+                onClick={() => {
+                  setShowOverwriteDialog(false)
+                  startRef.current?.focus()
+                }}
+                autoFocus
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="sessao-personagem__dialog-confirmar"
+                disabled={isStartingGame}
+                onClick={() => void startSelectedGame()}
+              >
+                Substituir e começar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

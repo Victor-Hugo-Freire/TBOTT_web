@@ -1,8 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import CardUsuario from '../../components/CardUsuario/CardUsuario.jsx'
 import { useSession } from '../../context/useSession.js'
-import { ROUTES } from '../../routes/paths.js'
 import { apiRequest } from '../../services/api.js'
 import {
   PASSWORD_MAX,
@@ -39,7 +37,6 @@ function getLoginErrorMessage(error) {
 // mostra o formulário de login, que troca para o cadastro por um link (tela /entrar).
 // - ref: vai para o card do usuário, para o atalho de teclado do menu selecioná-lo
 export default function Login({ ref, className = '' }) {
-  const navigate = useNavigate()
   const [screen, setScreen] = useState('login')
   const [form, setForm] = useState(initialForm)
   const [statusMessage, setStatusMessage] = useState('')
@@ -147,9 +144,6 @@ export default function Login({ ref, className = '' }) {
           <CardUsuario ref={ref} nome={profile.username} onClick={() => setIsUserMenuOpen((open) => !open)} />
           {isUserMenuOpen && (
             <div className="login__user-menu" aria-label="Opções da conta">
-              <button type="button" className="login__user-menu-button" onClick={() => navigate(ROUTES.perfil)}>
-                Perfil
-              </button>
               <button type="button" className="login__user-menu-button" onClick={handleLogout}>
                 Sair da conta
               </button>
