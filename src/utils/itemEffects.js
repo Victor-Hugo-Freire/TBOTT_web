@@ -243,11 +243,11 @@ export function startSwing(run, freshPress, stats) {
 
 // Parmesão Curado: todo golpe, acertando ou não, solta as lascas em leque para a frente, uma vez por golpe,
 // no primeiro quadro em que a caixa do golpe aparece (saem do meio dela)
-function fireShards(run, hitbox) {
+function fireShards(run, hitbox, direction) {
   const cheese = getEffect(run, 'parmesao-curado')
   if (!cheese?.shards || run.swing.shardsFired) return run
   const origin = { x: hitbox.x + hitbox.width / 2, y: hitbox.y + hitbox.height / 2 }
-  const shards = [...run.shards, ...createShards(origin, run.player.attack.direction, cheese.shards)]
+  const shards = [...run.shards, ...createShards(origin, direction, cheese.shards)]
   return { ...run, shards, swing: { ...run.swing, shardsFired: true } }
 }
 
@@ -266,15 +266,15 @@ function getSwingDamage(run, target, stats, withElixir) {
 
 // A caixa do golpe (hitbox) acertou os alvos que ela toca agora (cada um uma vez por golpe), com os efeitos
 // dos itens que valem em cada acerto. solids = os obstáculos e os pedestais da sala: o golpe não os atravessa.
-export function hitWithSwing(run, hitbox, stats, solids = []) {
-  run = fireShards(run, hitbox)
+// direction = a direção do golpe que gerou a caixa: o golpe pode ter acabado neste mesmo quadro (run.player.attack já é null)
+export function hitWithSwing(run, hitbox, direction, stats, solids = []) {
+  run = fireShards(run, hitbox, direction)
   const indexes = findSwingHits(run.targets, hitbox, run.swing.hitIds, run.player, solids)
   if (indexes.length === 0) return run
   const targets = [...run.targets]
   const flashes = [...run.flashes]
   let puddles = run.puddles
   const swing = { ...run.swing, hitIds: [...run.swing.hitIds], hitAny: true }
-  const direction = run.player.attack.direction
   const vector = DIRECTION_VECTORS[direction]
 
   for (const index of indexes) {

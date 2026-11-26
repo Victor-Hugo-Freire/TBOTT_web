@@ -833,6 +833,7 @@ function updateRoom(run, input, deltaSeconds) {
 
   let obstacles = run.obstacles
   const hitbox = getAttackHitbox(player)
+  const swingDirection = player.attack?.direction // o golpe pode acabar (ou ser cortado pelo dano) antes de hitWithSwing
   if (hitbox) {
     // O golpe não atravessa obstáculo: o que está atrás de outro (ou de um pedestal) não quebra nem rola
     obstacles = hitObstacles(obstacles, hitbox, player.attack.direction, player, pedestalBoxes)
@@ -900,7 +901,7 @@ function updateRoom(run, input, deltaSeconds) {
   if (swingEnded) next = endSwing(next)
   if (newSwing) next = startSwing(next, !run.attackHeld, stats)
   // O golpe não acerta quem está atrás de obstáculo (cada obstáculo conta com o tamanho da casa, veja getSwingBlockers)
-  if (hitbox) next = hitWithSwing(next, hitbox, stats, getSwingBlockers(run.obstacles, pedestalBoxes))
+  if (hitbox) next = hitWithSwing(next, hitbox, swingDirection, stats, getSwingBlockers(run.obstacles, pedestalBoxes))
   next = updateShards(next, deltaSeconds, solids)
   next = updatePuddles(next, stepMs)
   const killed = findNewKills(run.targets, next.targets)
