@@ -1,51 +1,59 @@
-// A Ronda: Piazza. Faixa do andar 3: a praça à noite (fachadas, pedras, luz azulada).
+// A Ronda: Piazza. Faixa do andar 3: a praça à noite (fachadas, pedras, luz azulada, um trio tocando
+// no café).
 //
 // ESTILO E ANDAMENTO
-//   Soul-jazz de trio de órgão em Fá menor (groove dórico), ♩ = 112. Grade de 12 passos por
-//   compasso (swing). bpm do ZzFXM = 112 × 3/4 = 84.
+//   Valsa de jazz modal em Si dórico, ♩ = 112, compasso de 3 tempos com swing. Grade de 9 passos por
+//   compasso (3 tempos × 3 tercinas). bpm do ZzFXM = 112 × 3/4 = 84. É o único andar em 3.
 //
-// MATERIAL (ver MELODIA: as figuras rítmicas e as notas próprias da Piazza)
-//   Tema A (o head): frases em tercina de semínima no órgão (no A1 em quartas paralelas), em Fá
-//   dórico, com saltos de quarta e sexta e notas ligadas por cima da barra.
-//   Tema B: respostas da guitarra na ponte, também em tercinas, com sextas e a nona bemol.
-//   A célula do Tung (Dó – Mi♭ – Fá – Mi♭ – Dó em Fá) aparece exata só no fim do C.
-//   O tung-tung-tung (madeira, em Fá) fecha algumas seções, nunca todas.
+// HARMONIA (o que é só da Piazza)
+//   Si dórico: a cor é a sexta maior (Sol#), que aparece no E13 (o IV maior do dórico). Ritmo
+//   harmônico lento no A (um acorde a cada 2 compassos) e o vamp Bm9 ↔ E13 em que só uma voz do acorde
+//   anda (Lá → Sol#). Cadências modais, sem sensível: IV7 → i (E13 → Bm9) e v → i (F#m11 → Bm9). A
+//   ponte é o único trecho funcional (ii – V – I em Ré maior, com Sol natural) e a dominante só
+//   aparece suspensa (F#7sus4), sem resolver em F#7.
 //
-// FORMA (42 compassos, ~90 s; editar em FORMA)
-//   A1  (8)  head no órgão; ride leve, cross-stick no 4, baixo de órgão
-//   A2  (8)  o head de novo: a guitarra dobra a célula uma oitava abaixo e o fim da frase muda; o bumbo empurra
-//            e uma virada leva à ponte
-//   B   (8)  ponte: D♭maj7 – C7#9, Leslie rápido, a guitarra responde no agudo, campana no 2 e no 4
-//   A3  (8)  o head passa para a guitarra, o órgão vira pad sustentado, caixa de verdade no 2 e no 4:
-//            o ponto mais alto
-//   C   (8)  a lua na praça: só o ride baixinho e o pedal do baixo; o órgão lembra pedaços da célula;
-//            nos dois últimos compassos a bateria volta
-//   Tag (2)  D♭maj7 – C7#9 com virada de tons e o tung-tung-tung, de volta ao A1
-//   Energia: A1 média → A2 média-alta → B alta → A3 a mais alta → C a mais baixa → Tag sobe → (A1)
+// MATERIAL (ver MELODIA)
+//   Tema A (o head): frases em arco de 4 compassos no vibrafone, com a tercina de semínima (três notas
+//   em dois tempos, atravessando a barra), notas ligadas por cima da barra e saltos de quarta e sexta;
+//   4 compassos de pergunta, 4 de resposta e um respiro.
+//   A hemíola (A2): o clarinete grave em mínimas que atravessam a barra (dois compassos de 3 viram
+//   três de 2), com o baixo e a guitarra acentuando junto e o ride seguindo a valsa por cima.
+//   Tema B (a ponte): o clarinete em colcheias com swing sobre o ii – V – I.
+//   A célula do Tung (Fá# – Lá – Si – Lá – Fá# em Si) aparece exata só na Lua, no vibrafone. O
+//   tung-tung-tung (madeira, em Si) fecha algumas seções no 3º tempo.
 //
-// ESPAÇO PARA OS EFEITOS SONOROS (100 a 650 Hz)
-//   O baixo de órgão fica abaixo de 100 Hz; o head e as respostas ficam quase todos acima de 523 Hz;
-//   o órgão acompanha com um ou dois toques curtos por compasso.
+// FORMA (60 compassos de 3 tempos, ~96 s; editar em FORMA)
+//   A1    (16)  o head no vibrafone; vassourinha, baixo "em um", guitarra no 2 e no 3
+//   A2    (16)  a hemíola: o clarinete em mínimas, ride com baquetas, bumbo e guitarra a cada 2 tempos
+//   Ponte  (8)  ii – V – I em Ré: o clarinete em colcheias, o baixo caminha em três, a caixa comenta
+//   A3    (12)  o head volta encurtado (o ritmo harmônico dobra no meio) e resolve no Si
+//   Lua    (6)  a lua na praça: pedal de Si com o sub, a célula no vibrafone, vassourinha bem baixa
+//   Tag    (2)  virada de tons e o tung-tung-tung, de volta ao A1
+//   Energia: A1 média-baixa → A2 média → Ponte alta → A3 média → Lua a mais baixa → Tag sobe → (A1)
+//
+// GRAVE E AGUDO
+//   Baixo (contrabaixoCheio) entre Fá#2 e Ré3; o Si1 só no pedal da Lua, com o sub embaixo. Acordes de
+//   três notas entre Ré3 e Mi4; melodia entre Si3 e Mi5 (o vibrafone e o clarinete grave).
 //
 // LOOP SEM EMENDA
-//   O áudio começa no A1; o Tag (C7#9 com o tung-tung-tung) leva ao A1 como uma virada V → i.
+//   O áudio começa no A1; o Tag (F#7sus4 com o tung-tung-tung) volta ao Bm9 do A1.
 //
 // ONDE AJUSTAR
-//   FORMA · FIGURAS (ritmos da melodia) · HEAD (tema A e variações por seção) · RESPOSTAS (tema B) ·
-//   LUA (seção C) ·
-//   GROOVES (bateria) · DINAMICA (intensidade por seção) · TUNG
+//   FORMA · HEAD, HEMIOLA, PONTE e LUA (as frases) · BAIXO · VOICINGS e COMPING · GROOVES ·
+//   DINAMICA · TUNG
 
-import { aplicarFigura, bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tungTungTung, voz } from './partitura.js'
+import { bateria, celula, comAtenuacao, compassoVazio, criarGrade, expandirForma, linha, montarMusica, notas, secoesDaForma, tokens, tungTungTung, voz } from './partitura.js'
+import { CELULA_DO_TUNG_TEMPOS, temposParaPassos } from './motivos.js'
 
-const A = ['Fm7', 'Fm7', 'Bb7', 'Bb7', 'Fm7', 'Fm7', 'Bb7', 'C7#9']
+const A = ['Bm9', 'Bm9', 'E13', 'E13', 'Bm9', 'Bm9', 'E13', 'E13', 'Dmaj9', 'Dmaj9', 'C#m7', 'C#m7', 'Gmaj7#11', 'Gmaj7#11', 'F#m11', 'F#m11']
 
 const FORMA = Object.freeze([
-  { nome: 'A1', papel: 'head no órgão, ride leve', harmonia: A },
-  { nome: 'A2', papel: 'head com a guitarra dobrando e outro fim', harmonia: A },
-  { nome: 'B', papel: 'ponte: Leslie rápido e respostas da guitarra', harmonia: ['Dbmaj7', 'Dbmaj7', 'C7#9', 'C7#9', 'Dbmaj7', 'Gm7b5', 'C7#9', 'C7#9'] },
-  { nome: 'A3', papel: 'head na guitarra, órgão em pad, bateria cheia', harmonia: A },
-  { nome: 'C', papel: 'a lua na praça: ride, pedal e pedaços da célula', harmonia: ['Fm7', 'Fm7', 'Fm7', 'Fm7', 'Fm7', 'Fm7', 'Bb7', 'C7#9'] },
-  { nome: 'Tag', papel: 'virada de volta ao A1', harmonia: ['Dbmaj7', 'C7#9'] },
+  { nome: 'A1', papel: 'o head no vibrafone, vassourinha', harmonia: A },
+  { nome: 'A2', papel: 'a hemíola: o clarinete em mínimas, ride', harmonia: A },
+  { nome: 'Ponte', papel: 'ii – V – I em Ré, o clarinete em colcheias', harmonia: ['Em9', 'A13', 'Dmaj9', 'Gmaj7#11', 'Em9', 'A13', 'F#7sus4', 'F#7sus4'] },
+  { nome: 'A3', papel: 'o head encurtado, resolve no Si', harmonia: ['Bm9', 'Bm9', 'E13', 'E13', 'Dmaj9', 'C#m7', 'Gmaj7#11', 'F#m11', 'Bm9', 'Bm9', 'E13', 'E13'] },
+  { nome: 'Lua', papel: 'pedal de Si, a célula no vibrafone', harmonia: ['Bm(add9)', 'E/B', 'Bm(add9)', 'E/B', 'Gmaj7#11/B', 'F#7sus4'] },
+  { nome: 'Tag', papel: 'virada de volta ao A1', harmonia: ['Gmaj7#11', 'F#7sus4'] },
 ])
 
 const COMPASSOS = expandirForma(FORMA)
@@ -53,16 +61,16 @@ const COMPASSOS = expandirForma(FORMA)
 export const PIAZZA_META = Object.freeze({
   id: 'andar-piazza',
   titulo: 'A Ronda: Piazza',
-  estilo: 'soul-jazz de trio de órgão',
+  estilo: 'valsa de jazz modal',
   andamento: 112,
   passosPorTempo: 3,
-  temposPorCompasso: 4,
+  temposPorCompasso: 3,
   compassos: COMPASSOS.length,
   inicioDoLoop: 0,
-  tonalidade: 'Fá menor (dórico)',
-  tonica: 'F',
+  tonalidade: 'Si dórico',
+  tonica: 'B',
   modo: 'dorico',
-  estrutura: 'A1 8 · A2 8 · B 8 · A3 8 · C 8 · Tag 2',
+  estrutura: 'A1 16 · A2 16 · Ponte 8 · A3 12 · Lua 6 · Tag 2',
 })
 
 export const PIAZZA_SECOES = secoesDaForma(FORMA)
@@ -71,245 +79,238 @@ export const PIAZZA_HARMONIA = Object.freeze(COMPASSOS.map((c) => c.acorde))
 const GRADE = criarGrade(PIAZZA_META.passosPorTempo, PIAZZA_META.temposPorCompasso)
 
 export const PIAZZA_INSTRUMENTOS = Object.freeze([
-  'orgaoBaixo', 'orgao', 'orgaoLongo', 'orgaoLeslieLento', 'orgaoLeslieRapido', 'orgaoSustentado', 'guitarraJazz', 'guitarraJazzLonga',
-  'ride', 'chimbal', 'caixaAro', 'caixa', 'caixaCorpo', 'bumbo', 'madeira',
+  'contrabaixoCheio', 'sub', 'vibrafone', 'clarinete', 'clarineteLongo', 'guitarraJazz',
+  'vassourinha', 'ride', 'chimbal', 'bumbo', 'caixaAro', 'caixa', 'caixaCorpo', 'madeira',
 ])
 
 const VOZ = Object.freeze({
-  baixo: voz('orgaoBaixo', 'baixo', { semente: 41 }),
-  head: voz('orgao', 'riff', { semente: 42 }),
-  headFrase: voz('orgao', 'melodia', { semente: 47 }),
-  headLonga: voz('orgaoLongo', 'melodia', { semente: 50 }),
-  headQuarta: voz('orgao', 'comping', { semente: 43 }),
-  comping: voz('orgaoLeslieLento', 'comping', { semente: 44 }),
-  ponte: voz('orgaoLeslieRapido', 'comping', { semente: 45 }),
-  pad: voz('orgaoSustentado', 'comping', { semente: 48 }),
-  guitarra: voz('guitarraJazz', 'melodia', { semente: 46 }),
-  guitarraLonga: voz('guitarraJazzLonga', 'melodia', { semente: 51 }),
+  baixo: voz('contrabaixoCheio', 'baixo', { semente: 41 }),
+  sub: voz('sub', 'baixo', { semente: 42 }),
+  vibrafone: voz('vibrafone', 'melodia', { semente: 43 }),
+  celula: voz('vibrafone', 'riff', { semente: 44 }),
+  clarinete: voz('clarinete', 'melodia', { semente: 45 }),
+  clarineteLongo: voz('clarineteLongo', 'melodia', { semente: 46 }),
+  guitarra: voz('guitarraJazz', 'comping', { semente: 47 }),
 })
 
-const cel = (tonica) => ({ celula: tonica })
-
 // --------------------------------------------------
-// MELODIA: o que distingue a Piazza dos outros andares
-//   Figura rítmica: a tercina de semínima (três notas iguais em dois tempos, passos 0, 2 e 4 ou 6, 8
-//   e 10), que cruza o swing e cai na tercina do meio, que nenhum outro andar usa; e a nota ligada
-//   por cima da barra (entra no último passo e segura).
-//   Notas: Fá dórico (com o Ré natural, a sexta maior), com saltos de quarta, quinta e sexta.
-//   A célula do Tung aparece exata só no fim do C (sobre Si♭ e Dó), como lembrança antes da volta.
+// TUNG: compassos (dentro da seção) que fecham com o tung-tung-tung no 3º tempo
 // --------------------------------------------------
 
-// 'x' = nota curta, 'X' = nota longa (versão longa do órgão ou da guitarra)
-const FIGURAS = Object.freeze({
-  tercina: 'x . x | . x . | . . . | . . .',
-  tercinaLonga: 'x . x | . X . | . . . | . . .',
-  tercinaNoFim: '. . . | . . . | x . x | . x .',
-  tercinaLiga: 'x . x | . x . | . . . | . . X',
-  tercinaDupla: 'x . x | . x . | x . x | . x .',
-  quarta: 'X . . | . . . | x . . | . . .',
-  longa: 'X . . | . . . | . . . | . . .',
-})
-
-const f = (nome, ...notasDaFrase) => aplicarFigura(FIGURAS[nome], notasDaFrase)
-
-// Head (tema A) do A1; o A2 troca a segunda frase e o A3 (na guitarra) troca o fim
-const HEAD_A1 = Object.freeze({
-  0: f('tercinaLonga', 'C5', 'F5', 'Eb5'), 1: f('tercinaNoFim', 'Ab4', 'C5', 'D5'),
-  2: f('tercinaLiga', 'F5', 'Bb4', 'D5', 'Ab4'), 3: f('quarta', 'G4', 'C5'),
-  4: f('tercina', 'Ab4', 'Eb5', 'C5'), 5: f('tercinaNoFim', 'F5', 'C5', 'G5'),
-  6: f('tercinaLiga', 'D5', 'F5', 'Ab4', 'G4'), 7: f('longa', 'E5'),
-})
-
-const HEAD = Object.freeze({
-  A1: HEAD_A1,
-  A2: {
-    ...HEAD_A1,
-    4: f('tercina', 'C5', 'G5', 'F5'), 5: f('tercinaNoFim', 'Eb5', 'C5', 'Ab4'),
-    6: f('tercinaLiga', 'Bb4', 'F5', 'D5', 'C5'), 7: f('quarta', 'G5', 'E5'),
-  },
-  A3: { ...HEAD_A1, 6: f('tercinaLiga', 'F5', 'C5', 'Ab4', 'Bb4'), 7: f('longa', 'C5') },
-})
-
-// C: pedaços da célula transformados em tercina de semínima; no fim, a célula exata (Si♭ e Dó)
-const LUA = Object.freeze({
-  1: f('tercina', 'C4', 'Eb4', 'F4'), 3: f('tercinaNoFim', 'Eb4', 'F4', 'C4'), 5: f('quarta', 'F4', 'C4'),
-  6: cel(58), 7: cel(60),
-})
-
-// O órgão em dois canais: as notas curtas no orgao e as longas ('~') no orgaoLongo
-function orgaoHead(articulacao) {
-  return (compasso) => {
-    const { secao, indice } = COMPASSOS[compasso]
-    const entrada = secao === 'A1' || secao === 'A2' ? HEAD[secao][indice] : secao === 'C' ? LUA[indice] : null
-    if (!entrada) return null
-    if (typeof entrada !== 'string') return articulacao === 'curta' ? celula(entrada.celula, VOZ.head, compasso, GRADE) : null
-    return linha(entrada, articulacao === 'longa' ? VOZ.headLonga : VOZ.headFrase, compasso, GRADE, 0, 0, articulacao)
-  }
-}
-
-// Quartas paralelas nas duas primeiras frases do A1 (o som de trio de órgão), uma quarta abaixo
-function orgaoQuarta(compasso) {
-  const { secao, indice } = COMPASSOS[compasso]
-  if (secao !== 'A1' || ![0, 2].includes(indice)) return null
-  return linha(HEAD.A1[indice], VOZ.headQuarta, compasso, GRADE, -5)
-}
-
-// --------------------------------------------------
-// GUITARRA: dobra o começo do head no A2 (uma oitava abaixo), responde na ponte, assume o head no A3
-// --------------------------------------------------
-
-// Ponte: respostas em tercina de semínima, com sextas e a nona bemol
-const RESPOSTAS = Object.freeze({
-  1: f('tercinaNoFim', 'F5', 'Db5', 'Ab4'),
-  3: f('tercinaLonga', 'E5', 'G5', 'Db5'),
-  5: f('tercinaNoFim', 'Bb4', 'F5', 'Db5'),
-  7: f('quarta', 'G5', 'E5'),
-})
-
-function guitarra(articulacao) {
-  return (compasso) => {
-    const { secao, indice } = COMPASSOS[compasso]
-    let texto = null
-    let transpor = 0
-    if (secao === 'A2' && (indice === 0 || indice === 2)) {
-      texto = HEAD.A2[indice]
-      transpor = -12
-    } else if (secao === 'B') texto = RESPOSTAS[indice]
-    else if (secao === 'A3') texto = HEAD.A3[indice]
-    if (!texto) return null
-    return linha(texto, articulacao === 'longa' ? VOZ.guitarraLonga : VOZ.guitarra, compasso, GRADE, transpor, 0, articulacao)
-  }
-}
-
-// --------------------------------------------------
-// ACOMPANHAMENTO DO ÓRGÃO
-// --------------------------------------------------
-
-const VOICINGS = Object.freeze({
-  Fm7: [56, 60, 63], Bb7: [56, 62, 67], 'C7#9': [52, 58, 63], Dbmaj7: [53, 60, 65], Gm7b5: [53, 58, 61],
-})
-
-// Toques curtos (Leslie lento): um por compasso no A1, dois no A2; acordes longos no C a cada 2 compassos
-function comping(indiceDaVoz) {
-  return (compasso) => {
-    const { secao, indice, acorde } = COMPASSOS[compasso]
-    const nota = VOICINGS[acorde][indiceDaVoz]
-    // Nas seções A o head já ocupa o meio: o acompanhamento fica com duas vozes (sem a do meio)
-    if ((secao === 'A1' || secao === 'A2') && indiceDaVoz === 1) return null
-    if (secao === 'A1') return notas([{ passo: 3, midi: nota }], VOZ.comping, compasso, GRADE)
-    if (secao === 'A2') return notas((indice === 7 ? [2] : [2, 8]).map((passo) => ({ passo, midi: nota })), VOZ.comping, compasso, GRADE)
-    if (secao === 'C' && indice % 2 === 0) return notas([{ passo: 0, midi: nota, atenuacao: 0.15 }], VOZ.comping, compasso, GRADE)
-    return null
-  }
-}
-
-// Ponte e Tag: Leslie rápido, duas vozes
-function ponte(indiceDaVoz) {
-  return (compasso) => {
-    const { secao, indice, acorde } = COMPASSOS[compasso]
-    if (secao !== 'B' && secao !== 'Tag') return null
-    const nota = VOICINGS[acorde][indiceDaVoz + 1]
-    const passos = secao === 'Tag' || indice === 7 ? [0] : [0, 8]
-    return notas(passos.map((passo) => ({ passo, midi: nota })), VOZ.ponte, compasso, GRADE)
-  }
-}
-
-// A3: o órgão vira pad sustentado atrás da guitarra
-function pad(indiceDaVoz) {
-  return (compasso) => {
-    const { secao, acorde } = COMPASSOS[compasso]
-    if (secao !== 'A3') return null
-    return notas([{ passo: 0, midi: VOICINGS[acorde][indiceDaVoz] }], VOZ.pad, compasso, GRADE)
-  }
-}
-
-// --------------------------------------------------
-// BAIXO DE ÓRGÃO: fundamental, quinta e aproximação; pedal no C
-// --------------------------------------------------
-
-const FUNDAMENTAL = Object.freeze({ Fm7: 29, Bb7: 34, 'C7#9': 36, Dbmaj7: 37, Gm7b5: 31 })
-
-function dobrarNoGrave(midi) {
-  let nota = midi
-  while (nota > 45) nota -= 12
-  while (nota < 28) nota += 12
-  return nota
-}
-
-function baixo(compasso) {
-  const { secao, indice, acorde } = COMPASSOS[compasso]
-  const proximo = COMPASSOS[(compasso + 1) % COMPASSOS.length].acorde
-  const raiz = FUNDAMENTAL[acorde]
-  if (secao === 'C' && indice < 6) {
-    // Pedal: o Fá grave, às vezes com a oitava
-    return notas([{ passo: 0, midi: raiz }, ...(indice % 2 === 1 ? [{ passo: 6, midi: raiz + 12, atenuacao: 0.2 }] : [])], VOZ.baixo, compasso, GRADE)
-  }
-  const alvo = FUNDAMENTAL[proximo]
-  const lista = [{ passo: 0, midi: raiz }, { passo: 6, midi: dobrarNoGrave(raiz + 7) }]
-  if (temTung(compasso)) return notas(lista, VOZ.baixo, compasso, GRADE)
-  if (alvo !== raiz) lista.push({ passo: 11, midi: dobrarNoGrave(alvo + (alvo > raiz ? -1 : 1)), atenuacao: 0.15 })
-  else lista.push({ passo: 9, midi: dobrarNoGrave(raiz + 12), atenuacao: 0.2 })
-  return notas(lista, VOZ.baixo, compasso, GRADE)
-}
-
-// --------------------------------------------------
-// BATERIA
-// --------------------------------------------------
-
-// Tung-tung-tung (compassos dentro da seção): no A2 o fim é uma virada de caixa, no C não há
-const TUNG = Object.freeze({ A1: [7], A2: [], B: [7], A3: [7], C: [], Tag: [1] })
+const TUNG = Object.freeze({ A1: [7], A2: [15], Ponte: [], A3: [11], Lua: [5], Tag: [1] })
 const temTung = (compasso) => {
   const { secao, indice } = COMPASSOS[compasso]
   return TUNG[secao].includes(indice)
 }
+// No compasso do tung-tung-tung, o 3º tempo (passos 6 a 8) fica livre para ele
+const INICIO_DO_TUNG = 6
+const semOFim = (passos, compasso) => (temTung(compasso) ? passos.map((valor, passo) => (passo >= INICIO_DO_TUNG ? 0 : valor)) : passos)
 
-const RIDE = Object.freeze({ X: 12, x: 12.16, s: 12.45, B: 17.05 })
-const PEDAL = Object.freeze({ c: 12.4 })
-const ARO = Object.freeze({ X: 12.1 })
-const CAIXA = Object.freeze({ X: 12, x: 12.3, g: 12.7, p: 12.55, q: 12.38 })
+// --------------------------------------------------
+// MELODIA: o que distingue a Piazza dos outros andares
+//   Figura rítmica: a tercina de semínima (três notas em dois tempos, passos 0, 2 e 4), que cruza o
+//   swing e cai na tercina do meio; a nota ligada por cima da barra (entra no último passo e segura,
+//   '~'); a mínima da hemíola, que atravessa a barra.
+//   Notas: Si dórico (com o Sol#, a sexta maior), com saltos de quarta, quinta e sexta.
+// --------------------------------------------------
+
+// Head (vibrafone): A1 e, encurtado, A3. Pergunta (4 compassos), resposta (4), desenvolvimento e
+// cadência; cada frase de 4 compassos sobe por saltos e desce por graus, com respiro no fim.
+const HEAD = Object.freeze({
+  A1: [
+    'F#4 . B4 | . D5 . | C#5 . .', '. . . | E4 . A4 | . G#4 .', 'B4 . E5 | . D5 . | C#5 . .', '. F#4 . | B4 . . | G#4 . .',
+    'F#4 . B4 | . D5 . | C#5 . .', '. . . | F#4 . B4 | . A4 .', 'D4 . G#4 | . B4 . | C#5 . .', '. . . | . . . | . . .',
+    '. B4 . | E4 . A4 | . . .', '. . . | F#4 . C#5 | . A4 .', 'G#4 . C#5 | . B4 . | G#4 . .', '. . . | . . . | . . F#4',
+    '. . . | B4 . C#5 | . F#4 .', 'C#5 . . | . B4 . | . . .', 'A4 . E4 | . B4 . | A4 . .', '. . . | . . . | . . .',
+  ],
+  // A3: a pergunta de novo (com outro fim), o meio em metade do tempo e a resposta que pousa no Si
+  A3: [
+    'F#4 . B4 | . D5 . | C#5 . .', '. . . | E4 . A4 | . G#4 .', 'B4 . E5 | . D5 . | C#5 . .', '. . . | B4 . F#4 | . E4 .',
+    '. B4 . | E4 . A4 | . C#5 .', 'G#4 . C#5 | . B4 . | G#4 . .', '. . . | B4 . C#5 | . F#4 .', 'A4 . E4 | . B4 . | A4 . .',
+    'F#4 . B4 | . A4 . | F#4 . .', '. . . | D4 . E4 | . F#4 .', 'B3 . . | . . . | . . .', '. . . | . . . | . . .',
+  ],
+})
+
+// A2: a hemíola no clarinete longo. Em cada par de compassos, mínimas nos passos 0 e 6 e no passo 3
+// do compasso seguinte: três notas de dois tempos em dois compassos de três.
+const HEMIOLA = Object.freeze([
+  'F#4 . . | . . . | B4 . .', '. . . | E5 . . | . . .', 'C#5 . . | . . . | G#4 . .', '. . . | B4 . . | . . .',
+  'A4 . . | . . . | D5 . .', '. . . | F#4 . . | . . .', 'G#4 . . | . . . | C#5 . .', '. . . | B4 . . | . . .',
+  'F#4 . . | . . . | B4 . .', '. . . | E5 . . | . . .', 'B4 . . | . . . | G#4 . .', '. . . | E4 . . | . . .',
+  'B4 . . | . . . | F#4 . .', '. . . | C#5 . . | . . .', 'E5 . . | . . . | A4 . .', '. . . | F#4 . . | . . .',
+])
+
+// Ponte: o clarinete em colcheias com swing (passos 0 e 2 de cada tempo) sobre o ii – V – I; sobe
+// até o Mi5 no 5º compasso e fica no ar na dominante suspensa
+const PONTE = Object.freeze([
+  'B4 . A4 | G4 . F#4 | E4~ . .', '. . C#5 | . B4 . | A4 . F#4', '. E4 . | A4 . D5 | . C#5 .', 'B4~ . . | . F#4 . | C#5 . .',
+  'E5~ . . | . . . | D5 . B4', 'C#5 . F#4 | . A4 . | E4~ . .', 'B4~ . . | . . . | C#5 . .', '. . . | . . . | . . .',
+])
+
+// Lua: a célula do Tung exata no vibrafone (sobre o Si) e a sexta dórica respondendo
+const CELULA_NA_LUA = Object.freeze({ 0: 59, 2: 59 })
+const LUA = Object.freeze({ 1: '. G#4 . | . . . | . . .', 3: '. G#4 . | . . . | B4 . .', 4: 'D5 . . | C#5 . . | . . .' })
+
+function vibrafone(compasso) {
+  const { secao, indice } = COMPASSOS[compasso]
+  if (secao === 'Lua' && indice in CELULA_NA_LUA) return celula(CELULA_NA_LUA[indice], VOZ.celula, compasso, GRADE)
+  const texto = secao === 'Lua' ? LUA[indice] : HEAD[secao]?.[indice]
+  if (!texto) return null
+  return semOFim(linha(texto, VOZ.vibrafone, compasso, GRADE), compasso)
+}
+
+// O clarinete: as mínimas da hemíola (longo) no A2 e a ponte (curto, com as notas '~' no longo)
+function clarinete(articulacao) {
+  return (compasso) => {
+    const { secao, indice } = COMPASSOS[compasso]
+    if (secao === 'A2') {
+      if (articulacao !== 'longa') return null
+      return semOFim(linha(HEMIOLA[indice], VOZ.clarineteLongo, compasso, GRADE), compasso)
+    }
+    if (secao !== 'Ponte' || !PONTE[indice]) return null
+    return linha(PONTE[indice], articulacao === 'longa' ? VOZ.clarineteLongo : VOZ.clarinete, compasso, GRADE, 0, 0, articulacao)
+  }
+}
+
+// --------------------------------------------------
+// GUITARRA: acordes de três notas (Ré3 a Fá#4), no 2 e no 3 da valsa, a cada 2 tempos na hemíola e
+// no contratempo na ponte. No vamp Bm9 → E13 só uma voz anda (Lá → Sol#), embaixo do Dó#–Ré parado.
+// --------------------------------------------------
+
+const VOICINGS = Object.freeze({
+  Bm9: [57, 61, 62], E13: [56, 61, 62], Dmaj9: [54, 57, 61], 'C#m7': [52, 56, 59], 'Gmaj7#11': [54, 59, 61], 'F#m11': [52, 57, 59],
+  Em9: [55, 59, 62], A13: [55, 61, 64], 'F#7sus4': [52, 59, 61],
+  'Bm(add9)': [50, 54, 61], 'E/B': [52, 56, 59], 'Gmaj7#11/B': [54, 59, 61],
+})
+
+function ritmoDaGuitarra(secao, indice) {
+  if (secao === 'A1') return indice % 4 === 3 ? [3] : [3, 6]
+  if (secao === 'A2') return indice % 2 === 0 ? [0, 6] : [3]
+  if (secao === 'Ponte') return indice === 7 ? [0] : [2, 5]
+  if (secao === 'A3') return indice % 2 === 0 ? [3, 6] : [3, 8]
+  if (secao === 'Lua') return indice % 2 === 0 ? [0] : null
+  if (secao === 'Tag') return indice === 0 ? [0, 6] : [0]
+  return null
+}
+
+// Passos em que a melodia (vibrafone ou clarinete) ataca: a guitarra deixa esses passos livres
+function passosDaMelodia(secao, indice) {
+  const texto = secao === 'A2' ? HEMIOLA[indice] : secao === 'Ponte' ? PONTE[indice] : secao === 'Lua' ? LUA[indice] : HEAD[secao]?.[indice]
+  const ocupados = new Set()
+  if (texto) tokens(texto).forEach((token, passo) => { if (token !== '.') ocupados.add(passo) })
+  if (secao === 'Lua' && indice in CELULA_NA_LUA) temposParaPassos(CELULA_DO_TUNG_TEMPOS, GRADE.passosPorTempo).forEach((passo) => ocupados.add(passo))
+  return ocupados
+}
+
+function guitarra(indiceDaVoz) {
+  return (compasso) => {
+    const { secao, indice, acorde } = COMPASSOS[compasso]
+    const ritmo = ritmoDaGuitarra(secao, indice)
+    if (!ritmo) return null
+    const extra = secao === 'Lua' ? 0.15 : 0
+    const melodia = passosDaMelodia(secao, indice)
+    const lista = ritmo.filter((passo) => (!temTung(compasso) || passo < INICIO_DO_TUNG) && !melodia.has(passo))
+    return notas(lista.map((passo) => ({ passo, midi: VOICINGS[acorde][indiceDaVoz], atenuacao: extra })), VOZ.guitarra, compasso, GRADE)
+  }
+}
+
+// --------------------------------------------------
+// BAIXO: "em um" no A1 (a fundamental no 1, a quinta no 3, a aproximação no último passo), mínimas da
+// hemíola no A2, caminhando em três na ponte, pedal de Si na Lua
+// --------------------------------------------------
+
+const BAIXO = Object.freeze({
+  A1: [
+    'B2 . . | . . . | F#2 . .', 'B2 . . | . . . | A2 . F2', 'E2 . . | . . . | B2 . .', 'E2 . . | . . . | G#2 . A#2',
+    'B2 . . | . . . | F#2 . .', 'B2 . . | . . . | A2 . F2', 'E2 . . | . . . | B2 . .', 'E2 . . | . . . | . . .',
+    'D3 . . | . . . | A2 . .', 'D3 . . | . . . | F#2 . D3', 'C#3 . . | . . . | G#2 . .', 'C#3 . . | . . . | G#2 . F#2',
+    'G2 . . | . . . | D3 . .', 'G2 . . | . . . | B2 . G2', 'F#2 . . | . . . | C#3 . .', 'F#2 . . | . . . | E2 . A#2',
+  ],
+  A2: [
+    'B2 . . | . . . | F#2 . .', '. . . | A2 . . | . . .', 'E2 . . | . . . | B2 . .', '. . . | D3 . . | . . .',
+    'B2 . . | . . . | D3 . .', '. . . | C#3 . . | . . .', 'E2 . . | . . . | G#2 . .', '. . . | B2 . . | . . .',
+    'D3 . . | . . . | A2 . .', '. . . | F#2 . . | . . .', 'C#3 . . | . . . | G#2 . .', '. . . | E2 . . | . . .',
+    'G2 . . | . . . | D3 . .', '. . . | B2 . . | . . .', 'F#2 . . | . . . | C#3 . .', '. . . | A2 . . | . . .',
+  ],
+  Ponte: [
+    'E2 . . | G2 . . | B2 . .', 'A2 . . | C#3 . . | E3 . D#3', 'D3 . . | C#3 . . | A2 . .', 'G2 . . | B2 . . | D3 . F2',
+    'E2 . . | F#2 . . | G2 . .', 'A2 . . | G2 . . | E2 . F2', 'F#2 . . | C#3 . . | B2 . .', 'F#2 . . | . . . | C#3 . A#2',
+  ],
+  A3: [
+    'B2 . . | . . . | F#2 . .', 'B2 . . | D3 . . | F#2 . F2', 'E2 . . | . . . | B2 . .', 'E2 . . | G#2 . . | B2 . C#3',
+    'D3 . . | . . . | A2 . D3', 'C#3 . . | . . . | G#2 . F#2', 'G2 . . | . . . | D3 . G2', 'F#2 . . | . . . | C#3 . A#2',
+    'B2 . . | . . . | F#2 . .', 'B2 . . | . . . | A2 . F2', 'E2 . . | . . . | B2 . .', 'E2 . . | . . . | . . .',
+  ],
+  Lua: ['B1 . . | . . . | . . .', 'B1 . . | . . . | F#2 . .', 'B1 . . | . . . | . . .', 'B1 . . | . . . | F#2 . .', 'B1 . . | . . . | . . .', 'B1 . . | . . . | . . .'],
+  Tag: ['G2 . . | . . . | D3 . .', 'F#2 . . | . . . | . . .'],
+})
+
+function baixo(compasso) {
+  const { secao, indice } = COMPASSOS[compasso]
+  return semOFim(linha(BAIXO[secao][indice], VOZ.baixo, compasso, GRADE), compasso)
+}
+
+// Sub: o Si1 do pedal da Lua, no 1 de um compasso sim, outro não (peso sem virar um zumbido)
+const sub = (compasso) => {
+  const { secao, indice } = COMPASSOS[compasso]
+  return secao === 'Lua' && indice % 2 === 0 ? notas([{ passo: 0, midi: 35, atenuacao: 0.3 }], VOZ.sub, compasso, GRADE) : null
+}
+
+// --------------------------------------------------
+// BATERIA: a valsa de vassourinha, o ride da valsa por cima da hemíola, a caixa comentando na ponte
+// --------------------------------------------------
+
+const VASSOURINHA = Object.freeze({ S: 12.29, s: 12.5, t: 12.7 })
+const RIDE = Object.freeze({ X: 12.33, x: 12.47, s: 12.68 })
+const PEDAL = Object.freeze({ c: 12.58 })
+const ARO = Object.freeze({ X: 12.15 })
+const CAIXA = Object.freeze({ X: 12.1, x: 12.35, g: 12.75, p: 12.55, q: 12.4 })
 const CAIXA_CORPO = Object.freeze({ X: 12, x: 12.3, g: 12.92, p: 12.6, q: 12.45 })
 const BUMBO = Object.freeze({ K: 12.5, k: 12.62, l: 19.2, m: 22.25, h: 26.3 })
 
-// Intensidade da bateria por seção (atenuação somada; 0 = cheia)
-const DINAMICA = Object.freeze({ A1: 0.1, A2: 0.04, B: 0.02, A3: 0, C: 0.25, Tag: 0 })
-
 const GROOVES = Object.freeze({
+  vassourinha: {
+    // A valsa: varrida no 1, toques no 2 (com o swing) e no 3
+    A1: (i, tung) => {
+      if (tung) return 'S . . | s . t | . . .'
+      return i === 15 ? 'S t t | S t t | S t S' : 'S . . | s . t | s . .' // virada de vassourinha para o A2
+    },
+    A3: (i, tung) => (tung ? 'S . . | s . t | . . .' : 'S . . | s . t | s . t'),
+    Lua: (i, tung) => (tung ? 'S . . | . . . | . . .' : 'S . . | . . . | s . .'),
+  },
   ride: {
-    A1: (i, tung) => (tung ? 'x . s | X . s | x . s | . . .' : 'x . s | X . s | x . s | X . s'),
-    A2: (i) => (i >= 4 ? 'x . s | X . s | x s s | X . s' : 'x . s | X . s | x . s | X . s'),
-    B: (i, tung) => (tung ? 'x . . | B . . | x . . | . . .' : 'x . . | B . . | x . . | B . .'),
-    A3: (i, tung) => (tung ? 'x . s | X . s | x . s | . . .' : 'x . s | X . s | x . s | X . s'),
-    C: (i) => (i >= 6 ? 'x . s | X . s | x . s | X . s' : 'x . . | x . . | x . . | x . .'),
+    // "1 – 2-a – 3": o ride segue a valsa enquanto o resto faz a hemíola
+    A2: (i, tung) => (tung ? 'X . . | x . s | . . .' : 'X . . | x . s | x . .'),
+    Ponte: (i) => (i === 7 ? 'X . . | x . . | . . .' : 'X . . | x . s | x . s'),
   },
   pedal: {
-    A2: () => '. . . | c . . | . . . | c . .',
-    B: () => '. . . | c . . | . . . | c . .',
-    A3: (i, tung) => (tung ? '. . . | c . . | . . . | . . .' : '. . . | c . . | . . . | c . .'),
+    A1: (i, tung) => (tung ? '. . . | c . . | . . .' : '. . . | c . . | c . .'),
+    A2: () => '. . . | c . . | . . .',
+    Ponte: () => '. . . | c . . | c . .',
+    A3: (i, tung) => (tung ? '. . . | c . . | . . .' : '. . . | c . . | c . .'),
   },
   aro: {
-    A1: (i, tung) => (tung ? null : '. . . | . . . | . . . | X . .'),
-    A2: (i) => (i === 7 ? null : '. . . | . . . | . . . | X . .'),
-    B: (i, tung) => (tung ? '. . . | X . . | . . . | . . .' : '. . . | X . . | . . . | X . .'),
-    C: (i) => (i >= 6 ? '. . . | . . . | . . . | X . .' : null),
+    A1: (i, tung) => (tung || i === 15 ? null : '. . . | . . . | X . .'),
+    A3: (i, tung) => (tung ? null : '. . . | X . . | . . .'),
   },
   caixa: {
-    A2: (i) => (i === 7 ? '. . . | X . . | p q x | p q X' : null), // virada para a ponte
-    B: (i) => (i === 7 ? '. . . | . . . | p q X | . . .' : null),
-    A3: (i, tung) => {
-      if (tung) return '. . . | X . . | . . g | . . .'
-      return i % 2 === 0 ? '. . . | X . . | . . g | X . .' : '. . g | X . . | . . . | X . g'
-    },
-    Tag: (i) => (i === 0 ? '. . . | X . . | p q X | . . .' : null),
+    A2: (i) => (i === 15 ? null : i % 2 === 0 ? '. . . | . . . | . . g' : '. . g | . . . | . . .'),
+    Ponte: (i) => (i === 7 ? '. . . | . . . | p q X' : '. . g | . . g | . . .'), // virada para o A3
+    A3: (i, tung) => (tung || i % 2 === 1 ? null : '. . . | . . g | . . .'),
+    Tag: (i) => (i === 0 ? '. . . | . . . | p q X' : null),
   },
   bumbo: {
-    A1: () => 'K . . | . . . | k . . | . . .',
-    A2: (i) => (i % 2 === 0 ? 'K . . | . . k | k . . | . . .' : 'K . . | . . . | k . . | . . k'),
-    B: () => 'K . . | . . k | . . . | . . .',
-    A3: (i, tung) => (tung ? 'K . . | . . . | l . l | . . .' : 'K . . | . . k | K . . | . . k'),
-    C: (i) => (i === 7 ? 'K . . | . . k | K . . | . . k' : i === 6 ? 'K . . | . . . | k . . | . . .' : null),
-    Tag: (i) => (i === 0 ? 'K . . | . . . | K . . | . . .' : 'K . . | h . h | m . m | l l l'),
+    A1: () => 'K . . | . . . | . . .',
+    // A2: o bumbo marca a hemíola (a cada 2 tempos); no fim, tons para a ponte
+    A2: (i) => (i === 15 ? 'K . . | h h m | . . .' : i % 2 === 0 ? 'K . . | . . . | k . .' : '. . . | k . . | . . .'),
+    Ponte: (i) => (i === 7 ? 'K . . | . . . | . . .' : 'K . . | . . k | . . .'),
+    A3: (i, tung) => (tung ? 'K . . | . . . | . . .' : 'K . . | . . . | . . k'),
+    Tag: (i) => (i === 0 ? 'K . . | . . . | K . .' : 'K . . | h m l | . . .'),
   },
 })
+
+// Intensidade da bateria por seção (atenuação somada; 0 = cheia)
+const DINAMICA = Object.freeze({ A1: 0.1, A2: 0.04, Ponte: 0.02, A3: 0.04, Lua: 0.25, Tag: 0 })
 
 function peca(nome, mapa) {
   return (compasso) => {
@@ -320,7 +321,7 @@ function peca(nome, mapa) {
   }
 }
 
-const ALTURA_DO_TUNG = 65 // Fá4
+const ALTURA_DO_TUNG = 71 // Si4
 const madeira = (compasso) => (temTung(compasso) ? tungTungTung(ALTURA_DO_TUNG, compasso, GRADE) : compassoVazio(GRADE))
 
 // --------------------------------------------------
@@ -328,26 +329,21 @@ const madeira = (compasso) => (temTung(compasso) ? tungTungTung(ALTURA_DO_TUNG, 
 // --------------------------------------------------
 
 const CANAIS = [
-  ['orgaoBaixo', 0, baixo],
-  ['orgao', 0.14, orgaoHead('curta')],
-  ['orgaoLongo', 0.14, orgaoHead('longa')],
-  ['orgao', 0.2, orgaoQuarta],
-  ['orgaoLeslieLento', 0.2, comping(0)],
-  ['orgaoLeslieLento', 0.3, comping(1)],
-  ['orgaoLeslieLento', 0.25, comping(2)],
-  ['orgaoLeslieRapido', 0.22, ponte(0)],
-  ['orgaoLeslieRapido', 0.3, ponte(1)],
-  ['orgaoSustentado', 0.2, pad(0)],
-  ['orgaoSustentado', 0.3, pad(1)],
-  ['orgaoSustentado', 0.26, pad(2)],
-  ['guitarraJazz', -0.28, guitarra('curta')],
-  ['guitarraJazzLonga', -0.28, guitarra('longa')],
+  ['contrabaixoCheio', 0, baixo],
+  ['sub', 0, sub],
+  ['vibrafone', 0.14, vibrafone],
+  ['clarinete', -0.16, clarinete('curta')],
+  ['clarineteLongo', -0.16, clarinete('longa')],
+  ['guitarraJazz', -0.26, guitarra(0)],
+  ['guitarraJazz', -0.3, guitarra(1)],
+  ['guitarraJazz', -0.22, guitarra(2)],
+  ['vassourinha', 0.06, peca('vassourinha', VASSOURINHA)],
   ['ride', 0.22, peca('ride', RIDE)],
   ['chimbal', -0.2, peca('pedal', PEDAL)],
+  ['bumbo', 0, peca('bumbo', BUMBO)],
   ['caixaAro', 0.04, peca('aro', ARO)],
   ['caixa', 0, peca('caixa', CAIXA)],
   ['caixaCorpo', 0, peca('caixa', CAIXA_CORPO)],
-  ['bumbo', 0, peca('bumbo', BUMBO)],
   ['madeira', 0.08, madeira],
 ]
 
@@ -360,10 +356,12 @@ export const PIAZZA_SONG = montarMusica({
   andamento: PIAZZA_META.andamento,
 })
 
+const inicioDaLua = PIAZZA_SECOES.find((secao) => secao.nome === 'Lua').inicio
+
 export const PIAZZA_MOTIVO = Object.freeze({
-  riff: [{ instrumento: 'orgao', compassos: { 38: 58, 39: 60 } }],
+  riff: [{ instrumento: 'vibrafone', compassos: Object.fromEntries(Object.entries(CELULA_NA_LUA).map(([indice, tonica]) => [inicioDaLua + Number(indice), tonica])) }],
   tung: { compassos: COMPASSOS.map((_, compasso) => compasso).filter(temTung) },
 })
 
-// Vozes de melodia (analiseMelodica.js): o órgão (curto e longo) e a guitarra (curta e longa)
-export const PIAZZA_MELODIA = Object.freeze([[['orgao', 0], ['orgaoLongo', 0]], [['guitarraJazz', 0], ['guitarraJazzLonga', 0]]])
+// Vozes de melodia (analiseMelodica.js): o vibrafone e o clarinete (curto e longo)
+export const PIAZZA_MELODIA = Object.freeze([[['vibrafone', 0]], [['clarinete', 0], ['clarineteLongo', 0]]])

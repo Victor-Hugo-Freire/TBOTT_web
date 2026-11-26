@@ -357,6 +357,14 @@ export const INSTRUMENTOS = Object.freeze({
     filtro: passaBaixa(2200),
   }),
 
+  // Clarinete de nota segurada (as mínimas da hemíola da Piazza); o clarinete curto é o da Vila
+  clarineteLongo: instrumento({
+    baseMidi: 60, registro: [50, 82],
+    volume: 0.19, aleatoriedade: 0.002, forma: TRIANGULO,
+    ataque: 0.04, decaimento: 0.12, nivelSustentacao: 0.8, sustentacao: 0.75, soltura: 0.25,
+    filtro: passaBaixa(2200),
+  }),
+
   // ---------------- Percussão melódica ----------------
 
   // O motor do vibrafone é o tremolo (~5,5 Hz)
