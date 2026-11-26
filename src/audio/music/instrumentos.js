@@ -264,7 +264,7 @@ export const INSTRUMENTOS = Object.freeze({
     baseMidi: 48, registro: [40, 76],
     volume: 0.16, aleatoriedade: 0.003, forma: SERRA, curva: 0.6,
     ataque: 0.004, decaimento: 0.1, nivelSustentacao: 0.78, sustentacao: 0.28, soltura: 0.1,
-    filtro: passaBaixa(2300),
+    filtro: passaBaixa(2000),
   }),
 
   guitarraPalmMute: instrumento({
