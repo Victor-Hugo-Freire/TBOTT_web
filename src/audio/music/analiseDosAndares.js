@@ -132,7 +132,7 @@ function contarCadencias(acordes) {
 // Peça de cada instrumento de bateria (a madeira é o motivo, comum a todos: fica de fora; o corpo
 // da caixa sempre toca junto com a caixa)
 const PECAS = Object.freeze({
-  bumbo: 'bumbo', caixa: 'caixa', caixaAro: 'aro', vassourinha: 'vassourinha', chimbal: 'chimbal',
+  bumbo: 'bumbo', bumboSeco: 'bumbo', caixa: 'caixa', caixaAro: 'aro', vassourinha: 'vassourinha', chimbal: 'chimbal',
   chimbalAberto: 'aberto', ride: 'ride', pratoEscuro: 'prato', campana: 'sino', palmas: 'palmas',
 })
 

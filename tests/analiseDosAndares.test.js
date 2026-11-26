@@ -49,10 +49,12 @@ describe('análise dos andares: harmonia', () => {
 })
 
 describe('análise dos andares: levada, baixo e uníssonos', () => {
-  test('a levada separa bumbo e tons pela nota e pela posição no tempo', () => {
+  test('a levada separa bumbo e tons pela nota e pela posição no tempo (o bumbo seco conta como bumbo)', () => {
     const song = musica(['bumbo'], [[[12, 0, 26, 0]]])
     const batidas = impressaoDaLevada(song, ['bumbo'], { passosPorTempo: 2 })
     assert.deepEqual(batidas, { 'bumbo:0:0': 1, 'tons:1:0': 1 })
+    const seco = impressaoDaLevada(musica(['bumboSeco'], [[[12, 0, 0, 12]]]), ['bumboSeco'], { passosPorTempo: 2 })
+    assert.deepEqual(seco, { 'bumbo:0:0': 1, 'bumbo:1:6': 1 })
   })
 
   test('virada: o último compasso da seção tem bateria diferente do padrão da seção', () => {
