@@ -23,7 +23,7 @@ export const SHOP_PRICES = { garfo: 7, coracao: 5 }
 
 // Fliperama: a porta abre pagando grão; cada jogada no tambor custa grãos e gira por um tempo antes do prêmio
 export const ARCADE_DOOR_PRICE = 1
-export const ARCADE_PLAY_PRICE = 2
+export const ARCADE_PLAY_PRICE = 1
 export const ARCADE_SPIN_MS = 1000
 // Prêmio da jogada. As chances somam 1. "item" = o item do Fliperama (Chifre da Sorte), só um por run:
 // depois que ele já saiu, esse prêmio vira ARCADE_ITEM_REPEAT_GRAINS grãos.

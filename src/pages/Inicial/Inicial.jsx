@@ -18,6 +18,7 @@ export default function Inicial() {
       // Remove o listener antes de começar a saída: outra tecla apertada
       // no mesmo instante não dispara uma segunda navegação.
       window.removeEventListener('keydown', handleKeyDown)
+
       setSaindo(true)
     }
 

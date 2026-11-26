@@ -54,6 +54,7 @@ import Opcoes from '../Opcoes/Opcoes.jsx'
 import { ITEM_SPRITES } from '../../data/itemSprites.js'
 import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
 import { canPauseRun } from '../../utils/pause.js'
+import { getGameMusicContext, isSameGameMusicContext, notifyGameMusic } from '../../audio/music/contextoDoJogo.js'
 
 function normalizePauseItemIcon(image) {
   if (!image?.complete || image.dataset.normalized === 'true') return
@@ -164,9 +165,12 @@ export default function SalaInicial() {
   const pauseItemsRef = useRef([])
   const endingStateRef = useRef(null)
   const loadErrorRef = useRef(null)
+  const musicContextRef = useRef(null) // último contexto avisado à música do jogo (só avisa quando muda)
+  const musicVolumeFocusRef = useRef(false) // o controle "Music volume" das Opções da pausa está com o foco?
 
   // Troca entre o menu de pausa e as Opções. Ao voltar das Opções, o destaque fica em OPÇÕES
   function setPauseState(nextView) {
+    musicVolumeFocusRef.current = false // o controle de volume (se abrir) avisa de novo quando ganhar o foco
     pauseViewRef.current = nextView
     setPauseView(nextView)
     if (nextView === 'menu') {
@@ -686,6 +690,16 @@ export default function SalaInicial() {
           resultSent = true
           void finishRun()
         }
+
+        // Música do jogo: só lê a run e avisa o controlador de música quando o contexto musical muda
+        // Na pausa a música fica abafada, mas com o foco no "Music volume" ela toca como no jogo: para regular o volume, ouve-se o nível real
+        // (a conferência da tela evita um foco "preso" se o controle saiu da tela sem avisar, e a janela sem foco continua abafada)
+        const adjustingMusic = pauseViewRef.current === 'options' && musicVolumeFocusRef.current && !windowPausedRef.current
+        const musicContext = getGameMusicContext(run, isPaused && !adjustingMusic)
+        if (!isSameGameMusicContext(musicContextRef.current, musicContext)) {
+          musicContextRef.current = musicContext
+          notifyGameMusic(musicContext)
+        }
       }
 
       draw()
@@ -942,7 +956,11 @@ export default function SalaInicial() {
 
       {pauseView === 'options' && (
         <div className="sala-inicial__opcoes" role="dialog" aria-modal="true" aria-label="Opções">
-          <Opcoes embedded onClose={() => setPauseState('menu')} />
+          <Opcoes
+            embedded
+            onClose={() => setPauseState('menu')}
+            onMusicVolumeFocus={(focused) => { musicVolumeFocusRef.current = focused }}
+          />
         </div>
       )}
 

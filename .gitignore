@@ -30,3 +30,5 @@ Thumbs.db
 *.suo
 *.sw?
 .omc
+# WAVs gerados por npm run trilha:render
+tmp

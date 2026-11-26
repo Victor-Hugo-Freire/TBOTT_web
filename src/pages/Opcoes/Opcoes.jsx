@@ -16,8 +16,29 @@ const VOLUME_ITEMS = [
   { item: 'effects', name: 'effectsVolume', id: 'volume-efeitos', label: 'Sound effects' },
 ]
 
+// Na tela cheia, o Esc sairia dela antes de chegar à página: o jogo e os menus usam o Esc para voltar e para pausar.
+// O Chrome e o Edge deixam travar a tecla (Keyboard Lock API): o Esc passa a chegar à página e, para sair da tela cheia,
+// o jogador segura o Esc por um instante. O Firefox e o Safari não têm a trava: lá o Esc continua saindo da tela cheia.
+async function lockEscapeKey() {
+  try {
+    await navigator.keyboard?.lock?.(['Escape'])
+  } catch {
+    // sem a trava, o Esc sai da tela cheia como sempre
+  }
+}
+
+// Está em tela cheia? Vale a do botão (document.fullscreenElement) e a do F11 do navegador, que a API não enxerga:
+// o F11 aparece em display-mode: fullscreen e, onde isso falha, pela janela ocupar a tela inteira.
+function isInFullscreen() {
+  return Boolean(document.fullscreenElement)
+    || window.matchMedia('(display-mode: fullscreen)').matches
+    || (window.innerWidth === window.screen.width && window.innerHeight === window.screen.height)
+}
+
 // embedded: aberta dentro do menu de pausa (sem a seta de voltar e sem o usuário); onClose volta para a pausa
-export default function Opcoes({ embedded = false, onClose }) {
+// onMusicVolumeFocus(focused): avisa quando o controle do volume da música ganha ou perde o foco (a pausa deixa a música
+// sem abafar enquanto ele está com o foco)
+export default function Opcoes({ embedded = false, onClose, onMusicVolumeFocus }) {
   const navigate = useNavigate()
   const { setMusicVolume, setEffectsVolume } = useAudio()
   const backRef = useRef(null)
@@ -27,7 +48,7 @@ export default function Opcoes({ embedded = false, onClose }) {
   const [initialState] = useState(readOptions)
   const [options, setOptions] = useState(initialState.options)
   const [screen, setScreen] = useState('options')
-  const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement))
+  const [isFullscreen, setIsFullscreen] = useState(isInFullscreen)
   const [statusMessage, setStatusMessage] = useState(initialState.error)
   const [storageError, setStorageError] = useState('')
 
@@ -47,11 +68,16 @@ export default function Opcoes({ embedded = false, onClose }) {
 
   useEffect(() => {
     function syncFullscreen() {
-      setIsFullscreen(Boolean(document.fullscreenElement))
+      setIsFullscreen(isInFullscreen())
     }
 
+    // O F11 não dispara fullscreenchange, mas redimensiona a janela
     document.addEventListener('fullscreenchange', syncFullscreen)
-    return () => document.removeEventListener('fullscreenchange', syncFullscreen)
+    window.addEventListener('resize', syncFullscreen)
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen)
+      window.removeEventListener('resize', syncFullscreen)
+    }
   }, [])
 
   useEffect(() => {
@@ -99,8 +125,12 @@ export default function Opcoes({ embedded = false, onClose }) {
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen()
+      } else if (isFullscreen) {
+        // Tela cheia do F11: a página não consegue sair dela
+        setStatusMessage('Esta tela cheia foi ativada pelo F11. Aperte F11 para sair.')
       } else if (document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen()
+        await lockEscapeKey()
       } else {
         setStatusMessage('A tela cheia não é compatível com este navegador.')
       }
@@ -165,6 +195,8 @@ export default function Opcoes({ embedded = false, onClose }) {
                       max="100"
                       step="1"
                       value={options[name]}
+                      onFocus={() => item === 'music' && onMusicVolumeFocus?.(true)}
+                      onBlur={() => item === 'music' && onMusicVolumeFocus?.(false)}
                       onChange={(event) => {
                         updateOption(name, Number(event.target.value))
                       }}

@@ -128,7 +128,7 @@ Em todas as telas com a seta de voltar (`BotaoVoltar`), a tecla **Esc** volta pa
 A tela `/opcoes`, acessível pelo item **Options** do menu principal, permite ajustar o volume da música e dos efeitos sonoros, alternar a tela cheia e consultar os controles do jogo.
 
 - **Volume da música** e **efeitos sonoros:** controles deslizantes de 0% a 100%. As preferências são salvas neste navegador em `localStorage` (`tbott.options`), com a leitura e a validação em `src/utils/options.js` e restauradas ao abrir a tela novamente. Se o navegador não permitir ler ou gravar o armazenamento, a tela informa o erro.
-- **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual. A tela cheia ativada pelo F11 do navegador não é detectada e aparece como "Off".
+- **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual. A tela cheia do F11 também é detectada (`display-mode: fullscreen` ou janela do tamanho da tela e o evento `resize`); nesse caso o botão avisa que só o F11 sai dela. No Chrome e no Edge, a tela cheia deste botão trava a tecla **Esc** (Keyboard Lock API): o Esc volta ou pausa o jogo como em qualquer tela, e **segurar o Esc** por um instante sai da tela cheia. No Firefox e no Safari não há a trava, e o Esc sai da tela cheia (use o botão para sair e entrar de novo).
 - **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar, **R** (segurando) para recomeçar a run e **Esc** para voltar ao menu.
 - **Teclado:** **W/S** ou **↑/↓** percorrem os itens; **Enter** ativa botões; **←/→** ajustam o volume quando o controle deslizante está selecionado. **A/←** seleciona o botão de voltar e **D/→** seleciona o cartão do usuário. Também é possível operar a tela com mouse ou outro dispositivo apontador.
 
@@ -139,6 +139,45 @@ Os volumes ficam salvos localmente e são aplicados ao sistema central de áudio
 A implementação central fica em `src/audio/AudioManager.js`, com o provedor React em `src/context/AudioManagerContext.jsx` e o hook público em `src/context/useAudio.js`. O gerenciador mantém um único `AudioContext`, controla volumes independentes, mute, registro por nome e interrupção de fontes. O provedor desbloqueia o contexto na primeira interação válida do jogador, por teclado ou ponteiro, em qualquer rota; o sistema não reproduz automaticamente nenhuma música ou efeito.
 
 Não há música da sala inicial restaurada. Sons de inimigos, chefes, personagens, andares e interface devem ser registrados pelas issues responsáveis, sem acoplar o gameplay ao `AudioContext`.
+
+### Músicas do chefe e do palco
+
+Além das músicas dos andares (`src/audio/music/andar-*.js`), as salas do chefe e do palco têm música própria. Elas usam o mesmo sistema (partituras no formato do ZzFXM, `faixas.js` como registro, `mesaDoJogo.js` para trocar de faixa) e uma grade de **12 passos por tempo** (`escrita12.js`), em que cabem semicolcheias e tercinas no mesmo compasso.
+
+| Faixa (`id`) | Quando toca | Tom, andamento | Arquivo |
+| --- | --- | --- | --- |
+| `chefe`, `chefe-fase2` | Sala do chefe dos andares 1 a 4 (fase 1 e fase 2) | Sol menor ♩ = 140; Si♭ menor ♩ = 152 | `chefe.js` |
+| `chefe-vitoria` | Quando o chefe cai (toca uma vez e a faixa do andar volta) | Sol maior | `chefe.js` |
+| `chefe-final`, `-fase2`, `-fase3` | Sala do chefe do andar 5, o Tralalero Tralala (3 fases) | Sol menor ♩ = 144; Si♭ menor ♩ = 156; Ré♭ menor ♩ = 168 | `chefe.js` |
+| `chefe-final-vitoria` | Quando o Tralalero cai | Sol maior | `chefe.js` |
+| `palco` | Sala do palco aberta (a Batuta no pedestal e depois da luta): os bastidores | Ré maior ♩ = 96, sem bateria | `palco.js` |
+| `palco-show` | Durante as quatro ondas do palco (começa pela abertura) | Ré maior ♩ = 152 | `palco.js` |
+| `palco-fim` | Quando a última onda cai (toca uma vez e os bastidores voltam) | Ré maior | `palco.js` |
+| `morte` | Quando o Tung morre (toca uma vez, 17 s, e depois fica em silêncio até o jogador sair da run) | Sol menor ♩ = 84 | `chefe.js` (`criarDerrota`) |
+
+**Como a música troca** (`mesaDoJogo.js`, `faixas.js` e `trackSelection.js`):
+
+- Trocar de sala: a faixa sai e a nova entra em 350 ms (`FADES.sala`, o mesmo tempo da câmera, `ROOM_TRANSITION_MS`).
+- Entrar na sala do chefe ou do palco: a faixa do andar sai e a da sala entra por baixo, **sempre do começo**, com a introdução (`doComeco`). Ao sair, a faixa do andar volta de onde parou.
+- Pausa: a música fica abafada (passa-baixa e -6 dB). Nas Opções da pausa, com o foco no **Music volume**, ela toca como no jogo, para regular o volume ouvindo o nível real.
+- Recomeçar a run (R): a faixa da run anterior sai na hora e a do andar 1 entra do começo (se o cache já a soltou, entra quando ficar pronta).
+- Mudar de fase (chefe) ou pegar a Batuta (palco): a troca espera o fim do compasso (chefe) ou do tempo (palco) da faixa que toca, e a faixa nova entra com a transição dela (introdução de 2 compassos, com o rufo, o tímpano e o tung-tung-tung que levam ao tempo forte).
+- Vitória e fim do palco: o final toca uma vez só (`unica`) e a faixa indicada volta em 2,5 s.
+- Troca de andar na sala do chefe (o 3º golpe no tambor): vale a faixa do andar novo, como antes.
+- Morrer: a faixa do andar sai em 300 ms e entra a derrota (`morte`), uma vez; depois dela, silêncio. A `A Vila Espera` volta quando o jogador chega ao menu. Vencer a run continua só em silêncio.
+- O chefe, o palco (andares 2 a 5) e a derrota ficam prontos no cache enquanto o jogador explora o andar, para a troca ser imediata ao entrar na sala ou morrer (o cache guarda até 6 faixas).
+
+**De onde vêm as fases do chefe e a vitória** (`contextoDoJogo.js`, issue #47): a fase é o `phase` (1 a 3) do alvo `boss: true` de `run.targets`, e a vitória é a sala do chefe ficar limpa (`room.cleared`). O palco lê `run.stage` e `room.emptied`.
+
+**Como ouvir:** `npm run trilha:salas` gera os WAV em `tmp/trilha/salas/` (a faixa como o jogador ouve, com a introdução e o corpo duas vezes) e imprime as medições; `-- --so chefe-final` renderiza só uma. Dentro do jogo, o chefe fica no beco mais distante da sala inicial e o palco (andares 2 a 5) numa sala com a porta de máscara; no palco só se entra com a vida cheia.
+
+**Onde ajustar:**
+
+- *Andamento, tom e camadas:* `FASES_DO_CHEFE` em `chefe.js` (andamento, tônica, forma e onde cada camada toca); o andamento também fica em `faixas.js` (`andamento`), e os testes conferem os dois. No palco, `FORMA_DO_SHOW`, `SECOES`, `ACORDES`, `TEMA`, `CRESCENDO`, `CABARET` e `GALOPE` em `palco.js`.
+- *Melodia e ritmo:* o tema do chefe (`TEMA`), as `GROOVES` e a `DINAMICA` em `chefe.js`; `GROOVES` e `DINAMICA` em `palco.js`. As posições são em semicolcheias (`6`), tercinas (`3t`) ou passos crus (`13s`); veja o topo de `escrita12.js`.
+- *Volume:* o `nivel` (dB) de cada faixa em `faixas.js`. `npm run trilha:salas` mostra o volume e o nível ideal para igualar à média dos andares; `tests/salasDoChefeEPalco.test.js` exige no máximo 1 dB de diferença.
+- *Fades e trocas:* `FADES` em `mesaDoJogo.js`.
+- *Tímpano:* instrumento novo em `instrumentos.js`.
 
 ## Seleção de personagem
 

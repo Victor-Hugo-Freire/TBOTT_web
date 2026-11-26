@@ -253,7 +253,7 @@ describe('Fliperama: o tambor', () => {
   })
 
   test('sem grãos, não joga e mostra "Faltam grãos"', () => {
-    const run = play(runIn('fliperama', { grains: 1 }))
+    const run = play(runIn('fliperama', { grains: ARCADE_PLAY_PRICE - 1 }))
     assert.equal(run.notice.text, 'Faltam grãos')
     assert.equal(getCurrentRoom(run).plays, 0)
   })
