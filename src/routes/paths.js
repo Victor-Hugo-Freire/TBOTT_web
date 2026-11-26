@@ -8,6 +8,5 @@ export const ROUTES = {
   novaPartida: '/jogo',
   ranking: '/ranking',
   opcoes: '/opcoes',
-  perfil: '/perfil',
   zzfxExperimental: '/__experimentos/zzfx',
 }

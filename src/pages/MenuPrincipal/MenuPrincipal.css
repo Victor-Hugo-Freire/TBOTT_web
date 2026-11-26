@@ -5,8 +5,10 @@
   place-items: center;
   overflow: hidden;
   padding: 0;
-  background: #1a1a1a;
-  color: #f5f5f5;
+  background:
+    radial-gradient(circle at 50% 65%, rgba(198, 177, 140, 0.09), transparent 32%),
+    var(--color-background);
+  color: var(--color-text-light);
   animation: menu-surgir 350ms ease-out both;
 }
 
@@ -45,8 +47,11 @@
   align-content: start;
   gap: 0.45rem;
   padding: clamp(1.25rem, 4vw, 2rem) clamp(1.5rem, 4vw, 2.65rem);
-  border-radius: 0.5rem;
-  background: #444;
+  border: 2px solid var(--color-border-strong);
+  outline: 1px solid rgba(36, 21, 15, 0.9);
+  border-radius: var(--radius-md);
+  background: rgba(29, 23, 19, 0.94);
+  box-shadow: var(--shadow-soft);
 }
 
 .menu-principal__item {

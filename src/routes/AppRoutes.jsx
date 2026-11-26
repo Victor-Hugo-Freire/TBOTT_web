@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Inicial from '../pages/Inicial/Inicial.jsx'
 import MenuPrincipal from '../pages/MenuPrincipal/MenuPrincipal.jsx'
-import MenuDestino from '../pages/MenuPrincipal/MenuDestino.jsx'
 import Opcoes from '../pages/Opcoes/Opcoes.jsx'
 import SessaoPersonagem from '../pages/sessaoPersonagem/SessaoPersonagem.jsx'
 import SalaInicial from '../pages/SalaInicial/SalaInicial.jsx'
@@ -40,7 +39,6 @@ export default function AppRoutes() {
         <Route path={ROUTES.novaPartida} element={<SalaInicial />} />
         <Route path={ROUTES.ranking} element={<Ranking />} />
         <Route path={ROUTES.opcoes} element={<Opcoes />} />
-        <Route path={ROUTES.perfil} element={<MenuDestino titulo="Perfil do usuário" />} />
       </Route>
       {/* Endereço desconhecido volta para a tela inicial */}
       <Route path="*" element={<Navigate to={ROUTES.inicial} replace />} />
