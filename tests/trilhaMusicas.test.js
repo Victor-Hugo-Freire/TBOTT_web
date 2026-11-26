@@ -3,7 +3,8 @@ import { describe, test } from 'node:test'
 import { INSTRUMENTOS } from '../src/audio/music/instrumentos.js'
 import { FAIXAS, FAIXAS_COMPOSTAS } from '../src/audio/music/faixas.js'
 import { INSTRUMENTOS_DAS_MUSICAS, MUSICAS } from '../src/audio/music/musicas.js'
-import { CANTINA_INSTRUMENTOS, CANTINA_META, CANTINA_SECOES, CANTINA_SONG } from '../src/audio/music/andar-cantina.js'
+import { CANTINA_INSTRUMENTOS, CANTINA_MELODIA, CANTINA_META, CANTINA_SECOES, CANTINA_SONG } from '../src/audio/music/andar-cantina.js'
+import { perfilDaMelodia } from '../src/audio/music/analiseDosAndares.js'
 import { CELULA_DO_TUNG_GRAUS, passosDoTungTungTung } from '../src/audio/music/motivos.js'
 import { bpmDoZzfxm } from '../src/audio/music/partitura.js'
 
@@ -91,7 +92,7 @@ describe('A Ronda: Cantina', () => {
         assert.deepEqual(tocadas.map(({ nota }) => alturaEscrita(nota, nome) - tonica), [...CELULA_DO_TUNG_GRAUS], `${nome} ${compasso}`)
       }
     }
-    confere('contrabaixo', { 0: 33, 4: 38, 8: 28, 9: 26 })
+    confere('contrabaixoCheio', { 0: 33, 4: 38, 8: 28, 9: 26 })
     confere('guitarraJazz', { 12: 57, 16: 62 })
   })
 
@@ -125,20 +126,10 @@ describe('A Ronda: Cantina', () => {
     for (const nome of ['ride', 'caixa', 'guitarraJazz', 'bumbo']) assert.equal(tocaEm(nome, r), false, `${nome} no respiro`)
   })
 
+  // A regra do pedido original: "evite melodia densa entre 100 e 650 Hz, porque os efeitos sonoros
+  // vão ficar nessa região". Conta as vozes de melodia; o baixo e os acordes curtos ficam de fora.
   test('a melodia fica esparsa na região dos efeitos sonoros (100 a 650 Hz)', () => {
-    const [instrumentos] = CANTINA_SONG
-    let ataques = 0
-    for (const padrao of padroes) {
-      for (const canal of padrao) {
-        const nome = CANTINA_INSTRUMENTOS[canal[0]]
-        if (INSTRUMENTOS[nome].percussao) continue
-        for (const { nota } of notasDoCanal(canal)) {
-          const frequencia = instrumentos[canal[0]][2] * 2 ** (((nota | 0) - 12) / 12)
-          if (frequencia >= 100 && frequencia <= 650) ataques++
-        }
-      }
-    }
-    const segundos = padroes.length * 4 * (60 / 88)
-    assert.ok(ataques / segundos < 2.5, `${(ataques / segundos).toFixed(2)} ataques por segundo`)
+    const { regiaoDosEfeitos } = perfilDaMelodia(CANTINA_SONG, CANTINA_INSTRUMENTOS, CANTINA_MELODIA, CANTINA_META, CANTINA_META)
+    assert.ok(regiaoDosEfeitos < 2.5, `${regiaoDosEfeitos.toFixed(2)} ataques por segundo`)
   })
 })

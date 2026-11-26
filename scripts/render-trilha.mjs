@@ -24,7 +24,7 @@ import { chavesDaCelula, distanciaMelodica, impressaoMelodica } from '../src/aud
 import { BAIXOS, distanciaDeLevada, distanciaHarmonica, estatisticasDoBaixo, impressaoDaLevada, impressaoHarmonica, metricaDe, perfilDaMelodia, unissonosPorMinuto, viradasNasPassagens } from '../src/audio/music/analiseDosAndares.js'
 import { VILA_ESPERA_SONG as VILA_ESPERA_ANTIGA_SONG, VILA_ESPERA_INSTRUMENTS as INSTRUMENTOS_ANTIGOS } from './referencia/vila-espera-antiga.js'
 import { ENTRADA_DO_CORPO } from '../src/audio/fonteComIntro.js'
-import { aplicarCadeiaDoMaster, distribuicaoEspectral, energiaAcimaDe, energiaPorBanda, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav, volumePercebido } from './trilha/analise.mjs'
+import { aplicarCadeiaDoMaster, distribuicaoEspectral, energiaAcimaDe, energiaPonderada, energiaPorBanda, inarmonicidade, maiorSaltoPerto, medirFaixa, mono, niveisPorTrecho, salvarWav, volumePercebido } from './trilha/analise.mjs'
 
 const SAMPLE_RATE = ZZFX_EXPERIMENTAL_SAMPLE_RATE
 const PASTA = join(fileURLToPath(new URL('..', import.meta.url)), 'tmp', 'trilha')
@@ -93,14 +93,17 @@ function imprimirEnergiaPorSecao(faixa, canais) {
     inicioDoCompasso[indice] = posicao
     posicao += (padroes[indice][0].length - 2) * passo
   }
+  const sinal = mono(canais)
   const partes = secoes.map((secao) => {
     const de = inicioDoCompasso[secao.inicio]
     const ate = de + secao.compassos * (padroes[secao.inicio][0].length - 2) * passo
     let soma = 0
     for (const canal of canais) for (let i = de; i < ate; i++) soma += canal[i] * canal[i]
-    return `${secao.nome} (${secao.compassos}) ${numero(10 * Math.log10(soma / (2 * (ate - de))))}`
+    // Pelo ouvido (ponderação A): o sub pesa no RMS mas quase não se ouve em volume baixo
+    const ouvido = 10 * Math.log10(energiaPonderada(sinal.subarray(de, ate), SAMPLE_RATE) / (ate - de))
+    return `${secao.nome} (${secao.compassos}) ${numero(10 * Math.log10(soma / (2 * (ate - de))))} [${numero(ouvido)}]`
   })
-  console.log(`  energia por seção (dB RMS): ${partes.join(' → ')}`)
+  console.log(`  energia por seção (dB RMS; entre colchetes, pelo ouvido): ${partes.join(' → ')}`)
 
   // Atividade: ataques por segundo de todos os canais (notas e batidas), por seção
   const segundosPorCompasso = (padroes[0][0].length - 2) * passo / SAMPLE_RATE
@@ -140,6 +143,12 @@ function somente(song, nomes, escolher) {
   const [instrumentos, padroes, sequencia, bpm] = song
   const filtrados = padroes.map((padrao) => padrao.map((linha) => (escolher(nomes[linha[0]]) ? linha : linha.map((valor, i) => (i < 2 ? valor : 0)))))
   return generateZzfxMusicSamples([instrumentos, filtrados, sequencia, bpm], SAMPLE_RATE, { loop: true, normalize: false })
+}
+
+// Quanto um grupo de instrumentos pesa no que se ouve (ponderação A, sem normalizar): 0 a 1
+function parteNoQueSeOuve(song, nomes, escolher) {
+  const total = energiaPonderada(mono(somente(song, nomes, () => true)), SAMPLE_RATE)
+  return total > 0 ? energiaPonderada(mono(somente(song, nomes, escolher)), SAMPLE_RATE) / total : 0
 }
 
 // Medições de equilíbrio (grave/agudo, volume) de cada faixa de andar, para o resumo do fim
@@ -265,6 +274,7 @@ for (const faixa of FAIXAS) {
       bandas: energiaPorBanda(mono(final), SAMPLE_RATE),
       peloOuvido: energiaPorBanda(mono(final), SAMPLE_RATE, { peloOuvido: true }),
       baixoNoNotebook: energiaAcimaDe(mono(somente(faixa.song, faixa.instrumentos, (nome) => BAIXOS.includes(nome))), SAMPLE_RATE, 150),
+      baixoNoQueSeOuve: parteNoQueSeOuve(faixa.song, faixa.instrumentos, (nome) => BAIXOS.includes(nome)),
       volume: volumePercebido(final, SAMPLE_RATE),
       segundosDeRender,
     }
@@ -374,11 +384,11 @@ if (ANDARES.length) {
     console.log('\nEquilíbrio grave/agudo (depois do master; "pelo ouvido" = ponderação A, o ouvido em volume baixo)')
     console.log(`  ${''.padEnd(11)} ${'sub <60'.padStart(9)} ${'60–250'.padStart(8)} ${'250–500'.padStart(8)} ${'500–2k'.padStart(8)} ${'2–5k'.padStart(8)} ${'>5k'.padStart(8)}`)
     for (const id of medidos) {
-      const { bandas, peloOuvido, baixoNoNotebook, volume, segundosDeRender } = EQUILIBRIO[id]
+      const { bandas, peloOuvido, baixoNoNotebook, baixoNoQueSeOuve, volume, segundosDeRender } = EQUILIBRIO[id]
       const linha = (b) => [b.sub, b.grave, b.medioGrave, b.medio, b.presenca, b.agudo].map((v, i) => pct(v).padStart(i === 0 ? 9 : 8)).join(' ')
       console.log(`  ${curto(id).padEnd(11)} ${linha(bandas)}   (energia)`)
       console.log(`  ${''.padEnd(11)} ${linha(peloOuvido)}   (pelo ouvido)`)
-      console.log(`  ${''.padEnd(11)} baixo acima de 150 Hz (o que sobra no notebook) ${pct(baixoNoNotebook)} · volume ${numero(volume, 1)} LUFS · render ${numero(segundosDeRender, 1)} s`)
+      console.log(`  ${''.padEnd(11)} baixo: ${pct(baixoNoQueSeOuve)} do que se ouve, ${pct(baixoNoNotebook)} acima de 150 Hz (o que sobra no notebook) · volume ${numero(volume, 1)} LUFS · render ${numero(segundosDeRender, 1)} s`)
     }
     const volumes = medidos.map((id) => EQUILIBRIO[id].volume)
     console.log(`  diferença de volume entre o andar mais alto e o mais baixo: ${numero(Math.max(...volumes) - Math.min(...volumes), 1)} dB`)

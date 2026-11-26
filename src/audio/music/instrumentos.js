@@ -103,14 +103,16 @@ export const INSTRUMENTOS = Object.freeze({
 
   // ---------------- Baixos dos andares (com harmônicos: aparecem em caixa de notebook) ----------------
 
-  // Serra com passa-baixa em 500 Hz: a nota grave chega ao alto-falante pequeno pelos harmônicos
-  // (2ª, 3ª, 4ª…). No Lá1, 32% da energia fica acima de 150 Hz (no contrabaixo da Vila, 5%), com
-  // o mesmo volume. O contrabaixo de triângulo continua igual para a "A Vila Espera".
+  // Serra com passa-baixa em 400 Hz: a nota grave chega ao alto-falante pequeno pelos harmônicos
+  // (2ª, 3ª, 4ª…). No Lá1, ~30% da energia fica acima de 150 Hz (no contrabaixo da Vila, 5%). O
+  // volume é mais baixo que o do contrabaixo de triângulo porque os harmônicos já o deixam presente:
+  // na Cantina o baixo fica com ~25% do que se ouve, sem cobrir a melodia. O contrabaixo de triângulo
+  // continua igual para a "A Vila Espera".
   contrabaixoCheio: instrumento({
     baseMidi: 36, registro: [28, 55],
-    volume: 0.55, aleatoriedade: 0.003, forma: SERRA,
+    volume: 0.4, aleatoriedade: 0.003, forma: SERRA,
     ataque: 0.006, decaimento: 0.22, nivelSustentacao: 0.5, sustentacao: 0.1, soltura: 0.16,
-    filtro: passaBaixa(500),
+    filtro: passaBaixa(400),
   }),
 
   // Baixo de funk: ataque seco e nota curta (as notas fantasma vêm da atenuação)
@@ -133,7 +135,7 @@ export const INSTRUMENTOS = Object.freeze({
   // longas e longe do bumbo; nunca na Cucina (no funk o grave fundo é do bumbo).
   sub: instrumento({
     baseMidi: 36, registro: [28, 47],
-    volume: 0.42, aleatoriedade: 0.001, forma: SENO,
+    volume: 0.26, aleatoriedade: 0.001, forma: SENO,
     ataque: 0.02, sustentacao: 0.5, soltura: 0.4,
     filtro: passaBaixa(140),
   }),

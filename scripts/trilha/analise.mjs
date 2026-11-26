@@ -150,6 +150,15 @@ export function energiaPorBanda(sinal, sampleRate, { peloOuvido = false, tamanho
   return Object.fromEntries(Object.entries(soma).map(([nome, valor]) => [nome, total > 0 ? valor / total : 0]))
 }
 
+// Energia total com a ponderação A (para comparar o peso de um grupo de instrumentos na mistura)
+export function energiaPonderada(sinal, sampleRate, tamanho = 8192) {
+  const potencia = espectroMedio(sinal, tamanho)
+  const resolucao = sampleRate / tamanho
+  let total = 0
+  for (let k = 1; k < potencia.length; k++) total += potencia[k] * pesoA(k * resolucao)
+  return total
+}
+
 // Parte da energia (0 a 1) acima de `hz`: num alto-falante de notebook ou celular, o que sobra do
 // baixo é o que fica acima de ~150 Hz
 export function energiaAcimaDe(sinal, sampleRate, hz, tamanho = 8192) {
