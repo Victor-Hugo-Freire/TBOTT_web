@@ -55,7 +55,10 @@ export const BOSS_STUN_MS = 300
 // ---------- comportamento de cada chefe (bossBehaviors.js). Distâncias em u, tempos em ms, velocidades em u/s. ----------
 // Os tempos de aviso e de recuperação de cada ataque saem das folhas (bossSprites.js); os danos, do catálogo (attacks).
 // Os projéteis ficaram ~1,5x mais rápidos (pedido do Victor, 2026-11-23: estavam muito devagar): notas, bananas,
-// gotas, a queda das bombas e as raízes.
+// gotas e a queda das bombas. As raízes, não: rápidas demais, ninguém desvia (2026-11-25).
+// Revisão de 2026-11-25 (o Patapim estava muito forte): com o Tung parado perto do chefe, sem revidar, ele morre em
+// cerca de 8 a 10 s nos chefes dos andares 1 e 2, 7 a 9 s nos dos andares 3 e 4 e menos no Tralalero (o final).
+// Os ajustes foram só nas pausas entre os ataques e na quantidade; vida e dano continuam os do catálogo.
 
 // Cinquecento Turbo: anda atrás do Tung; perto (honkRange), buzina: a onda de som machuca até honkRadius dos pés dele,
 // nos quadros de acerto (honkScale: o desenho, 284 u de largura na escala 1, do tamanho dessa área). Antes da buzina,
@@ -73,7 +76,7 @@ export const CINQUECENTO = {
   chargeSpeed: 620,
   bounces: 2,
   maxChargeMs: 4000,
-  restMs: 500,
+  restMs: 1000,
 }
 
 // Chimpanzini Bananini (andares 1 e 2): anda atrás do Tung e, depois de andar walkMs (fase 2: phase2WalkMs), joga duas
@@ -100,14 +103,15 @@ export const CHIMPANZINI = {
 // invoca `meatballs` almôndegas (Polpettas do catálogo de inimigos): sempre exatamente essas, nunca mais que essas vivas
 // (pedido do Victor, 2026-11-23: 2 é o mínimo e o máximo). Elas morrem junto com ela. A cada marca da barra perde uma
 // camada de lasanha (a troca de fase).
-export const NONNA = { walkMs: 1600, slamRange: 200, slamReach: 50, slamRadius: 200, slamScale: 1.8, meatballs: 2, summonDistance: 120, restMs: 700 }
+export const NONNA = { walkMs: 1600, slamRange: 200, slamReach: 50, slamRadius: 150, slamScale: 1.8, meatballs: 2, summonDistance: 120, restMs: 1000, phaseRestMs: 300 }
 
 // Brr Brr Patapim (andares 1 e 2): anda atrás do Tung; perto (stompRange), pisa: a onda de choque machuca até
 // stompRadius dele no quadro de acerto (stompScale: o desenho do tamanho da área). Depois de andar walkMs, ou logo depois
 // de cada pisão (os dois ataques revezam), solta as raízes: rootCount raízes brotam em linha na direção do Tung, uma a
 // cada rootSpacing u e rootStepMs ms; cada uma machuca quem está em cima dela enquanto brota (a folha da raiz, 360 ms).
-// A linha acerta uma vez só.
-export const PATAPIM = { walkMs: 1500, stompRange: 220, stompRadius: 230, stompScale: 2, rootCount: 7, rootSpacing: 80, rootStepMs: 45, restMs: 600 }
+// A linha acerta uma vez só. Pedido do Victor (2026-11-25): mais tempo entre os ataques (restMs) e raízes mais lentas
+// (a linha avança a ~615 u/s; o Tung anda a 260 u/s e precisa sair do caminho dela).
+export const PATAPIM = { walkMs: 1500, stompRange: 170, stompRadius: 170, stompScale: 2, rootCount: 7, rootSpacing: 80, rootStepMs: 130, restMs: 1500 }
 
 // Chefes que voam: passam por cima dos obstáculos (só as paredes e as portas os param) e o piso não os afeta
 export const FLYING_BOSSES = ['bombardiro-crocodilo']
@@ -115,8 +119,9 @@ export const FLYING_BOSSES = ['bombardiro-crocodilo']
 // Ballerina Cappuccina (andares 3 e 4): anda atrás do Tung e, depois de andar walkMs, reveza dois ataques:
 // - pirueta: gira na direção do Tung a spinSpeed, ricocheteando nas paredes; na batida número bounces + 1 (ou depois de
 //   maxSpinMs) fica tonta por dizzyMs (a janela de bater nela);
-// - gotas de café: `drops` gotas em círculo em volta dela, a dropSpeed, que voam por cima de tudo e somem em dropMs.
-export const BALLERINA = { walkMs: 1300, spinSpeed: 560, bounces: 2, maxSpinMs: 3500, dizzyMs: 1200, drops: 8, dropSpeed: 450, dropMs: 1600, restMs: 600 }
+// - gotas de café: `drops` gotas em círculo em volta dela, a primeira na direção do Tung, a dropSpeed, que voam por
+//   cima de tudo e somem em dropMs.
+export const BALLERINA = { walkMs: 800, spinSpeed: 650, bounces: 3, maxSpinMs: 6000, dizzyMs: 1000, drops: 12, dropSpeed: 450, dropMs: 1600, restMs: 400 }
 
 // Bombardiro Crocodilo (andares 3 e 4): voa e fica pairando a hoverRange do Tung. Depois de voar walkMs, bombardeia,
 // revezando 4 padrões (pedido do Victor, 2026-11-23: a luta estava fácil, eram sempre 3 bombas em linha). Em todos, a
@@ -157,7 +162,7 @@ export const BOMBARDIRO = {
 //   e dá o corte com o dano dos clones; ao cair, some numa fumaça. Morrem junto com ele.
 // - Com clones vivos e o Tung além de teleportRange, depois de andar walkMs, se teleporta: vira fumaça, some e
 //   reaparece behindDistance u atrás do Tung, já dando o corte.
-export const CAPPUCCINO = { walkMs: 1500, behindDistance: 110, slashRange: 170, slashScale: 1.2, teleportRange: 300, cloneHealth: 4, cloneWallMargin: 120, restMs: 600 }
+export const CAPPUCCINO = { walkMs: 1500, behindDistance: 110, slashRange: 170, slashScale: 1.2, teleportRange: 300, cloneHealth: 1, cloneCooldownMs: 15000, cloneWallMargin: 120, restMs: 900 }
 
 // Tralalero Tralala (andar 5), 3 fases (marcas em BOSS_PHASES):
 // - fase 1: anda atrás do Tung; perto (biteRange), morde (acerta quem está a até biteRange nos quadros de acerto).
@@ -190,5 +195,5 @@ export const TRALALERO = {
   finMaxMs: 2500,
   emergeRange: 40,
   phase3Speed: 1.3,
-  restMs: 600,
+  restMs: 1100,
 }

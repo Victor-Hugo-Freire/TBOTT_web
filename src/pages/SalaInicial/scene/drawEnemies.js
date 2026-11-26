@@ -25,12 +25,15 @@ const DROP_HEIGHT = 50 // a gota voa nesta altura acima da sombra dela
 const BOMB_SCALE = 1.3 // bomba do Bombardiro (40 x 51 u na escala 1)
 const BOMB_FALL_HEIGHT = 500 // a bomba começa a cair desta altura acima da marca
 const BOMB_MARK_SCALE = 1.9 // a marca no chão (91 u na escala 1) do tamanho da explosão (2 x blastRadius)
+const BOSS_HIT_FLASH_MS = 180 // o chefe clareia por este tempo depois de cada golpe (ele não troca de pose: veja getEnemyPose)
+const BOSS_HIT_FLASH_STRENGTH = 1 // o quanto ele clareia no instante do golpe (0 a 1)
+const BOSS_HIT_FLASH_PASSES = 2 // quantas vezes o desenho é somado por cima (2 = o dobro de brilho)
 const CLONE_ALPHA = 0.6 // os clones do Cappuccino são cópias meio transparentes dele (como os fantasmas da folha)
 
 // Um inimigo (ou o chefe) na sala: a sombra, as pernas (atrás) e o tronco (na frente), com os pés em (enemy.x, enemy.y).
 // A folha é de frente; virado para a esquerda, o desenho é espelhado em volta dos pés.
 // Sem barra de vida nem número de dano (regra do Victor): o dano aparece pela animação "dano" e a morte pela "morte".
-// Só o chefe tem barra, embaixo da tela (drawBossBar.js).
+// Só o chefe tem barra, embaixo da tela (drawBossBar.js); no lugar da animação de dano, ele clareia um instante a cada golpe.
 // Com o escudo de vapor da Moka, a bolha de vapor fica em volta do corpo até ele levar um golpe.
 export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   const pose = getEnemyPose(enemy, reduceMotion)
@@ -51,6 +54,16 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   if (enemy.facingLeft) ctx.scale(-1, 1)
   drawFrame(ctx, { ...sprite, path: layers.pernas }, row, pose.frame, 0, 0)
   drawFrame(ctx, { ...sprite, path: layers.tronco }, row, pose.frame, 0, 0)
+  // O golpe no chefe: o mesmo desenho por cima, somando cor (só onde ele tem pixels), apagando em BOSS_HIT_FLASH_MS
+  const hitFlash = enemy.boss && !enemy.dead ? 1 - enemy.hurtMs / BOSS_HIT_FLASH_MS : 0
+  if (hitFlash > 0) {
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = pose.alpha * hitFlash * BOSS_HIT_FLASH_STRENGTH
+    for (let pass = 0; pass < BOSS_HIT_FLASH_PASSES; pass++) {
+      drawFrame(ctx, { ...sprite, path: layers.pernas }, row, pose.frame, 0, 0)
+      drawFrame(ctx, { ...sprite, path: layers.tronco }, row, pose.frame, 0, 0)
+    }
+  }
   ctx.restore()
 
   if (enemy.shielded && !enemy.dead) {

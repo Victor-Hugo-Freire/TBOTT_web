@@ -164,6 +164,8 @@ export function updateEnemies(targets, world) {
     }
     if (target.stunMs > 0 || target.push) return target
     const enemy = { ...target, animationMs: target.animationMs + stepMs }
+    // O Cappuccino conta o tempo sem clones aqui (e não no comportamento, que nem roda durante o descanso pelo waitMs)
+    if (target.cloneCooldownMs > 0) enemy.cloneCooldownMs = Math.max(0, target.cloneCooldownMs - stepMs)
     // O piso (esteira, líquido, grudento) vale depois de agir, também para quem está esperando
     if (enemy.waitMs > 0) return settleOnFloor(setAnimation({ ...enemy, waitMs: Math.max(0, enemy.waitMs - stepMs) }, getIdleAnimation(enemy)), world)
     const behavior = enemy.clone ? updateClone : (ENEMY_BEHAVIORS[enemy.enemyId] ?? BOSS_BEHAVIORS[enemy.enemyId])
@@ -227,7 +229,8 @@ export function getEnemyPose(enemy, reduceMotion = false) {
     return alpha > 0 ? { animation, frame: durations.length - 1, alpha } : null
   }
   const hurt = withSide(enemy, animations, 'dano')
-  if (enemy.hurtMs < getTotalDuration(animations[hurt].durations)) {
+  // O chefe não para na animação de dano: com golpes seguidos ela cobriria o andar e os ataques dele (o número de dano e a barra já mostram o acerto)
+  if (!enemy.boss && enemy.hurtMs < getTotalDuration(animations[hurt].durations)) {
     return { animation: hurt, frame: getTimedFrame(animations[hurt].durations, enemy.hurtMs), alpha: 1 }
   }
   const animation = withSide(enemy, animations, enemy.animation)

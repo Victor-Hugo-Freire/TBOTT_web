@@ -88,7 +88,7 @@ const ITEMS = [
     name: 'Rolo de Bronze',
     rarity: 'incomum',
     roomTypes: ['chefe'],
-    effect: { trigger: 'golpe-acerta', pushDistance: 120, wallExtraDamage: 2 },
+    effect: { trigger: 'golpe-acerta', pushDistance: 60, wallExtraDamage: 2 },
   },
   {
     id: 'tiramisu',
@@ -125,7 +125,7 @@ export const TEST_ENEMIES = buildEnemyCatalog(ENEMIES).enemies
 const BOSSES = [
   {
     id: 'brr-brr-patapim', name: 'Brr Brr Patapim', health: 66, damage: 1, minFloor: 1, maxFloor: 2,
-    attacks: [{ id: 'atacando', name: 'Pisão', damage: 2 }, { id: 'raizes', name: 'Raízes', damage: 1 }],
+    attacks: [{ id: 'atacando', name: 'Pisão', damage: 1 }, { id: 'raizes', name: 'Raízes', damage: 1 }],
   },
   {
     id: 'chimpanzini-bananini', name: 'Chimpanzini Bananini', health: 60, damage: 1, minFloor: 1, maxFloor: 2,
@@ -133,11 +133,11 @@ const BOSSES = [
   },
   {
     id: 'cinquecento-turbo', name: 'Cinquecento Turbo', health: 60, damage: 1, minFloor: 1, maxFloor: 2,
-    attacks: [{ id: 'investida', name: 'Investida', damage: 2 }, { id: 'atacando', name: 'Buzina', damage: 1 }],
+    attacks: [{ id: 'investida', name: 'Investida', damage: 1 }, { id: 'atacando', name: 'Buzina', damage: 1 }],
   },
   {
     id: 'nonna-lasagnona', name: 'Nonna Lasagnona', health: 72, damage: 1, minFloor: 1, maxFloor: 4,
-    attacks: [{ id: 'atacando', name: 'Colherada', damage: 2 }, { id: 'invocar', name: 'Almôndegas', damage: 1 }],
+    attacks: [{ id: 'atacando', name: 'Colherada', damage: 1 }, { id: 'invocar', name: 'Almôndegas', damage: 1 }],
   },
   {
     id: 'ballerina-cappuccina', name: 'Ballerina Cappuccina', health: 84, damage: 1, minFloor: 3, maxFloor: 4,
@@ -154,7 +154,7 @@ const BOSSES = [
   {
     id: 'tralalero-tralala', name: 'Tralalero Tralala', health: 135, damage: 2, minFloor: 5, maxFloor: 5,
     attacks: [
-      { id: 'investida', name: 'Investida', damage: 2 },
+      { id: 'investida', name: 'Investida', damage: 1 },
       { id: 'atacando', name: 'Mordida', damage: 2 },
       { id: 'canto-tralala', name: 'Canto', damage: 1 },
       { id: 'pauta', name: 'Pauta musical', damage: 1 },

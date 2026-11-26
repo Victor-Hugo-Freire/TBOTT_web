@@ -10,7 +10,7 @@ import { generateFloor } from '../src/utils/floorGenerator.js'
 import { DOOR_HIT_ZONES } from '../src/utils/doors.js'
 import { ROOM_FLOOR, ROOM_WALLS } from '../src/utils/roomMovement.js'
 import { createRun, updateRun } from '../src/utils/run.js'
-import { damageTarget, isTargetable } from '../src/utils/targets.js'
+import { damageTarget, isTargetable, pushTarget } from '../src/utils/targets.js'
 import { TEST_BOSSES, TEST_ENEMIES } from './helpers/testCatalog.js'
 
 const STEP = 1 / 50 // 20 ms
@@ -90,7 +90,7 @@ describe('Cinquecento Turbo', () => {
     const player = { x: car.x + 500, y: car.y + 100 }
     let { boss } = simulate(car, player, 5000, (one) => one.animation === 'investida')
     assert.equal(boss.animation, 'investida')
-    assert.equal(boss.damage, 2, 'na investida, encostar tira o dano da investida')
+    assert.equal(boss.damage, 1, 'na investida, encostar tira o dano da investida')
     assert.ok(boss.aim.x > 0 && boss.aim.y > 0, 'mira no Tung')
 
     // Primeira batida: só um eixo da direção inverte
@@ -136,7 +136,7 @@ describe('Tralalero Tralala', () => {
       fish = simulate(fish, player, STEP_MS).boss
       if (fish.animation === 'investida' && last !== 'investida') {
         dashes++
-        assert.equal(fish.damage, 2, 'na investida, encostar tira o dano da investida')
+        assert.equal(fish.damage, 1, 'na investida, encostar tira o dano da investida')
       }
       last = fish.animation
     }
@@ -401,7 +401,7 @@ describe('Nonna Lasagnona', () => {
   test('perto, a colherada: a onda de choque machuca uma vez, com o dano da colherada', () => {
     const nonna = spawn('nonna-lasagnona')
     const { hits, flashes } = simulate(nonna, { x: nonna.x + 120, y: nonna.y }, 800)
-    assert.deepEqual(hits, [{ damage: 2, cause: 'nonna-lasagnona' }])
+    assert.deepEqual(hits, [{ damage: 1, cause: 'nonna-lasagnona' }])
     assert.ok(flashes.some((flash) => flash.effect === 'onda-choque'))
   })
 
@@ -445,6 +445,16 @@ describe('Nonna Lasagnona', () => {
     }
   })
 
+  test('a troca de camada espera a colherada acabar (não corta o ataque no meio)', () => {
+    const player = { x: spawn('nonna-lasagnona').x + 150, y: spawn('nonna-lasagnona').y }
+    const slamming = simulate(spawn('nonna-lasagnona'), player, 3000, (nonna) => nonna.animation === 'atacando').boss
+    assert.equal(slamming.animation, 'atacando')
+    const hurt = damageTarget(slamming, 20) // passa da primeira marca (54)
+    const next = simulate(hurt, player, 2000, (nonna) => nonna.animation.startsWith('perde-camada'))
+    assert.equal(next.hits.length, 1, 'a colherada acertou antes da troca')
+    assert.ok(next.boss.animation.startsWith('perde-camada'), 'e só então a camada cai')
+  })
+
   test('o golpe que passa da marca mostra a camada caindo (e não ela inteira levando dano)', () => {
     let nonna = { ...spawn('nonna-lasagnona'), phase: 2, layerVariant: 'camadas3', health: 40 }
     const player = { x: nonna.x + 500, y: nonna.y }
@@ -455,12 +465,17 @@ describe('Nonna Lasagnona', () => {
     assert.equal(pose.frame, 0)
   })
 
-  test('levando dano nas outras fases, ela aparece com as camadas que sobraram', () => {
+  test('levando dano, ela segue andando (sem a animação de dano) e na folha das camadas que sobraram', () => {
     let nonna = { ...spawn('nonna-lasagnona'), phase: 3, layerVariant: 'camadas2', health: 30 }
     nonna = damageTarget(nonna, 3)
     nonna = simulate(nonna, { x: nonna.x + 500, y: nonna.y }, STEP_MS).boss
-    assert.equal(getEnemyPose(nonna).animation, 'dano')
-    assert.equal(nonna.layerVariant, 'camadas2', 'o dano é desenhado na folha de 2 camadas')
+    assert.equal(getEnemyPose(nonna).animation, 'andando')
+    assert.equal(nonna.layerVariant, 'camadas2')
+  })
+
+  test('o chefe não é empurrado (Rolo de Bronze, Palitos de Pão): empurrado ele pararia de agir', () => {
+    const nonna = spawn('nonna-lasagnona')
+    assert.equal(pushTarget(nonna, 1, 0, 100), nonna)
   })
 
   test('quando ela morre, as almôndegas morrem junto', () => {
@@ -477,8 +492,16 @@ describe('Brr Brr Patapim', () => {
   test('perto, o pisão: a onda de choque machuca uma vez, com o dano do pisão', () => {
     const boss = spawn('brr-brr-patapim')
     const { hits, flashes } = simulate(boss, { x: boss.x + 150, y: boss.y }, 800)
-    assert.deepEqual(hits, [{ damage: 2, cause: 'brr-brr-patapim' }])
+    assert.deepEqual(hits, [{ damage: 1, cause: 'brr-brr-patapim' }])
     assert.ok(flashes.some((flash) => flash.effect === 'onda-choque'))
+  })
+
+  test('o pisão vale o desenho da onda (elipse deitada): em cima e embaixo o alcance é menor que dos lados', () => {
+    const boss = spawn('brr-brr-patapim')
+    const side = simulate(boss, { x: boss.x + PATAPIM.stompRange - 20, y: boss.y }, 60)
+    assert.equal(side.boss.animation, 'atacando', 'dos lados, pisa dentro do alcance')
+    const above = simulate(boss, { x: boss.x, y: boss.y + PATAPIM.stompRange / 2 + 20 }, 60)
+    assert.notEqual(above.boss.animation, 'atacando', 'embaixo, o mesmo número já está fora da onda')
   })
 
   test('longe, as raízes brotam em linha até o Tung: na linha, acertam uma vez; fora dela, não', () => {
@@ -495,7 +518,7 @@ describe('Brr Brr Patapim', () => {
     let boss = spawn('brr-brr-patapim')
     const player = { x: boss.x + 150, y: boss.y }
     const attacks = []
-    for (let time = 0; time < 6000 && attacks.length < 3; time += STEP_MS) {
+    for (let time = 0; time < 12000 && attacks.length < 3; time += STEP_MS) {
       const before = boss.animation
       boss = simulate(boss, player, STEP_MS).boss
       const started = boss.animation !== before && (boss.animation === 'atacando' || boss.animation === 'raizes')
@@ -690,7 +713,7 @@ describe('Cappuccino Assassino', () => {
     assert.equal(targets[0].animation, 'clones')
     assert.equal(clones.length, 4)
     assert.ok(clones.every((one) => one.clone && one.minion && !one.boss && one.enemyId === 'cappuccino-assassino'))
-    assert.ok(clones.every((one) => one.health === CAPPUCCINO.cloneHealth && one.health === 4), 'cada um com 4 de vida')
+    assert.ok(clones.every((one) => one.health === CAPPUCCINO.cloneHealth && one.health === 1), 'cada um com 1 de vida')
     assert.equal(new Set(clones.map((one) => one.id)).size, 4, 'cada clone com um id')
     const margin = CAPPUCCINO.cloneWallMargin
     const middle = { x: (ROOM_FLOOR.left + ROOM_FLOOR.right) / 2, y: (ROOM_FLOOR.top + ROOM_FLOOR.bottom) / 2 }
@@ -706,6 +729,18 @@ describe('Cappuccino Assassino', () => {
     )
     assert.ok(flashes.filter((flash) => flash.effect === 'poof').length >= 4)
     assert.equal(getBossBar(targets).name, ninja.name.toUpperCase(), 'a barra continua sendo a dele')
+  })
+
+  test('depois de fazer os clones, só faz de novo passado o cooldown, mesmo que todos caiam logo', () => {
+    const ninja = readyToAttack('cappuccino-assassino', CAPPUCCINO.walkMs)
+    const player = { x: ninja.x + 400, y: ninja.y }
+    const first = simulateRoom([ninja], player, 1000, (list) => list.length > 1)
+    assert.equal(first.targets.length, 5)
+    const fallen = first.targets.map((one) => (one.clone ? { ...one, health: 0, dead: true, vanished: true } : one))
+    const soon = simulateRoom(fallen, player, CAPPUCCINO.cloneCooldownMs - 2000)
+    assert.equal(soon.targets.length, 5, 'dentro do cooldown, nenhum clone novo')
+    const later = simulateRoom(soon.targets, player, 4000, (list) => list.length > 5)
+    assert.equal(later.targets.length, 9, 'passado o cooldown, faz os 4 de novo')
   })
 
   test('os clones nascem fora das portas (nenhum cai em cima do Cappuccino na sala vazia)', () => {
@@ -728,10 +763,9 @@ describe('Cappuccino Assassino', () => {
     assert.equal(again.filter((one) => one.clone && !one.dead).length, 4)
   })
 
-  test('cada clone tem 4 de vida: ao cair, some numa fumaça, sem a animação de morte', () => {
+  test('cada clone tem 1 de vida: ao cair, some numa fumaça, sem a animação de morte', () => {
     const [clone] = clonesOf(spawn('cappuccino-assassino'))
-    assert.equal(damageTarget(clone, 3).dead, false, 'um golpe de 3 não derruba')
-    const hit = damageTarget(damageTarget(clone, 3), 1)
+    const hit = damageTarget(clone, 1)
     assert.equal(hit.dead, true)
     assert.equal(getEnemyPose(hit), null, 'nada é desenhado no lugar dele')
     const { targets, flashes } = simulateRoom([hit], { x: 0, y: 0 }, STEP_MS)

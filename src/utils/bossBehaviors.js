@@ -34,6 +34,13 @@ function getAttackDamage(boss, attackId) {
   return attack ? attack.damage : boss.contactDamage
 }
 
+// A onda de choque é desenhada como uma elipse deitada (o chão em perspectiva: cerca de 2 de largura para 1 de altura).
+// O alcance dela é medido do mesmo jeito: em cima e embaixo conta o dobro, senão o dano pegaria fora do desenho.
+const WAVE_FLATNESS = 2
+function getWaveDistance(from, to) {
+  return Math.hypot(to.x - from.x, (to.y - from.y) * WAVE_FLATNESS)
+}
+
 // Encostar no chefe tira o dano de encostar; durante a investida (`chargeAnimation`), o dano dela
 function setContactDamage(boss, chargeAnimation) {
   const damage = boss.animation === chargeAnimation ? getAttackDamage(boss, chargeAnimation) : boss.contactDamage
@@ -387,7 +394,7 @@ function slamNonna(nonna, world) {
     world.flashes.push({ ...createEnemyFlash('onda-choque', impact.x, impact.y - 10), scale: NONNA.slamScale })
     nonna = { ...nonna, emitted: true }
   }
-  if (isHitFrame(nonna) && !nonna.slamHit && getDirectionTo(impact, world.player).distance <= NONNA.slamRadius) {
+  if (isHitFrame(nonna) && !nonna.slamHit && getWaveDistance(impact, world.player) <= NONNA.slamRadius) {
     world.hits.push({ damage: getAttackDamage(nonna, 'atacando'), cause: nonna.enemyId })
     nonna = { ...nonna, slamHit: true }
   }
@@ -397,7 +404,9 @@ function slamNonna(nonna, world) {
 function updateNonna(nonna, world) {
   const to = getDirectionTo(nonna, world.player)
   const nextLayer = NONNA_LAYERS[nonna.phase + 1]
-  const changing = nextLayer ? startPhaseChange(nonna, to, nextLayer.animation, null) : null
+  // A colherada e as almôndegas em andamento acabam antes da troca de camada (a troca não corta o ataque no meio)
+  const busy = nonna.animation === 'atacando' || nonna.animation === 'invocar'
+  const changing = nextLayer && !busy ? startPhaseChange(nonna, to, nextLayer.animation, null) : null
   if (changing) return changing
   const resting = restCountdown(nonna, world)
   if (resting) return resting
@@ -405,7 +414,7 @@ function updateNonna(nonna, world) {
   const { animation } = nonna
   // Uma camada caiu: dali em diante, a folha com as camadas que sobraram
   if (animation.startsWith('perde-camada')) {
-    return isAnimationOver(nonna) ? endPhaseChange(nonna, NONNA_LAYERS[nonna.phase].variant, NONNA.restMs) : nonna
+    return isAnimationOver(nonna) ? endPhaseChange(nonna, NONNA_LAYERS[nonna.phase].variant, NONNA.phaseRestMs) : nonna
   }
   if (animation === 'atacando') return slamNonna(nonna, world)
   if (animation === 'invocar') {
@@ -415,7 +424,7 @@ function updateNonna(nonna, world) {
 
   // Andando atrás do Tung: perto, colherada; depois de andar walkMs, invoca (sem nenhuma almôndega viva e com a
   // Polpetta no catálogo); senão continua andando
-  if (to.distance <= NONNA.slamRange) return face(setAnimation(nonna, 'atacando'), to)
+  if (getWaveDistance(nonna, world.player) <= NONNA.slamRange) return face(setAnimation(nonna, 'atacando'), to)
   if (animation === 'andando' && nonna.animationMs >= NONNA.walkMs) {
     const canSummon = Boolean(world.enemyCatalog?.[MEATBALL_ID]) && countMeatballs(world) === 0
     if (canSummon) return face(setAnimation(nonna, 'invocar'), to)
@@ -434,7 +443,7 @@ function updatePatapim(boss, world) {
       world.flashes.push({ ...createEnemyFlash('onda-choque', boss.x, boss.y - 10), scale: PATAPIM.stompScale })
       boss = { ...boss, emitted: true }
     }
-    if (isHitFrame(boss) && !boss.stompHit && to.distance <= PATAPIM.stompRadius) {
+    if (isHitFrame(boss) && !boss.stompHit && getWaveDistance(boss, world.player) <= PATAPIM.stompRadius) {
       world.hits.push({ damage: getAttackDamage(boss, 'atacando'), cause: boss.enemyId })
       boss = { ...boss, stompHit: true }
     }
@@ -452,7 +461,7 @@ function updatePatapim(boss, world) {
   // Os dois ataques revezam (pedido do Victor, 2026-11-23): depois de um pisão, o próximo é sempre as raízes, mesmo
   // com o Tung perto. Fora isso, andando atrás do Tung: perto, pisa; depois de andar walkMs, solta as raízes.
   if (boss.stomped) return { ...face(setAnimation(boss, 'raizes'), to), stomped: false }
-  if (to.distance <= PATAPIM.stompRange) return { ...face(setAnimation(boss, 'atacando'), to), stomped: true }
+  if (getWaveDistance(boss, world.player) <= PATAPIM.stompRange) return { ...face(setAnimation(boss, 'atacando'), to), stomped: true }
   if (boss.animation === 'andando' && boss.animationMs >= PATAPIM.walkMs) return face(setAnimation(boss, 'raizes'), to)
   return chase(setAnimation(boss, 'andando'), world, boss.speed)
 }
@@ -477,10 +486,11 @@ function updateBallerina(dancer, world) {
   // Tonta depois de bater na parede: a janela de bater nela (a barra mostra VULNERAVEL)
   if (dancer.animation === 'tonta') return dancer.animationMs >= BALLERINA.dizzyMs ? rest(dancer, BALLERINA.restMs) : dancer
   if (dancer.animation === 'atacando') {
-    // As gotas de café saem no quadro do emits, em círculo em volta dela
+    // As gotas de café saem no quadro do emits, em círculo em volta dela, a primeira na direção do Tung
     if (reachedEmitFrame(dancer)) {
       const damage = getAttackDamage(dancer, 'atacando')
-      for (let k = 0; k < BALLERINA.drops; k++) world.shots.push(createCoffeeDrop(dancer, (2 * Math.PI * k) / BALLERINA.drops, damage))
+      const first = Math.atan2(to.y, to.x)
+      for (let k = 0; k < BALLERINA.drops; k++) world.shots.push(createCoffeeDrop(dancer, first + (2 * Math.PI * k) / BALLERINA.drops, damage))
       dancer = { ...dancer, emitted: true }
     }
     return isAnimationOver(dancer) ? rest(dancer, BALLERINA.restMs) : dancer
@@ -664,7 +674,7 @@ function updateCappuccino(ninja, world) {
     // Os fantasmas saem dele: na fumaça (o quadro do emits), os clones aparecem em volta dele
     if (reachedEmitFrame(ninja)) {
       world.flashes.push(createEnemyFlash('poof', ninja.x, ninja.y - 60))
-      ninja = { ...summonClones(ninja, world), emitted: true }
+      ninja = { ...summonClones(ninja, world), emitted: true, cloneCooldownMs: CAPPUCCINO.cloneCooldownMs }
     }
     return isAnimationOver(ninja) ? rest(ninja, CAPPUCCINO.restMs) : ninja
   }
@@ -672,7 +682,7 @@ function updateCappuccino(ninja, world) {
   // Perto, o corte (só começa com o Tung ao alcance dele). Com clones e o Tung longe (além de teleportRange), depois
   // de andar walkMs, se teleporta para trás dele. Senão, anda atrás do Tung.
   const walked = ninja.animation === 'andando' && ninja.animationMs >= CAPPUCCINO.walkMs
-  if ((ninja.slashed || walked) && countClones(world) === 0) return { ...face(setAnimation(ninja, 'clones'), to), slashed: false }
+  if ((ninja.slashed || walked) && countClones(world) === 0 && !(ninja.cloneCooldownMs > 0)) return { ...face(setAnimation(ninja, 'clones'), to), slashed: false }
   if (to.distance <= CAPPUCCINO.slashRange) return { ...face(setAnimation(ninja, 'atacando'), to), slashed: true }
   if (walked && to.distance > CAPPUCCINO.teleportRange) return face(setAnimation(ninja, 'teleporte'), to)
   return chase(setAnimation(ninja, 'andando'), world, ninja.speed)

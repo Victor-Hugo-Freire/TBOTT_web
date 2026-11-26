@@ -88,7 +88,8 @@ export function stunTarget(target, ms, immuneMs = 0) {
 // A direção tem tamanho 1: { x: 1, y: 0 } empurra para a direita.
 // wallDamage = dano a mais se ele bater numa parede ou obstáculo no caminho (Rolo de Bronze); 0 = nenhum.
 export function pushTarget(target, directionX, directionY, distance, wallDamage = 0) {
-  if (!isTargetable(target)) return target
+  // O chefe não é empurrado: empurrado, ele para de agir e ficaria sem reação enquanto o Tung bate
+  if (!isTargetable(target) || target.boss) return target
   const speed = distance / (PUSH_MS / 1000)
   return { ...target, push: { x: directionX * speed, y: directionY * speed, ms: PUSH_MS, wallDamage } }
 }
