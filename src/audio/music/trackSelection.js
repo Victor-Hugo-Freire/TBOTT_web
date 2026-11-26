@@ -5,7 +5,7 @@
 //   têm faixa própria. Tesouro e adega ficam com a faixa do andar.
 // - Sala do chefe: a faixa do chefe (andares 1 a 4: chefe e chefe-fase2; andar 5, o Tralalero:
 //   chefe-final, -fase2 e -fase3). Quando o chefe cai (bossState 'vitoria'), o final da vitória.
-//   bossPhase e bossState vêm de run.boss (hoje não existe: a luta é a issue #47; sem ele, fase 1 e luta).
+//   bossPhase e bossState vêm da luta do chefe (issue #47): a fase do chefe e a sala do chefe limpa (contextoDoJogo.js).
 // - Palco: os bastidores (palco) com a sala aberta, antes da Batuta e depois da vitória; o show (palco-show)
 //   enquanto as ondas lutam. O final do espetáculo (palco-fim) é um evento da mesa, não uma faixa de contexto.
 // - Faixa ainda não composta: a sala especial usa a faixa do andar; o andar usa a Cantina.

@@ -7,7 +7,7 @@
 //   Momento do jogo                     Música
 //   entrar na run (ou recomeçar com R)  a faixa do andar sobe em 1,5 s (no R, do começo)
 //   sala comum → sala comum             continua sem reiniciar
-//   sala com faixa própria              crossfade de 1,5 s; ao sair, a faixa do andar volta do ponto
+//   sala com faixa própria              crossfade de 350 ms (a troca de sala); ao sair, a faixa do andar volta do ponto
 //                                       onde parou
 //   troca de andar (3º golpe no tambor) a faixa atual some em 450 ms, junto com a tela escurecendo,
 //                                       e a do próximo andar sobe em 1,5 s
@@ -28,6 +28,7 @@ import { FAIXAS, FAIXAS_COMPOSTAS, ganhoDoNivel } from './faixas.js'
 import { ROUTES } from '../../routes/paths.js'
 import { FAIXA_DO_MENU, FASES_DO_CHEFE, getBossTrack, getFloorTrack, getTrackForContext, VITORIA_DO_CHEFE } from './trackSelection.js'
 import { LAST_FLOOR } from '../../utils/floorGenerator.js'
+import { ROOM_TRANSITION_MS } from '../../utils/run.js'
 
 export const MUSICA_DO_JOGO = 'musica-do-jogo'
 
@@ -37,7 +38,7 @@ export const NIVEL_DO_JOGO = 10 ** (-3 / 20)
 // Duração dos fades, em milissegundos
 export const FADES = Object.freeze({
   entradaDaRun: 1500,
-  sala: 1500,
+  sala: ROOM_TRANSITION_MS, // a música troca junto com a câmera (350 ms): quando a sala nova para, a faixa dela já está inteira
   saidaDoAndar: 450, // a metade escura da transição de andar (FLOOR_TRANSITION_MS / 2)
   entradaDoAndar: 1500,
   silencio: 1500,
@@ -71,10 +72,12 @@ export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {
   if (!atual) return { faixa: null, entradaMs: 0, saidaMs: FADES.saidaDoJogo, reiniciar: false, abafada: false, depois: null, quantizar: null }
 
   const reiniciar = Boolean(anterior) && anterior.seed !== atual.seed
-  const silencio = atual.dead || atual.finished
+  // Morrer toca o final da derrota, uma vez (depois, silêncio); o fim da run (vitória) é só silêncio
+  const morreu = Boolean(atual.dead) && compostas.includes('morte')
+  const silencio = (atual.dead || atual.finished) && !morreu
   // Na troca de andar a sala do chefe já é passado: vale a faixa do andar que vem
   const sala = atual.floorChange ? 'comum' : atual.roomType
-  let faixa = silencio
+  let faixa = morreu ? 'morte' : silencio
     ? null
     : getTrackForContext({ floorNumber: atual.floorNumber, roomType: sala, bossPhase: atual.bossPhase, bossState: atual.bossState, palco: atual.palco }, compostas)
   const mesmaSala = Boolean(anterior) && !reiniciar && !atual.floorChange
@@ -84,7 +87,10 @@ export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {
   let quantizar = null
   if (faixa) {
     const fimDoShow = sala === 'palco' && mesmaSala && anterior.palco === 'show' && atual.palco === 'depois' && compostas.includes('palco-fim')
-    if (fimDoShow) {
+    if (morreu) {
+      // A derrota toca uma vez e não volta nada depois dela (depois = null)
+      quantizar = null
+    } else if (fimDoShow) {
       // A última onda caiu: o final do espetáculo toca uma vez e os bastidores voltam
       depois = faixa
       faixa = 'palco-fim'
@@ -107,6 +113,10 @@ export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {
   } else if (atual.floorChange && atual.floorNumber !== anterior.floorNumber) {
     entradaMs = FADES.entradaDoAndar
     saidaMs = FADES.saidaDoAndar
+  } else if (morreu) {
+    // O Tung caiu: a faixa da run sai e a derrota entra quase na hora, junto com a animação
+    entradaMs = FADES.faseEntrada
+    saidaMs = FADES.faseSaida
   } else if (silencio || faixa === null) {
     saidaMs = FADES.silencio
   } else if (quantizar) {
@@ -118,13 +128,14 @@ export function decidirMusica(anterior, atual, compostas = FAIXAS_COMPOSTAS) {
 }
 
 // Faixas que vale a pena ter prontas: a que toca, a do andar (para voltar das salas especiais) e a do
-// próximo andar. Nos andares, também o chefe (ele é beco: a faixa já está pronta quando o jogador chega);
+// próximo andar. Nos andares, também o chefe e, do andar 2 em diante, o Palco (são becos: a faixa já está pronta
+// quando o jogador chega);
 // na sala do chefe, as fases seguintes e a vitória; no palco, o show e o final. Quando a run acaba (morte
 // ou fim), a "A Vila Espera": o cache a libera durante a run, e assim ela já está pronta quando o jogador
 // volta ao menu.
 export function faixasParaPreparar(contexto, alvo, compostas = FAIXAS_COMPOSTAS) {
   if (!contexto) return []
-  if (contexto.dead || contexto.finished) return [FAIXA_DO_MENU]
+  if (contexto.dead || contexto.finished) return [alvo, FAIXA_DO_MENU].filter(Boolean)
   const ids = [alvo, getFloorTrack(contexto.floorNumber, compostas), getFloorTrack(contexto.floorNumber + 1, compostas)]
   if (contexto.floorNumber >= 1 && contexto.floorNumber <= LAST_FLOOR && !contexto.floorChange) {
     const familia = contexto.floorNumber === LAST_FLOOR ? 'final' : 'comum'
@@ -134,8 +145,11 @@ export function faixasParaPreparar(contexto, alvo, compostas = FAIXAS_COMPOSTAS)
       ids.push('palco', 'palco-show', 'palco-fim')
     } else {
       ids.push(getBossTrack(contexto.floorNumber))
+      // O Palco (andares 2 a 5) também fica pronto: gerar a faixa só ao entrar deixava a do andar tocando por 2 ou 3 s
+      if (contexto.floorNumber >= 2) ids.push('palco')
     }
   }
+  ids.push('morte') // a derrota fica pronta em qualquer sala: o Tung pode morrer em qualquer uma
   return [...new Set(ids.filter((id) => id && compostas.includes(id)))]
 }
 
@@ -364,7 +378,7 @@ export function criarMesaDoJogo({
 
     if (!forcarEntrada && atual?.id === alvo) return
     // O final toca até o fim; quando acabar, o alvo (a faixa que volta) entra
-    if (!forcarEntrada && atual?.unica && atual.depois && alvo === atual.depois) return
+    if (!forcarEntrada && atual?.unica && alvo === atual.depois) return
     if (alvo === null) {
       if (atual) sair(atual, fades.saidaMs)
       forcarEntrada = false
@@ -373,6 +387,9 @@ export function criarMesaDoJogo({
 
     const buffer = cache.obterBuffer(alvo, grafo.context)
     if (!buffer) {
+      // Recomeço (R) com a faixa nova ainda sendo gerada (o cache já soltou a Cantina): a da run anterior não segue
+      // tocando por cima da run nova. Ela sai agora e a nova entra, do começo, quando ficar pronta.
+      if (forcarEntrada && atual) sair(atual, fades.saidaMs)
       esperar(alvo)
       return
     }
@@ -435,7 +452,8 @@ export function criarMesaDoJogo({
       }
       if (mudouDeSala || decisao.reiniciar) unicasTocadas.clear()
       // O final já tocou nesta sala: o contexto continua dizendo "vitória", mas só a faixa que volta vale
-      alvo = decisao.faixa && unicasTocadas.has(decisao.faixa) && decisao.depois ? decisao.depois : decisao.faixa
+      // (a derrota não tem faixa que volte: depois dela, silêncio)
+      alvo = decisao.faixa && unicasTocadas.has(decisao.faixa) ? decisao.depois : decisao.faixa
       depoisDoAlvo = decisao.depois
       quantizar = decisao.quantizar
       fades = { entradaMs: decisao.entradaMs, saidaMs: decisao.saidaMs }

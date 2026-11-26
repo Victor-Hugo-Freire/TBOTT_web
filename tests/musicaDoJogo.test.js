@@ -18,6 +18,7 @@ import {
 } from '../src/audio/music/mesaDoJogo.js'
 import { criarCacheDeFaixas, montarBufferAosPoucos } from '../src/audio/music/cacheDeFaixas.js'
 import { AudioManager } from '../src/audio/AudioManager.js'
+import { ROOM_TRANSITION_MS } from '../src/utils/run.js'
 import { FAIXAS } from '../src/audio/music/faixas.js'
 import { VILA_ESPERA_META } from '../src/audio/music/vila-espera.js'
 import { VILA_ESPERA_MUSIC_OPTIONS } from '../src/data/vilaEsperaMusic.js'
@@ -124,11 +125,12 @@ describe('decisões da música (tabela de reações)', () => {
     assert.equal(decisao.reiniciar, false)
   })
 
-  test('sala com faixa própria: crossfade de 1,5 s; chefe, tesouro, palco e adega ficam com a do andar', () => {
+  test('sala com faixa própria: crossfade de 350 ms, o da câmera; chefe, tesouro, palco e adega ficam com a do andar', () => {
     const loja = decidirMusica(contexto(), contexto({ roomType: 'loja' }), compostas)
     assert.equal(loja.faixa, 'loja')
-    assert.equal(loja.entradaMs, 1500)
-    assert.equal(loja.saidaMs, 1500)
+    assert.equal(loja.entradaMs, 350)
+    assert.equal(loja.saidaMs, 350)
+    assert.equal(FADES.sala, ROOM_TRANSITION_MS)
     for (const roomType of ['chefe', 'tesouro', 'palco', 'adega']) {
       assert.equal(decidirMusica(contexto(), contexto({ roomType }), compostas).faixa, 'andar-cantina', roomType)
     }
@@ -152,6 +154,15 @@ describe('decisões da música (tabela de reações)', () => {
       assert.equal(decisao.faixa, null)
       assert.equal(decisao.saidaMs, FADES.silencio)
     }
+  })
+
+  test('morrer toca a derrota (a faixa "morte") uma vez, sem faixa que volte; o fim da run segue em silêncio', () => {
+    const composta = [...compostas, 'morte']
+    const morte = decidirMusica(contexto(), contexto({ dead: true }), composta)
+    assert.equal(morte.faixa, 'morte')
+    assert.equal(morte.depois, null)
+    assert.equal(morte.entradaMs, FADES.faseEntrada)
+    assert.equal(decidirMusica(contexto(), contexto({ finished: true }), composta).faixa, null)
   })
 
   test('pausa: abafa em vez de parar', () => {
@@ -295,13 +306,13 @@ describe('mesa de som do jogo', () => {
     audio.currentTime = 10
     mesa.definirContexto(contexto({ roomType: 'loja' }))
     assert.deepEqual(vozesAtivas(mesa), ['loja'])
-    // Começou em 0,05 s; saiu em 10 s com 1,5 s de fade: parou em 11,5 - 0,05 = 11,45 s
-    assert.ok(Math.abs(mesa.estado().posicoes['andar-cantina'] - 11.45) < 1e-9)
+    // Começou em 0,05 s; saiu em 10 s com 350 ms de fade: parou em 10,35 - 0,05 = 10,30 s
+    assert.ok(Math.abs(mesa.estado().posicoes['andar-cantina'] - 10.3) < 1e-9)
 
     audio.currentTime = 30
     mesa.definirContexto(contexto())
     assert.deepEqual(vozesAtivas(mesa), ['andar-cantina'])
-    assert.ok(Math.abs(audio.fontes.at(-1).inicio.offset - 11.45) < 1e-9)
+    assert.ok(Math.abs(audio.fontes.at(-1).inicio.offset - 10.3) < 1e-9)
   })
 
   test('troca de andar: a faixa atual some em 450 ms e a do próximo andar entra', () => {
@@ -340,6 +351,28 @@ describe('mesa de som do jogo', () => {
     }
   })
 
+  test('a derrota toca até o fim, sem ser cortada por outro aviso, e depois dela a música fica em silêncio', () => {
+    const cache = criarCacheFalso(new Set(['andar-cantina', 'morte']))
+    const mesa = criarMesaDoJogo({ cache, compostas: ['andar-cantina', 'morte'] })
+    const audio = criarContextoFalso()
+    const fonte = mesa.criarFonte(audio)
+    fonte.connect(criarNo())
+    fonte.start()
+    mesa.definirContexto(contexto())
+    mesa.definirContexto(contexto({ dead: true }))
+    assert.deepEqual(vozesAtivas(mesa), ['morte'])
+    const derrota = audio.fontes.at(-1)
+    assert.equal(derrota.loop, false)
+
+    mesa.definirContexto(contexto({ dead: true, paused: true })) // a janela perdeu o foco no meio dela
+    assert.deepEqual(vozesAtivas(mesa), ['morte'])
+    assert.equal(derrota.parada, null, 'a derrota não é cortada')
+
+    derrota.onended() // a derrota acabou
+    mesa.definirContexto(contexto({ dead: true }))
+    assert.deepEqual(vozesAtivas(mesa), [], 'nada volta depois dela')
+  })
+
   test('recomeçar com R: a Cantina volta do começo, mesmo já tocando', () => {
     const { mesa, audio, fonte } = montarMesa()
     fonte.start()
@@ -367,6 +400,22 @@ describe('mesa de som do jogo', () => {
     mesa.definirContexto(contexto({ roomType: 'loja', paused: true }))
     await new Promise((resolve) => setTimeout(resolve, 0))
     assert.deepEqual(vozesAtivas(mesa), ['loja'])
+  })
+
+  test('recomeçar com R com a Cantina fora do cache: a faixa da run anterior sai e a Cantina entra quando ficar pronta', () => {
+    const { mesa, cache, audio, fonte } = montarMesa(['andar-cucina'])
+    cache.preparar = () => new Promise(() => {}) // o worker ainda está gerando a Cantina: o pedido não responde
+    fonte.start()
+    mesa.definirContexto(contexto({ floorNumber: 2 }))
+    assert.deepEqual(vozesAtivas(mesa), ['andar-cucina'])
+
+    mesa.definirContexto(contexto({ seed: 7 }))
+    assert.deepEqual(vozesAtivas(mesa), [], 'a faixa da run anterior não segue tocando por cima da run nova')
+
+    cache.prontas.add('andar-cantina')
+    mesa.definirContexto(contexto({ seed: 7, paused: true }))
+    assert.deepEqual(vozesAtivas(mesa), ['andar-cantina'])
+    assert.equal(audio.fontes.at(-1).inicio.offset, 0)
   })
 
   test('prepara a do próximo andar durante o andar atual', () => {
@@ -414,13 +463,13 @@ describe('mesa de som do jogo', () => {
 describe('cache das faixas', () => {
   const canais = () => [new Float32Array(8), new Float32Array(8)]
 
-  test('guarda no máximo 5 faixas (o limite padrão) e solta a usada há mais tempo', async () => {
+  test('guarda no máximo 6 faixas (o limite padrão) e solta a usada há mais tempo', async () => {
     const cache = criarCacheDeFaixas({ renderizar: async () => canais() })
-    for (const id of ['a', 'b', 'c', 'd', 'e']) await cache.preparar(id)
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) await cache.preparar(id)
     await cache.preparar('a') // "a" volta a ser a mais recente
-    await cache.preparar('f')
-    assert.deepEqual(cache.ids().sort(), ['a', 'c', 'd', 'e', 'f'])
-    assert.equal(cache.tamanho, 5)
+    await cache.preparar('g')
+    assert.deepEqual(cache.ids().sort(), ['a', 'c', 'd', 'e', 'f', 'g'])
+    assert.equal(cache.tamanho, 6)
   })
 
   test('o limite pode ser menor (3): sai a usada há mais tempo', async () => {

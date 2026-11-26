@@ -650,3 +650,52 @@ export function criarVitoria({ andamento, grande = false }) {
     compassos: total,
   })
 }
+
+// --------------------------------------------------
+// DERROTA: o final de quando o Tung morre (toca uma vez; depois a música fica em silêncio até o jogador sair da run)
+// --------------------------------------------------
+
+const NOME_DA_DERROTA = Object.freeze([
+  'sub', 'baixoDistorcido', 'orgaoSustentado', 'trompeteSurdina', 'timpano', 'pratoEscuro', 'campana', 'madeira',
+])
+
+// Quatro compassos de Sol menor caindo (Gm – E♭ – Cm – Gm) e dois de silêncio para a cauda soar. O baixo e a
+// melodia descem de grau em grau, cada compasso um pouco mais baixo que o anterior, e o tung-tung-tung fecha
+// o último, como a madeira que fecha as frases do chefe. Mais devagar que tudo (andamento 84).
+export function criarDerrota({ andamento }) {
+  const total = 6
+  const ultimo = 3
+  const v = {
+    sub: voz('sub', 'baixo', { semente: 111 }),
+    baixo: voz('baixoDistorcido', 'baixo', { semente: 112 }),
+    orgao: voz('orgaoSustentado', 'comping', { semente: 113 }),
+    surdina: voz('trompeteSurdina', 'melodia', { semente: 114 }),
+    timp: voz('timpano', 'riff', { semente: 115 }),
+  }
+  const baixos = [43, 39, 48, 43] // Sol2, Mi♭2, Dó3, Sol2
+  const orgao = [58, 55, 63, 58] // a terça de cada acorde
+  const melodia = [[[0, 67], [8, 65]], [[0, 63], [8, 62]], [[0, 60], [8, 58]], [[0, 55]]] // Sol4 desce até o Sol3
+  const queda = [0, 0.1, 0.2, 0.15] // cada compasso um pouco mais baixo (maior = mais fraco)
+
+  const canais = [
+    ['sub', 0, (c) => (c === 0 || c === ultimo ? escreverMidi([[0, baixos[c] - 12, queda[c] + 0.3]], v.sub, c) : null)],
+    ['baixoDistorcido', 0, (c) => (c <= ultimo ? escreverMidi([[0, baixos[c], queda[c]]], v.baixo, c) : null)],
+    ['orgaoSustentado', 0, (c) => (c <= ultimo ? escreverMidi([[0, orgao[c], 0.15 + queda[c]]], v.orgao, c) : null)],
+    ['trompeteSurdina', 0.1, (c) => (c <= ultimo ? escreverMidi(melodia[c].map(([passo, midi]) => [passo, midi, queda[c]]), v.surdina, c) : null)],
+    ['timpano', -0.1, (c) => (c <= ultimo ? escreverMidi([[0, dobrarPara(baixos[c], 38, 52), queda[c] + 0.1], [8, dobrarPara(baixos[c], 38, 52), queda[c] + 0.25]], v.timp, c) : null)],
+    ['pratoEscuro', 0.2, (c) => (c === 0 ? batida('P:0', comAtenuacao(PRATO, 0.15)) : null)],
+    ['campana', 0.15, (c) => (c === ultimo ? batida('A:0', CAMPANA) : null)],
+    ['madeira', 0.08, (c) => (c === ultimo ? tungTungTung(ALTURA_DO_TUNG, c, GRADE) : compassoVazio(GRADE))],
+  ]
+  // O tung-tung-tung é a última coisa do último compasso: a partir da 4ª semínima só a madeira (e o tímpano) toca
+  const calados = canais.map(([nome, pan, fn]) => [nome, pan, (c) => {
+    const passos = fn(c)
+    if (!passos || nome === 'madeira' || c !== ultimo) return passos
+    return passos.map((valor, passo) => (passo >= 34 && nome !== 'timpano' ? 0 : valor))
+  }])
+  return Object.freeze({
+    song: montarMusica({ instrumentos: NOME_DA_DERROTA, canais: evitarUnissonos(calados, PRIORIDADE), compassos: total, inicioDoLoop: 0, grade: GRADE, andamento }),
+    instrumentos: NOME_DA_DERROTA,
+    compassos: total,
+  })
+}

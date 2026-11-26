@@ -128,7 +128,7 @@ Em todas as telas com a seta de voltar (`BotaoVoltar`), a tecla **Esc** volta pa
 A tela `/opcoes`, acessível pelo item **Options** do menu principal, permite ajustar o volume da música e dos efeitos sonoros, alternar a tela cheia e consultar os controles do jogo.
 
 - **Volume da música** e **efeitos sonoros:** controles deslizantes de 0% a 100%. As preferências são salvas neste navegador em `localStorage` (`tbott.options`), com a leitura e a validação em `src/utils/options.js` e restauradas ao abrir a tela novamente. Se o navegador não permitir ler ou gravar o armazenamento, a tela informa o erro.
-- **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual. A tela cheia ativada pelo F11 do navegador não é detectada e aparece como "Off".
+- **Fullscreen:** alterna entre tela cheia e janela e mostra o estado atual. A tela cheia do F11 também é detectada (`display-mode: fullscreen` ou janela do tamanho da tela e o evento `resize`); nesse caso o botão avisa que só o F11 sai dela. No Chrome e no Edge, a tela cheia deste botão trava a tecla **Esc** (Keyboard Lock API): o Esc volta ou pausa o jogo como em qualquer tela, e **segurar o Esc** por um instante sai da tela cheia. No Firefox e no Safari não há a trava, e o Esc sai da tela cheia (use o botão para sair e entrar de novo).
 - **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar, **R** (segurando) para recomeçar a run e **Esc** para voltar ao menu.
 - **Teclado:** **W/S** ou **↑/↓** percorrem os itens; **Enter** ativa botões; **←/→** ajustam o volume quando o controle deslizante está selecionado. **A/←** seleciona o botão de voltar e **D/→** seleciona o cartão do usuário. Também é possível operar a tela com mouse ou outro dispositivo apontador.
 
@@ -153,16 +153,21 @@ Além das músicas dos andares (`src/audio/music/andar-*.js`), as salas do chefe
 | `palco` | Sala do palco aberta (a Batuta no pedestal e depois da luta): os bastidores | Ré maior ♩ = 96, sem bateria | `palco.js` |
 | `palco-show` | Durante as quatro ondas do palco (começa pela abertura) | Ré maior ♩ = 152 | `palco.js` |
 | `palco-fim` | Quando a última onda cai (toca uma vez e os bastidores voltam) | Ré maior | `palco.js` |
+| `morte` | Quando o Tung morre (toca uma vez, 17 s, e depois fica em silêncio até o jogador sair da run) | Sol menor ♩ = 84 | `chefe.js` (`criarDerrota`) |
 
 **Como a música troca** (`mesaDoJogo.js`, `faixas.js` e `trackSelection.js`):
 
-- Entrar na sala do chefe ou do palco: a faixa do andar sai em 1,5 s e a da sala entra por baixo, **sempre do começo**, com a introdução (`doComeco`). Ao sair, a faixa do andar volta de onde parou.
+- Trocar de sala: a faixa sai e a nova entra em 350 ms (`FADES.sala`, o mesmo tempo da câmera, `ROOM_TRANSITION_MS`).
+- Entrar na sala do chefe ou do palco: a faixa do andar sai e a da sala entra por baixo, **sempre do começo**, com a introdução (`doComeco`). Ao sair, a faixa do andar volta de onde parou.
+- Pausa: a música fica abafada (passa-baixa e -6 dB). Nas Opções da pausa, com o foco no **Music volume**, ela toca como no jogo, para regular o volume ouvindo o nível real.
+- Recomeçar a run (R): a faixa da run anterior sai na hora e a do andar 1 entra do começo (se o cache já a soltou, entra quando ficar pronta).
 - Mudar de fase (chefe) ou pegar a Batuta (palco): a troca espera o fim do compasso (chefe) ou do tempo (palco) da faixa que toca, e a faixa nova entra com a transição dela (introdução de 2 compassos, com o rufo, o tímpano e o tung-tung-tung que levam ao tempo forte).
 - Vitória e fim do palco: o final toca uma vez só (`unica`) e a faixa indicada volta em 2,5 s.
 - Troca de andar na sala do chefe (o 3º golpe no tambor): vale a faixa do andar novo, como antes.
-- O chefe do andar fica pronto no cache enquanto o jogador explora o andar (o cache guarda até 5 faixas).
+- Morrer: a faixa do andar sai em 300 ms e entra a derrota (`morte`), uma vez; depois dela, silêncio. A `A Vila Espera` volta quando o jogador chega ao menu. Vencer a run continua só em silêncio.
+- O chefe, o palco (andares 2 a 5) e a derrota ficam prontos no cache enquanto o jogador explora o andar, para a troca ser imediata ao entrar na sala ou morrer (o cache guarda até 6 faixas).
 
-**O que ainda depende do jogo:** a luta do chefe é a issue #47. O contexto musical (`contextoDoJogo.js`) lê `run.boss = { phase, defeated }`, que ainda não existe: sem ele, a sala do chefe toca a fase 1 até o jogador trocar de andar. Quando a luta existir, basta preencher `run.boss.phase` (1, 2 ou 3) e `run.boss.defeated`. O palco já lê `run.stage` e `room.emptied`.
+**De onde vêm as fases do chefe e a vitória** (`contextoDoJogo.js`, issue #47): a fase é o `phase` (1 a 3) do alvo `boss: true` de `run.targets`, e a vitória é a sala do chefe ficar limpa (`room.cleared`). O palco lê `run.stage` e `room.emptied`.
 
 **Como ouvir:** `npm run trilha:salas` gera os WAV em `tmp/trilha/salas/` (a faixa como o jogador ouve, com a introdução e o corpo duas vezes) e imprime as medições; `-- --so chefe-final` renderiza só uma. Dentro do jogo, o chefe fica no beco mais distante da sala inicial e o palco (andares 2 a 5) numa sala com a porta de máscara; no palco só se entra com a vida cheia.
 

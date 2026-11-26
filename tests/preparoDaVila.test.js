@@ -14,8 +14,11 @@ describe('a "A Vila Espera" fica pronta quando a run acaba', () => {
 
   test('durante a run, pede a faixa do andar e a do próximo (cada andar tem a sua)', () => {
     // Nos andares, o chefe do andar também fica pronto (o beco do chefe é longe, e a faixa já está lá)
-    assert.deepEqual(faixasParaPreparar(contexto(), 'andar-cucina'), ['andar-cucina', 'andar-piazza', 'chefe'])
-    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 4 }), 'andar-pastificio'), ['andar-pastificio', 'andar-porto', 'chefe'])
-    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 5 }), 'andar-porto'), ['andar-porto', 'chefe-final'])
+    // Do andar 2 em diante, o Palco também (a faixa já está pronta quando o jogador entra nele)
+    // A derrota (morte) fica pronta em qualquer sala: o Tung pode morrer em qualquer uma
+    assert.deepEqual(faixasParaPreparar(contexto(), 'andar-cucina'), ['andar-cucina', 'andar-piazza', 'chefe', 'palco', 'morte'])
+    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 4 }), 'andar-pastificio'), ['andar-pastificio', 'andar-porto', 'chefe', 'palco', 'morte'])
+    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 5 }), 'andar-porto'), ['andar-porto', 'chefe-final', 'palco', 'morte'])
+    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 1 }), 'andar-cantina'), ['andar-cantina', 'andar-cucina', 'chefe', 'morte'])
   })
 })

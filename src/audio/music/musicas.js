@@ -6,7 +6,7 @@ import { CANTINA_HARMONIA, CANTINA_INSTRUMENTOS, CANTINA_MELODIA, CANTINA_META, 
 import { CUCINA_HARMONIA, CUCINA_INSTRUMENTOS, CUCINA_MELODIA, CUCINA_META, CUCINA_MOTIVO, CUCINA_SECOES, CUCINA_SONG } from './andar-cucina.js'
 import { PIAZZA_HARMONIA, PIAZZA_INSTRUMENTOS, PIAZZA_MELODIA, PIAZZA_META, PIAZZA_MOTIVO, PIAZZA_SECOES, PIAZZA_SONG } from './andar-piazza.js'
 import { PASTIFICIO_HARMONIA, PASTIFICIO_INSTRUMENTOS, PASTIFICIO_MELODIA, PASTIFICIO_META, PASTIFICIO_MOTIVO, PASTIFICIO_SECOES, PASTIFICIO_SONG } from './andar-pastificio.js'
-import { CHEFE_FASES, criarIntroducao, criarTransicao, criarVitoria } from './chefe.js'
+import { CHEFE_FASES, criarDerrota, criarIntroducao, criarTransicao, criarVitoria } from './chefe.js'
 import { criarAbertura, criarFinal, PALCO_BASTIDORES, PALCO_SHOW } from './palco.js'
 import { PORTO_HARMONIA, PORTO_INSTRUMENTOS, PORTO_MELODIA, PORTO_META, PORTO_MOTIVO, PORTO_SECOES, PORTO_SONG } from './andar-porto.js'
 
@@ -20,6 +20,7 @@ const TRANSICAO_FINAL_3 = criarTransicao({ andamento: 168, tonica: 6 })
 const VITORIA_DO_FINAL = criarVitoria({ andamento: 144, grande: true })
 const ABERTURA_DO_PALCO = criarAbertura(152)
 const FINAL_DO_PALCO = criarFinal(152)
+const DERROTA = criarDerrota({ andamento: 84 })
 
 export const MUSICAS = Object.freeze({
   'a-vila-espera': VILA_ESPERA_SONG,
@@ -38,6 +39,7 @@ export const MUSICAS = Object.freeze({
   palco: PALCO_BASTIDORES.song,
   'palco-show': PALCO_SHOW.song,
   'palco-fim': FINAL_DO_PALCO.song,
+  morte: DERROTA.song,
 })
 
 // Nomes dos instrumentos de cada música, na ordem do array de instrumentos (testes e medições)
@@ -58,6 +60,7 @@ export const INSTRUMENTOS_DAS_MUSICAS = Object.freeze({
   palco: PALCO_BASTIDORES.instrumentos,
   'palco-show': PALCO_SHOW.instrumentos,
   'palco-fim': FINAL_DO_PALCO.instrumentos,
+  morte: DERROTA.instrumentos,
 })
 
 // Onde cada faixa toca a célula do Tung e o tung-tung-tung (os testes conferem)

@@ -332,13 +332,17 @@ describe('faixa do chefe e do palco por contexto', () => {
     assert.equal(getTrackForContext({ floorNumber: 2, roomType: 'palco', palco: 'show' }, ['andar-cantina', 'andar-cucina']), 'andar-cucina')
   })
 
-  test('o contexto lê a luta do chefe de run.boss (sem ele, fase 1 lutando) e o palco de run.stage', () => {
+  test('o contexto lê a luta do chefe (o alvo boss e a sala limpa) e o palco de run.stage', () => {
     const sala = (type, extra = {}) => ({ id: 'a', type, emptied: [], ...extra })
     const run = (room, extra = {}) => ({ seed: 1, floor: { number: 5, rooms: [room] }, roomId: 'a', transition: null, death: null, finished: false, ...extra })
     assert.deepEqual([getGameMusicContext(run(sala('chefe'))).bossPhase, getGameMusicContext(run(sala('chefe'))).bossState], [1, 'luta'])
-    const fase3 = getGameMusicContext(run(sala('chefe'), { boss: { phase: 3 } }))
+    // O chefe é o alvo `boss: true`; o clone do Cappuccino (sem `boss`) e o alvo de treino não contam
+    const alvos = (phase) => [{ id: 'clone1', clone: true, phase: 1 }, { id: 'chefe', boss: true, phase }]
+    const fase3 = getGameMusicContext(run(sala('chefe'), { targets: alvos(3) }))
     assert.deepEqual([fase3.bossPhase, fase3.bossState], [3, 'luta'])
-    assert.equal(getGameMusicContext(run(sala('chefe'), { boss: { phase: 3, defeated: true } })).bossState, 'vitoria')
+    // Vitória = a sala do chefe ficou limpa (o chefe morto continua em targets, com a fase dele)
+    assert.equal(getGameMusicContext(run(sala('chefe', { cleared: true }), { targets: alvos(3) })).bossState, 'vitoria')
+    assert.equal(getGameMusicContext(run(sala('comum', { cleared: true }))).bossState, 'luta')
     assert.equal(getGameMusicContext(run(sala('comum'))).palco, null)
     assert.equal(getGameMusicContext(run(sala('palco'))).palco, 'espera')
     assert.equal(getGameMusicContext(run(sala('palco', { emptied: ['6-2'] }), { stage: { wave: 0, won: false } })).palco, 'show')
@@ -348,7 +352,7 @@ describe('faixa do chefe e do palco por contexto', () => {
 })
 
 describe('decisão da mesa nas salas do chefe e do palco', () => {
-  test('entrar na sala do chefe: crossfade de 1,5 s; a faixa do chefe vem do começo', () => {
+  test('entrar na sala do chefe: crossfade de 350 ms (o da câmera); a faixa do chefe vem do começo', () => {
     const decisao = decidirMusica(contexto(), contexto({ roomType: 'chefe' }))
     assert.equal(decisao.faixa, 'chefe')
     assert.equal(decisao.entradaMs, FADES.sala)
@@ -397,8 +401,8 @@ describe('decisão da mesa nas salas do chefe e do palco', () => {
   })
 
   test('as faixas do chefe, as fases seguintes e a vitória ficam prontas na sala do chefe; nos andares, o chefe do andar', () => {
-    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 3, roomType: 'chefe' }), 'chefe'), ['chefe', 'andar-piazza', 'andar-pastificio', 'chefe-fase2', 'chefe-vitoria'])
-    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 5, roomType: 'palco', palco: 'espera' }), 'palco'), ['palco', 'andar-porto', 'palco-show', 'palco-fim'])
+    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 3, roomType: 'chefe' }), 'chefe'), ['chefe', 'andar-piazza', 'andar-pastificio', 'chefe-fase2', 'chefe-vitoria', 'morte'])
+    assert.deepEqual(faixasParaPreparar(contexto({ floorNumber: 5, roomType: 'palco', palco: 'espera' }), 'palco'), ['palco', 'andar-porto', 'palco-show', 'palco-fim', 'morte'])
     assert.ok(faixasParaPreparar(contexto({ floorNumber: 5 }), 'andar-porto').includes('chefe-final'))
   })
 })

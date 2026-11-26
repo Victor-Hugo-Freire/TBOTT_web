@@ -1,6 +1,6 @@
-// Cache das faixas preparadas: no máximo 5 de cada vez (uma faixa de 65 s em estéreo ocupa ~23 MB; os
+// Cache das faixas preparadas: no máximo 6 de cada vez (uma faixa de 65 s em estéreo ocupa ~23 MB; os
 // finais de vitória, de 10 s, ocupam ~4 MB). Na sala do chefe ficam prontos o chefe, as fases seguintes e a
-// vitória, além da faixa do andar e a do próximo.
+// vitória, além da faixa do andar, a do próximo e a derrota (o sexto lugar, pequeno, é dela).
 //
 // - preparar(id) gera a faixa num worker (uma de cada vez, para não disputar a CPU com o jogo).
 //   { urgente: true } passa a faixa para a frente da fila (a que vai tocar agora).
@@ -13,7 +13,7 @@
 import { ZZFX_EXPERIMENTAL_SAMPLE_RATE } from '../zzfxExperimental.js'
 import { prepararFaixa } from '../masterizacao.js'
 
-export const LIMITE_DO_CACHE = 5
+export const LIMITE_DO_CACHE = 6
 
 function canaisValidos(canais) {
   return Array.isArray(canais)

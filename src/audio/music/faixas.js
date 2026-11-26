@@ -33,6 +33,8 @@ export const FAIXAS = Object.freeze({
   palco: Object.freeze({ titulo: 'A Ronda: Palco (bastidores)', reverb: 0.2, nivel: -1.95, composta: true, doComeco: true, andamento: 96, temposPorCompasso: 4 }),
   'palco-show': Object.freeze({ titulo: 'A Ronda: Palco', reverb: 0.16, nivel: -2.2, composta: true, doComeco: true, andamento: 152, temposPorCompasso: 4 }),
   'palco-fim': Object.freeze({ titulo: 'A Ronda: Palco (final)', reverb: 0.2, nivel: 0.5, composta: true, doComeco: true, unica: true, andamento: 152, temposPorCompasso: 4 }),
+  // A morte do Tung: um final curto, que toca uma vez e deixa a música em silêncio (a Vila volta no menu)
+  morte: Object.freeze({ titulo: 'A Ronda: Derrota', reverb: 0.2, nivel: 1.3, composta: true, doComeco: true, unica: true, andamento: 84, temposPorCompasso: 4 }),
   loja: Object.freeze({ titulo: 'Loja', reverb: 0.15, composta: false }),
   descanso: Object.freeze({ titulo: 'Descanso', reverb: 0.2, composta: false }),
   god: Object.freeze({ titulo: 'Sala do God', reverb: 0.22, composta: false }),

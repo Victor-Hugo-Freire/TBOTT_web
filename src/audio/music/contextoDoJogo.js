@@ -11,8 +11,9 @@
 //   escurecer (switched false) o andar novo ainda não existe; o contexto já aponta para ele.
 // - run.death (morte), run.finished (fim da run) e run.seed (o R recomeça com outra seed)
 // - a pausa vem da tela (isPaused: menu de pausa ou janela sem foco)
-// - Chefe: run.boss ({ phase, defeated }), que a luta do chefe (issue #47) vai criar. Sem ele (hoje), a sala
-//   do chefe está na fase 1, lutando. bossPhase (1, 2 ou 3) e bossState ('luta' ou 'vitoria') mudam a faixa.
+// - Chefe (issue #47): o chefe é o alvo `boss: true` de run.targets (os clones do Cappuccino não têm essa marca) e
+//   a fase dele é `phase` (1 a 3). A vitória é a sala do chefe ficar limpa (room.cleared). Sem chefe no andar (sem
+//   catálogo), a sala já nasce limpa. bossPhase e bossState ('luta' ou 'vitoria') mudam a faixa.
 // - Palco: run.stage (a luta das ondas) e room.emptied (a Batuta já saiu do pedestal) dizem em que ponto
 //   está: 'espera' (a Batuta no pedestal), 'show' (as ondas lutando) e 'depois' (luta vencida).
 
@@ -33,14 +34,15 @@ export function getGameMusicContext(run, paused = false) {
     const room = transition?.type === 'room'
       ? run.floor.rooms?.find((item) => item.id === transition.toRoomId)
       : getCurrentRoom(run)
+    const boss = run.targets?.find((target) => target.boss)
 
     return {
       seed: run.seed ?? null,
       floorNumber: floorChange && !transition.switched ? run.floor.number + 1 : run.floor.number,
       roomType: room?.type ?? 'comum',
       floorChange,
-      bossPhase: Number.isInteger(run.boss?.phase) && run.boss.phase > 1 ? run.boss.phase : 1,
-      bossState: run.boss?.defeated ? 'vitoria' : 'luta',
+      bossPhase: Number.isInteger(boss?.phase) && boss.phase > 1 ? boss.phase : 1,
+      bossState: room?.type === 'chefe' && room.cleared ? 'vitoria' : 'luta',
       palco: room?.type === 'palco' ? getStageState(run, room) : null,
       paused: Boolean(paused),
       dead: Boolean(run.death),
