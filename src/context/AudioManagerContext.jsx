@@ -6,6 +6,7 @@ import { installAudioUnlock } from './audioUnlock.js'
 import { createAudioLifecycleCleanup } from './audioLifecycle.js'
 import { createVilaEsperaAudioSource, VILA_ESPERA_MUSIC_NAME, VILA_ESPERA_MUSIC_OPTIONS } from '../data/vilaEsperaMusic.js'
 import { registerRoomInteractionEffects, unregisterRoomInteractionEffects } from '../audio/AudioEffects/rooms/index.js'
+import { registerMobEffects, unregisterMobEffects } from '../audio/AudioEffects/mobs/index.js'
 
 export function AudioProvider({ children }) {
   const [initialOptions] = useState(readOptions)
@@ -33,12 +34,14 @@ export function AudioProvider({ children }) {
 
     manager.registerMusic(VILA_ESPERA_MUSIC_NAME, createVilaEsperaAudioSource, VILA_ESPERA_MUSIC_OPTIONS)
     registerRoomInteractionEffects(manager)
+    registerMobEffects(manager)
 
     return () => {
       mountedRef.current = false
       cleanupUnlock()
       manager.unregisterMusic(VILA_ESPERA_MUSIC_NAME)
       unregisterRoomInteractionEffects(manager)
+      unregisterMobEffects(manager)
       lifecycle.deactivate()
     }
   }, [unlock, lifecycle, manager])

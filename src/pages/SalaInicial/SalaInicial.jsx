@@ -57,6 +57,7 @@ import { canPauseRun } from '../../utils/pause.js'
 import { getGameMusicContext, isSameGameMusicContext, notifyGameMusic } from '../../audio/music/contextoDoJogo.js'
 import { useAudio } from '../../context/useAudio.js'
 import { captureRoomAudioState, getRoomInteractionSounds } from '../../audio/AudioEffects/rooms/roomInteractionEffects.js'
+import { captureMobAudioState, getMobInteractionSounds } from '../../audio/AudioEffects/mobs/mobInteractionEffects.js'
 
 function normalizePauseItemIcon(image) {
   if (!image?.complete || image.dataset.normalized === 'true') return
@@ -663,12 +664,16 @@ export default function SalaInicial() {
           // O contador para com a pausa visual, a janela sem foco, a morte e o fim da run
           if (!run.finished && !run.death) elapsedMs += deltaMs
           const previousAudioState = captureRoomAudioState(run)
+          const previousMobAudioState = captureMobAudioState(run)
           run = updateRun(
             run,
             { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
             stepMs / 1000,
           )
           for (const effect of getRoomInteractionSounds(previousAudioState, captureRoomAudioState(run))) {
+            playEffect(effect)
+          }
+          for (const effect of getMobInteractionSounds(previousMobAudioState, captureMobAudioState(run))) {
             playEffect(effect)
           }
         }
