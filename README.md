@@ -8,7 +8,7 @@ O jogo consome a [TBOTT_api](https://github.com/Victor-Hugo-Freire/TBOTT_api), q
 
 ## O jogo
 
-- Três personagens jogáveis, com atributos iniciais que podem ser diferentes. Hoje só um deles tem sprites.
+- Três personagens jogáveis, cada um com sprites e atributos iniciais próprios: o Tung Tung Sahur (liberado desde o começo), o Tung Tung Sabor e o Tung Tung God (que o jogador precisa liberar). Na tela de seleção, o personagem bloqueado aparece como uma silhueta cinza com cadeado e a dica de como liberar. O Sabor é liberado ao pegar o Elixir Elétrico (que só existe em 5% das runs, numa Adega dos andares 1 a 4) e o God ao vencer o jogo com o Sahur; um aviso aparece no canto da tela. A liberação é guardada na API; se ela falhar, o jogo tenta de novo depois, sem travar a run.
 - Combate com um bastão, usado para atacar inimigos próximos.
 - Ranking pelo **menor tempo** de conclusão da partida.
 - Salas, mapas, inimigos e itens ainda estão em definição.
@@ -238,7 +238,7 @@ Cada andar tem a sua parede, o seu piso e os seus enfeites (`scene/themes.js`); 
 | Fliperama | todos | 1 chance em 3, se sobrar beco. |
 | Descanso | todos | 1 chance em 4, se sobrar beco. |
 | Adega secreta | 1 a 4 (nunca no 5º) | Sempre, uma por andar, ao lado de uma sala comum (de preferência a 3 ou mais salas da inicial). Escondida. |
-| Pacto ou Tung Tung God | 2 a 4 (nunca no 1º) | 1 chance em 2, ao lado da sala do chefe, mas nunca embaixo dele (como no Isaac): a porta dela nunca fica em cima, e a estátua e a poça ficam no alto da sala. A porta aparece com a sala do chefe limpa. |
+| Pacto ou Tung Tung God | 2 a 4 (nunca no 1º) | 3 chances em 4 (`PACT_ROOM_CHANCE`; na prática cerca de 60% dos andares, porque em 1 de cada 5 o chefe não tem casa livre ao lado), ao lado da sala do chefe, mas nunca embaixo dele (como no Isaac): a porta dela nunca fica em cima, e a estátua e a poça ficam no alto da sala. A porta aparece com a sala do chefe limpa. |
 
 As salas especiais usam a paleta e o cenário delas em qualquer andar (`scene/drawSpecialRooms.js`), e os móveis têm contorno escuro grosso (`OUTLINE_WIDTH`), para se destacarem do piso. A função da maioria delas (comprar, pacto, sorteio...) ainda não existe; as interações que já existem estão abaixo.
 

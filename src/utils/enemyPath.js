@@ -80,10 +80,19 @@ export function createChaseMap(solids, target) {
   return distance
 }
 
+// O ponto está dentro de alguma das caixas?
+function isInsideAny(point, boxes) {
+  return boxes.some((box) => point.x >= box.x && point.x <= box.x + box.width && point.y >= box.y && point.y <= box.y + box.height)
+}
+
 // Para onde o inimigo anda para chegar a `target`: direto, com o caminho livre; senão, até o ponto da casa vizinha
 // mais perto do alvo no mapa (chaseMap). Sem vizinha melhor (já está ao lado do alvo, ou preso), vai direto.
+// O alvo pode estar numa casa ocupada (o Tung que voa, em cima de um obstáculo ou de um perigo do chão): o mapa parte
+// da casa dele, mas essa casa não é destino (não cabe a caixa da base nela). E se o alvo está dentro de um perigo do
+// chão (`hazards`: a chapa quente e os cacos, com a folga de getHazardBoxes), o inimigo fica parado em vez de entrar
+// nele: antes ele ia até lá, se queimava e se matava. Em cima de um obstáculo comum ele continua indo direto (bate nele).
 // Devolve o ponto para onde andar.
-export function getChasePoint(enemy, target, chaseMap, solids) {
+export function getChasePoint(enemy, target, chaseMap, solids, hazards = []) {
   if (hasClearPath(enemy, target, solids)) return target
   const here = getCellAt(enemy)
   let best = null
@@ -92,10 +101,11 @@ export function getChasePoint(enemy, target, chaseMap, solids) {
     const col = here.col + step.col
     const row = here.row + step.row
     if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) continue
-    if (chaseMap[row][col] < bestDistance) {
+    if (chaseMap[row][col] < bestDistance && fitsAt(getCellPoint(col, row), solids)) {
       best = { col, row }
       bestDistance = chaseMap[row][col]
     }
   }
-  return best ? getCellPoint(best.col, best.row) : target
+  if (best) return getCellPoint(best.col, best.row)
+  return isInsideAny(target, hazards) ? { x: enemy.x, y: enemy.y } : target
 }

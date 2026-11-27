@@ -1,5 +1,5 @@
 import { CHARACTER_SPRITES } from '../data/characterSprites.js'
-import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance } from './spriteAnimation.js'
+import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance, WALK_FRAME_COUNT } from './spriteAnimation.js'
 import { moveRoomPlayer, PLAYER_SCALE, ROOM_WALLS } from './roomMovement.js'
 import { getBaseStats } from './stats.js'
 
@@ -28,6 +28,42 @@ const DEFAULT_STATS = getBaseStats('tung-tung-sahur')
 // Morte: a animação toca uma vez e para no último quadro (ele fica deitado). Morto, não anda, não ataca e não leva dano.
 const DEATH = CHARACTER_SPRITES.tungTungSahurMorte
 export const DEATH_DURATION_MS = getTotalDuration(DEATH.durations)
+
+// Quem voa (o God) não dá passos. O relógio do voo (player.flyMs, veja updatePlayer) move tudo:
+// - asas: o tronco percorre os 12 quadros do andar, FLAP_FRAME_MS cada (uma batida a cada 0,6 s parado). Em movimento o
+//   relógio anda FLAP_MOVING_SPEED vezes mais rápido (uma batida a cada 0,4 s);
+// - pernas: ficam no quadro parado (sem passo) e balançam penduradas como um pêndulo, até LEG_SWING_DEGREES para cada
+//   lado, uma ida e volta a cada LEG_SWING_MS (veja getLegSwing; quem gira o desenho é drawPlayer.js);
+// - inclinação: voando para os lados, o corpo inclina até FLY_LEAN_DEGREES para a frente e volta reto aos poucos ao parar.
+export const FLAP_FRAME_MS = 50
+export const FLAP_MOVING_SPEED = 1.5
+export const LEG_SWING_DEGREES = 6
+export const LEG_SWING_MS = 1200
+export const FLY_LEAN_DEGREES = 8
+const FLY_LEAN_SPEED = 60 // graus por segundo: a inclinação vai e volta aos poucos
+
+// Voo do God: o desenho fica FLY_HOVER u acima do chão e sobe e desce FLY_BOB u (uma volta a cada FLY_BOB_MS).
+// Só o desenho sobe: a sombra, a colisão e a caixa do golpe ficam no chão. Ao morrer, ele cai até o chão em FLY_FALL_MS.
+export const FLY_HOVER = 22
+export const FLY_BOB = 3
+export const FLY_BOB_MS = 1600
+export const FLY_FALL_MS = 250
+
+// Quantas u o desenho fica acima dos pés (0 para quem anda). stats = atributos do personagem (flying); timeMs = relógio da cena.
+// Com "reduzir movimento" ele não oscila, mas continua acima do chão.
+export function getHoverOffset(player, stats, timeMs, reduceMotion = false) {
+  if (!stats.flying) return 0
+  if (player.dead) return Math.max(0, FLY_HOVER * (1 - player.dead.elapsed / FLY_FALL_MS))
+  const bob = reduceMotion ? 0 : FLY_BOB * Math.sin((timeMs / FLY_BOB_MS) * Math.PI * 2)
+  return FLY_HOVER + bob
+}
+
+// Quanto as pernas de quem voa estão giradas agora, em graus (0 para quem anda): penduradas, balançam como um pêndulo.
+// Com "reduzir movimento" e na morte, ficam paradas.
+export function getLegSwing(player, flying, reduceMotion = false) {
+  if (!flying || reduceMotion || player.dead) return 0
+  return LEG_SWING_DEGREES * Math.sin((player.flyMs / LEG_SWING_MS) * Math.PI * 2)
+}
 
 // Passo máximo de lógica por quadro: depois de uma pausa (aba escondida) o jogo não "pula"
 const MAX_STEP_MS = 50
@@ -72,6 +108,8 @@ export function createPlayer(position) {
     invincibleMs: 0, // ms de invencibilidade que ainda restam
     sinceAttackStart: Infinity, // ms desde o início do último golpe
     stoppedMs: 0, // ms sem nenhuma tecla de andar apertada
+    flyMs: 0, // relógio do voo (asas e pernas de quem voa; veja FLAP_FRAME_MS)
+    lean: 0, // inclinação do corpo de quem voa, em graus (positivo = para a direita)
   }
 }
 
@@ -160,6 +198,14 @@ export function updatePlayer(player, input, deltaSeconds, options = {}) {
   if (!pausing) next.walkDistance = updateWalkDistance(next.walkDistance, Math.hypot(moved.x - next.x, moved.y - next.y))
   next.x = moved.x
   next.y = moved.y
+  // Quem voa: o relógio do voo anda mais rápido em movimento (asas e pernas) e o corpo inclina para o lado do voo
+  if (stats.flying) {
+    const moving = movement.x !== 0 || movement.y !== 0
+    next.flyMs = player.flyMs + stepMs * (moving ? FLAP_MOVING_SPEED : 1)
+    const target = movement.x * FLY_LEAN_DEGREES
+    const step = (FLY_LEAN_SPEED * stepMs) / 1000
+    next.lean = player.lean < target ? Math.min(target, player.lean + step) : Math.max(target, player.lean - step)
+  }
   return next
 }
 
@@ -217,8 +263,9 @@ export function getAttackArc(player) {
 // O personagem é desenhado em camadas: as pernas (legs) atrás e o tronco (sheet/direction/frame) na frente.
 // legs é null no dano e na morte, que têm o corpo inteiro numa folha só.
 // O corpo não inclina ao andar: o Victor rejeitou o balanço (2026-11-13); o passo fica todo na folha.
+// flying (atributo do personagem): quem voa usa o relógio do voo (player.flyMs) para as asas e as pernas.
 // Parado (ou reduzir movimento), as pernas ficam no quadro parado; andando, o quadro das pernas e o do tronco vêm da mesma distância andada, inclusive no golpe.
-export function getPlayerPose(player, reduceMotion = false) {
+export function getPlayerPose(player, reduceMotion = false, flying = false) {
   if (player.dead) {
     // Depois do fim (ou com reduzir movimento, sem a queda), fica no último quadro: deitado
     const last = DEATH.durations.length - 1
@@ -229,8 +276,14 @@ export function getPlayerPose(player, reduceMotion = false) {
     return { sheet: 'hurt', direction: player.hurt.direction, frame: getTimedFrame(HURT.durations, player.hurt.elapsed), legs: null }
   }
   const walking = player.walkDistance > 0 && !reduceMotion
-  const walkFrame = walking ? getWalkFrame(player.walkDistance) : 0
-  const legsFrame = walking ? walkFrame : LEGS.idleFrame
+  let walkFrame = walking ? getWalkFrame(player.walkDistance) : 0
+  let legsFrame = walking ? walkFrame : LEGS.idleFrame
+  // Quem voa não dá passos: o tronco bate as asas pelo relógio do voo (player.flyMs), andando ou parado, e as pernas
+  // ficam no quadro parado (o balanço delas é um giro, veja getLegSwing). Assim ele não parece estar andando no ar.
+  if (flying) {
+    walkFrame = reduceMotion ? 0 : Math.floor(player.flyMs / FLAP_FRAME_MS) % WALK_FRAME_COUNT
+    legsFrame = LEGS.idleFrame
+  }
   if (player.attack) {
     const { direction, elapsed } = player.attack
     return {

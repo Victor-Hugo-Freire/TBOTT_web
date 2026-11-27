@@ -66,6 +66,11 @@ As camadas soltas estão em `sprites/<item>_<direção>.png`, com alfa binário,
   - as outras 17 camadas não mudaram (comparadas pixel a pixel com o backup);
   - as cores do Chifre (capa mostarda) e do Rolo (bronze claro) foram medidas e são as mesmas dos ícones dos itens, então não mudaram.
 
+- **Volta 4 → 5 (2026-11-26, pedido do Victor, no jogo e não na arte):**
+  - o Elixir de lado estava na nuca e ele quis nas costas. A imagem não mudou: o jogo desce a camada até o tronco (`shift` em `appearanceSprites.js`, [-32, 85] na esquerda e [32, 85] na direita) e a desenha na frente do corpo;
+  - atrás do corpo ele sumia no Tung Tung Sabor (preto sobre preto) e no Tung Tung God (atrás das asas);
+  - as camadas das costas (Concha e Elixir) passaram a seguir o deslocamento do corpo e não o da cabeça (`walkBody`).
+
 ## Ataque e dano (conferidos na folha do jogo)
 
 - **Ataque** (`ataque.png`, 8 quadros por direção):

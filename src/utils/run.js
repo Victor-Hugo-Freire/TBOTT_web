@@ -10,6 +10,7 @@ import {
   getEntryPosition,
   getExitSide,
   getRoomDoors,
+  BOSS_BRANCH_TYPES,
   HITS_TO_OPEN,
   isNearDoor,
   OPPOSITE_SIDE,
@@ -46,6 +47,8 @@ import {
   assignPedestalItems,
   CHOICE_ROOM_TYPES,
   findTouchedPedestal,
+  getBranchItems,
+  getBranchPools,
   getPedestalSolids,
   getRoomPedestals,
   getRoomTypeItem,
@@ -67,6 +70,7 @@ import {
 import { buildRoomObstacles, findFreeCell, getCellPoint, getCellRect, getLayoutPoints } from './roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
 import {
+  getAirSolids,
   getFloorEffect,
   getRoomSolids,
   getSlipMovement,
@@ -329,11 +333,18 @@ function hasFight(run, room) {
   return pickRoomEnemies(run.seed, run.floor.number, room, run.enemyCatalog).length > 0
 }
 
+// Já pegou algum item do Pacto nesta run? Vem dos itens que ele tem (o campo roomTypes do catálogo diz de que sala é
+// cada um), e não de um campo salvo: assim vale também para um save que já tinha o item.
+export function hasPactItem(run) {
+  return run.items.some((itemId) => run.catalog[itemId]?.roomTypes?.includes('pacto'))
+}
+
 // O chefe morreu (a sala já ficou limpa: as portas abrem). A sala do chefe não dá a recompensa de sala limpa: o prêmio
 // dela é o item do pedestal. A sala ao lado vira a do Tung Tung God se ele não perdeu vida na sala, senão o Pacto
-// (setPactRoomType). O tambor e o pedestal esperam DRUM_AFTER_BOSS_MS (drumWaitMs, veja dropDrum).
+// (setPactRoomType). Depois de pegar um item do Pacto, a sala do God não aparece mais na run: vira sempre o Pacto,
+// mesmo sem perder vida. O tambor e o pedestal esperam DRUM_AFTER_BOSS_MS (drumWaitMs, veja dropDrum).
 function defeatBoss(run) {
-  setPactRoomType(run.floor, run.hurtInRoom ? 'pacto' : 'god')
+  setPactRoomType(run.floor, run.hurtInRoom || hasPactItem(run) ? 'pacto' : 'god')
   return { ...run, drumWaitMs: DRUM_AFTER_BOSS_MS }
 }
 
@@ -534,18 +545,20 @@ function enterRoom(run, floor, room, position, direction = 'down') {
 }
 
 // A posição salva serve? Precisa estar dentro da área dos pés e não tocar em nada que bloqueia.
-function isFreePosition(position, obstacles) {
+// Quem voa (flying) pode estar em cima de um obstáculo: para ele basta estar dentro da área dos pés.
+function isFreePosition(position, obstacles, flying) {
   if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return false
   const { minX, maxX, minY, maxY } = ROOM_PLAYER_BOUNDS
   if (position.x < minX || position.x > maxX || position.y < minY || position.y > maxY) return false
+  if (flying) return true
   const feet = getFeetBox(position)
   return !getRoomSolids(obstacles).some((solid) => overlaps(feet, solid))
 }
 
 // Onde o jogador começa ao continuar: a posição salva, se servir; senão o centro da sala inicial
 // ou a entrada da primeira porta das outras salas (a entrada sempre tem folga, veja roomLayout.js).
-function getStartPosition(floor, room, position) {
-  if (isFreePosition(position, getRoomObstacles(floor, room))) return { x: position.x, y: position.y }
+function getStartPosition(floor, room, position, flying) {
+  if (isFreePosition(position, getRoomObstacles(floor, room), flying)) return { x: position.x, y: position.y }
   if (room.id === floor.startRoomId) return { ...ROOM_PLAYER_START }
   // A parede secreta ainda fechada não conta: nascer colado nela mostraria a marca de graça
   const door = getRoomDoors(floor, room).find((item) => item.state !== 'hidden' && item.state !== 'cracked')
@@ -616,6 +629,7 @@ export function getRoomStates(floor) {
 // enemyCatalog = inimigos do catálogo, por id (buildEnemyCatalog); vazio = nenhuma sala tem inimigos.
 // bossCatalog = chefes do catálogo, por id (buildBossCatalog); vazio = a sala do chefe fica limpa ao entrar, sem luta.
 // pactRoomType = a sala ao lado do chefe, já decidida pela luta ('pacto' ou 'god'); null = vale a geração do andar.
+// branchOffered = os itens que as salas do Pacto/God de andares anteriores já ofereceram (não voltam; veja getBranchItems).
 export function createRun({
   seed,
   floorNumber = 1,
@@ -632,6 +646,7 @@ export function createRun({
   enemyCatalog = {},
   bossCatalog = {},
   pactRoomType = null,
+  branchOffered = [],
   items = [],
   floorHealsUsed = 0,
 }) {
@@ -678,6 +693,8 @@ export function createRun({
     bosses: pickRunBosses(seed, bossCatalog), // o chefe de cada andar (bosses.js): não vai para o save, sai da seed
     items: [...items], // na ordem em que foram pegos
     pedestalItems: assignPedestalItems(seed, catalog), // itens dos pedestais de todos os andares (pedestals.js)
+    branchPools: getBranchPools(seed, catalog), // os itens do Pacto e do God (não vão para o save: saem da seed)
+    branchOffered: [...branchOffered], // o que as salas do Pacto/God de andares anteriores já ofereceram (vai no save)
     pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
     vanishing: [], // itens sumindo da sala de escolha: { roomId, pedestalId, itemId, elapsedMs } (VANISH_MS)
     effects: createItemEffects(floorHealsUsed), // tempos e contagens dos efeitos dos itens (itemEffects.js)
@@ -696,7 +713,7 @@ export function createRun({
     finished: false,
   }
   start.health = normalizeHealth(health, getRunStats(start).maxHealth)
-  return enterRoom(start, floor, room, getStartPosition(floor, room, position))
+  return enterRoom(start, floor, room, getStartPosition(floor, room, position, getRunStats(start).flying))
 }
 
 // Dados do progresso para salvar (formato de progress.js)
@@ -720,6 +737,7 @@ export function createRunSnapshot(run, elapsedMs) {
     items: run.items,
     floorHealsUsed: run.effects.floorHealsUsed,
     pactRoomType: getSavedPactRoomType(run.floor),
+    branchOffered: run.branchOffered,
   })
 }
 
@@ -766,15 +784,18 @@ function updateRoom(run, input, deltaSeconds) {
   // Os pedestais são sólidos, como os obstáculos
   const pedestals = getRoomPedestals(run, room)
   const pedestalBoxes = getPedestalSolids(pedestals)
+  // O que bloqueia na sala (inimigos, empurrões, lascas) e o que bloqueia o jogador. Quem voa (o God) passa por cima
+  // dos obstáculos: só as paredes e os pedestais o bloqueiam. Os inimigos continuam desviando deles.
   const solids = getRoomSolids(run.obstacles, pedestalBoxes)
+  const playerSolids = stats.flying ? getAirSolids(pedestalBoxes) : solids
 
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
-    solids,
+    solids: playerSolids,
     speedMultiplier: effect.speedMultiplier,
     stats,
   })
   const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
-  player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
+  player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, playerSolids) }
 
   // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado. Encostar num inimigo vivo: o dano
   // dele (catálogo), e a causa da morte é o id dele. Tudo passa por damagePlayer; enquanto ele está invencível,
@@ -804,8 +825,9 @@ function updateRoom(run, input, deltaSeconds) {
   // - passou perto da barbatana: o Tralalero puxa o Tung para a água;
   // - pisou na poça com a barbatana longe: ele cai sozinho e a barbatana mergulha.
   // death.fin guarda onde a barbatana estava, para a animação começar dali.
+  // Quem voa (o God) sobrevoa a poça e a barbatana não o alcança.
   const finMs = run.finMs + deltaSeconds * 1000
-  if (room.type === 'pacto' && !death) {
+  if (room.type === 'pacto' && !death && !stats.flying) {
     const fin = getSharkFinPosition(finMs)
     let cause = null
     if (isNearFin(player, fin)) cause = TRALALERO_CAUSE
@@ -1018,6 +1040,10 @@ function updateFloorTransition(run, stepMs) {
     next.transition.switched = true
     // A tela fica escura: o fim da run é mostrado pela página
     if (run.floor.number >= LAST_FLOOR) return { ...next, finished: true }
+
+    // Os itens que a sala do Pacto/God deste andar ofereceu não voltam nos próximos (mesmo os que ele recusou)
+    const branchRoom = run.floor.rooms.find((room) => BOSS_BRANCH_TYPES.includes(room.type))
+    if (branchRoom) next.branchOffered = [...run.branchOffered, ...getBranchItems(run, branchRoom)]
 
     const floor = generateFloor(run.seed, run.floor.number + 1)
     prepareCellarDrops(floor)

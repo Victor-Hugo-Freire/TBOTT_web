@@ -1,6 +1,7 @@
 import { ITEM_SPRITES } from '../data/itemSprites.js'
 import { overlaps } from './collision.js'
 import { ROOM_FLOOR } from './roomMovement.js'
+import { getBaseStats } from './stats.js'
 import { damageTarget, findSwingHits, findTargetsNear, getTargetBox, isTargetable, pushTarget, slowTarget, stunTarget } from './targets.js'
 
 // Efeitos dos itens. Funções puras (sem React, sem canvas), para testar com node:test.
@@ -19,6 +20,9 @@ export const SHIELD_BREAK_MS = 450 // Caldo: duração da animação do escudo e
 const SPARK_SCALE = 1.6 // Elixir: tamanho da faísca no alvo atingido (1 = o tamanho da folha)
 const CHAIN_SPARK_SCALE = 1 // Elixir: tamanho da faísca nos alvos em que o raio salta
 const LUCKY_FLASH_LIFT = 12 // Chifre: o brilho fica um pouco acima do ponto do grão no chão (no meio do desenho dele)
+const LIGHT_FLASH_MS = 350 // God: duração do anel de luz do cetro
+const SPLASH_FLASH_MS = 450 // Sabor: duração das gotas do respingo
+const STAIN_FLASH_MS = 500 // Sabor: duração da mancha de whisky no chão (do tamanho do alcance)
 
 const DIRECTION_VECTORS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } }
 
@@ -119,6 +123,12 @@ function createFlash(itemId, variant, x, y, scale = 1, angle = 0) {
     for (const ms of Object.values(sprite.animations)[0].durations) durationMs += ms
   }
   return { itemId, variant, x, y, scale, angle, elapsedMs: 0, durationMs }
+}
+
+// Efeito visual desenhado por código, sem folha de imagem (o desenho está em drawItemEffects.js):
+// drawn = 'luz' (o anel do cetro do God) ou 'respingo' (as gotas do taco do Sabor); range = até onde ele vai, em u
+function createDrawnFlash(drawn, x, y, range, durationMs) {
+  return { drawn, x, y, range, scale: 1, angle: 0, elapsedMs: 0, durationMs }
 }
 
 // Efeito visual em cima de um alvo: guarda o id dele para ir junto quando ele é empurrado (veja updateFlashes)
@@ -321,12 +331,47 @@ export function hitWithSwing(run, hitbox, direction, stats, solids = []) {
     }
   }
 
+  // Personagens: cada alvo acertado solta um efeito nele e nos vizinhos que o golpe NÃO acertou (swing.hitIds tem todos
+  // os acertados deste golpe). God: a luz do cetro dá dano e atordoa o alvo e os vizinhos (stunTarget: o chefe fica
+  // pouco tempo e o mesmo inimigo só é atordoado de novo depois de restunDelayMs). Sabor: o respingo de whisky deixa lento
+  // o alvo e os vizinhos (slowTarget mantém a lentidão mais forte, então não soma com a poça da Concha).
+  const light = stats.lightBurst
+  const splash = stats.splash
+  if (light || splash) {
+    for (const index of indexes) {
+      const source = targets[index]
+      const range = light ? light.range : splash.range
+      if (light) targets[index] = lightHit(source, light)
+      // whiskyMs: o inimigo respingado fica tingido e pingando enquanto está lento (só desenho)
+      if (splash && isTargetable(source)) {
+        targets[index] = { ...slowTarget(source, splash.speedMultiplier, splash.ms), whiskyMs: splash.ms }
+      }
+      for (const near of findTargetsNear(targets, source.x, source.y, range)) {
+        if (swing.hitIds.includes(targets[near].id)) continue
+        if (light) targets[near] = lightHit(targets[near], light)
+        else targets[near] = { ...slowTarget(targets[near], splash.speedMultiplier, splash.ms), whiskyMs: splash.ms }
+      }
+      if (light) {
+        flashes.push(createDrawnFlash('luz', source.x, source.y, range, LIGHT_FLASH_MS))
+      } else {
+        flashes.push(createDrawnFlash('mancha', source.x, source.y, range, STAIN_FLASH_MS)) // no chão, do tamanho do alcance
+        flashes.push(createDrawnFlash('respingo', source.x, source.y - source.height / 2, range, SPLASH_FLASH_MS))
+      }
+    }
+  }
+
   // Tiramisu: acertou, o golpe fica mais rápido por bonusDurationMs (cada acerto renova o tempo)
   let effects = run.effects
   const sugar = getEffect(run, 'tiramisu')
   if (sugar?.bonusDurationMs) effects = { ...effects, sugarMs: sugar.bonusDurationMs }
 
   return { ...run, targets, flashes, puddles, swing, effects }
+}
+
+// Luz do cetro do God em um alvo: dá `damage` de dano e, se ele sobreviveu, o atordoa por `stunMs`
+// (só atordoa de novo depois de `restunDelayMs`, como a Muçarela, senão um golpe atrás do outro o prenderia para sempre)
+function lightHit(target, light) {
+  return stunTarget(damageTarget(target, light.damage), light.stunMs, light.restunDelayMs)
 }
 
 // Elixir Elétrico: os `count` alvos vivos mais perto do alvo `fromIndex`, a até `range` dele (sem ele mesmo)
@@ -412,9 +457,12 @@ export function updatePuddles(run, stepMs) {
   }
   const targets = [...run.targets]
   if (ladle?.enemySpeedMultiplier) {
+    // Com o Sabor a poça é mais lenta (0,4 em vez de 0,5); a ficha traz o número (characterStats.js)
+    const sabor = getBaseStats(run.characterId).splash
+    const speed = sabor ? Math.min(ladle.enemySpeedMultiplier, sabor.puddleMultiplier) : ladle.enemySpeedMultiplier
     for (let index = 0; index < targets.length; index++) {
       for (const puddle of puddles) {
-        if (isInSaucePuddle(puddle, targets[index])) targets[index] = slowTarget(targets[index], ladle.enemySpeedMultiplier, PUDDLE_SLOW_MS)
+        if (isInSaucePuddle(puddle, targets[index])) targets[index] = slowTarget(targets[index], speed, PUDDLE_SLOW_MS)
       }
     }
   }

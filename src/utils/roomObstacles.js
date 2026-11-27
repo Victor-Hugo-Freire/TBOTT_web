@@ -38,6 +38,26 @@ export function getRoomSolids(obstacles, extra = []) {
   return [...ROOM_WALLS, ...boxes.map((obstacle) => obstacle.box), ...extra]
 }
 
+// O que bloqueia quem voa (o God): só as paredes e as caixas extras (os pedestais). Os obstáculos ele sobrevoa,
+// como os inimigos que voam (AIR_SOLIDS em enemyBehaviors.js). As portas não entram aqui: elas ficam no vão da parede
+// e quem decide a saída é getExitSide.
+export function getAirSolids(extra = []) {
+  return [...ROOM_WALLS, ...extra]
+}
+
+// Ordem de desenho de quem voa: em cima de um obstáculo (os pés dentro da caixa dele), ele é desenhado DEPOIS do
+// obstáculo, senão o obstáculo tapa as pernas e ele parece estar dentro dele. Devolve o y para ordenar o desenho
+// (o dos pés, ou logo abaixo da base do obstáculo que ele sobrevoa, o que for mais baixo na tela).
+export function getFlyingSortY(position, obstacles) {
+  const feet = getFeetBox(position)
+  let sortY = position.y
+  for (const obstacle of obstacles) {
+    if (!obstacle.blocking || obstacle.removed) continue
+    if (overlaps(feet, obstacle.box)) sortY = Math.max(sortY, obstacle.box.y + obstacle.box.height + 1)
+  }
+  return sortY
+}
+
 // Golpe do bastão: o quebrável que a caixa do golpe toca some (o garrafão vira cacos, com breakMs para a
 // animação de quebrar); o rolante parado começa a rolar na direção do golpe. Os outros não mudam.
 // hitbox é a de getAttackHitbox (null = golpe fora da janela).

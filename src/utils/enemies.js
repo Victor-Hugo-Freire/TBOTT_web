@@ -147,7 +147,8 @@ export function areEnemiesDefeated(targets) {
 export function updateEnemies(targets, world) {
   const stepMs = world.deltaSeconds * 1000
   // O caminho até o Tung desviando dos obstáculos e dos perigos do chão: um mapa só por quadro, para todos
-  world.pathSolids = [...world.solids, ...getHazardBoxes(world.floorObstacles ?? [])]
+  world.hazardBoxes = getHazardBoxes(world.floorObstacles ?? [])
+  world.pathSolids = [...world.solids, ...world.hazardBoxes]
   world.chaseMap = createChaseMap(world.pathSolids, world.player)
   world.enemies = targets
   world.shields = []

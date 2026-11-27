@@ -21,6 +21,7 @@ import {
   shouldReturnToMenu,
 } from '../../utils/roomMovement.js'
 import {
+  BANNER_TOTAL_MS,
   createRun,
   createRunSnapshot,
   getCurrentRoom,
@@ -51,9 +52,13 @@ import { loadSheets } from './scene/sheets.js'
 import { getHudTop, getRoomView } from './scene/view.js'
 import './SalaInicial.css'
 import Opcoes from '../Opcoes/Opcoes.jsx'
+import AvisoPersonagem, { AVISO_PERSONAGEM_MS } from '../../components/AvisoPersonagem/AvisoPersonagem.jsx'
+import { ELIXIR_ITEM_ID, GOD_ID, SABOR_ID, SAHUR_ID } from '../../data/characterUnlocks.js'
+import { retryPendingUnlocks, unlockCharacter } from '../../services/unlocks.js'
 import { ITEM_SPRITES } from '../../data/itemSprites.js'
 import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
 import { canPauseRun } from '../../utils/pause.js'
+import { getBaseStats } from '../../utils/stats.js'
 import { getGameMusicContext, isSameGameMusicContext, notifyGameMusic } from '../../audio/music/contextoDoJogo.js'
 
 function normalizePauseItemIcon(image) {
@@ -155,6 +160,8 @@ export default function SalaInicial() {
   const [ending, setEnding] = useState(null)
   // Mensagem de erro se o catálogo de itens não carregou (sem ele a run não começa)
   const [loadError, setLoadError] = useState(null)
+  // Personagem que acabou de ser liberado (o aviso no canto da tela), ou null
+  const [characterNotice, setCharacterNotice] = useState(null)
   const [pauseView, setPauseView] = useState('closed')
   const [pausedItems, setPausedItems] = useState([])
   const [pauseError, setPauseError] = useState('')
@@ -181,12 +188,14 @@ export default function SalaInicial() {
 
 
   // Personagem escolhido na seleção: o id vai para a run (e para o ranking) e o nome para o leitor de tela.
-  // O canvas desenha sempre o Tung Tung Sahur, o único com sprite (os outros virão depois)
+  // Quem manda é o progresso salvo: no Continue não há personagem no state, então a sala troca o nome (e as folhas)
+  // quando lê o progresso.
   const selectedCharacter = location.state?.character ?? {
     id: 'tung-tung-sahur',
     name: 'Tung Tung Sahur',
     description: 'Personagem principal do jogo.',
   }
+  const [characterName, setCharacterName] = useState(selectedCharacter.name || 'Tung Tung Sahur')
 
   useEffect(() => {
     endingStateRef.current = ending
@@ -258,7 +267,7 @@ export default function SalaInicial() {
 
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-    const sheets = loadSheets()
+    let sheets = null // as folhas do personagem: carregadas quando o progresso diz quem ele é (draw só desenha com a run pronta)
     const hudImages = loadHudImages()
     loadDescriptionFont()
     // Quem pede "reduzir movimento" no sistema vê o andar parado no quadro 0, a faixa sem deslizar
@@ -286,6 +295,33 @@ export default function SalaInicial() {
     let enterMs = Infinity // tempo desde que a run apareceu: a tela clareia do preto (getEnterFade)
     let restartHeld = false // a tecla R está segurada (veja updateRestartKey em run.js)
     let announcedFloor = 0
+    let elixirHandled = false // o Elixir Elétrico desta run já foi tratado (libera o Tung Tung Sabor; veja update)
+    const noticeTimers = [] // os tempos do aviso de personagem liberado (saem junto com a sala)
+
+    // Aviso de personagem liberado: espera delayMs (a faixa do item ocupa a tela) e fica AVISO_PERSONAGEM_MS no canto
+    function showCharacterNotice(characterId, delayMs) {
+      noticeTimers.push(
+        window.setTimeout(() => {
+          setCharacterNotice(characterId)
+          noticeTimers.push(window.setTimeout(() => setCharacterNotice(null), AVISO_PERSONAGEM_MS))
+        }, delayMs),
+      )
+    }
+
+    // Libera um personagem na API (com a fila e a nova tentativa de utils/unlocks.js) sem a run esperar por isso.
+    // O aviso só aparece quando a API diz que ele é novo (created): quem já tinha o personagem não vê nada.
+    async function unlock(characterId, noticeDelayMs) {
+      const created = await unlockCharacter(characterId)
+      if (isCancelled) return
+      for (const id of created) showCharacterNotice(id, noticeDelayMs)
+    }
+
+    // Tenta de novo o que ficou na fila (a API estava fora do ar, a sessão venceu...)
+    async function retryUnlocks() {
+      const created = await retryPendingUnlocks()
+      if (isCancelled) return
+      for (const id of created) showCharacterNotice(id, 0)
+    }
     let showDebug = false // F3, só no npm run dev
     let showMinimap = false // Tab segurado: mapa ampliado
     let view = getRoomView(0, 0)
@@ -354,6 +390,9 @@ export default function SalaInicial() {
         if (error?.status !== 401) console.warn('Não foi possível carregar o progresso.', error)
       }
 
+      sheets = loadSheets(characterId)
+      setCharacterName(getBaseStats(characterId).name)
+
       // Partida nova (ou save antigo, sem seed): a sala cria a seed e salva na hora
       const isNewSeed = progress.seed === null
       run = createRun({
@@ -372,12 +411,14 @@ export default function SalaInicial() {
         enemyCatalog,
         bossCatalog,
         pactRoomType: progress.pactRoomType,
+        branchOffered: progress.branchOffered,
         items: progress.items,
         floorHealsUsed: progress.floorHealsUsed,
       })
       elapsedMs = progress.elapsedMs
       enterMs = 0 // a sala surge do preto, com a faixa do andar (New game e Continue)
       pauseItemsRef.current = snapshotPauseItems()
+      void retryUnlocks() // ao abrir a sala: uma liberação que ficou na fila (a API estava fora do ar) tenta de novo
 
       // Run que já acabou (o jogador saiu antes de o tempo chegar ao ranking, pelo Voltar do navegador ou F5):
       // não deixa jogar de novo nem envia sozinho (o primeiro envio pode ainda estar a caminho e o tempo
@@ -461,6 +502,8 @@ export default function SalaInicial() {
     async function finishRun() {
       outcome = run.death ? 'defeat' : 'victory'
       deathCause = run.death?.cause ?? null
+      // Venceu o jogo com o Sahur: libera o Tung Tung God. O aviso aparece por cima do aviso de fim.
+      if (outcome === 'victory' && run.characterId === SAHUR_ID) void unlock(GOD_ID, 0)
       setEnding({ outcome, cause: deathCause, time: formatRunTime(elapsedMs), status: 'sending' })
       if (saving) await saving
       if (canSave) await putProgress()
@@ -503,6 +546,7 @@ export default function SalaInicial() {
         bossCatalog: run.bossCatalog,
       })
       resultSent = false
+      elixirHandled = false // a run nova pode ter o Elixir (5%)
       endStored = false // a run nova ainda não acabou: a próxima morte também é guardada no navegador
       setEnding(null)
       elapsedMs = 0
@@ -664,6 +708,13 @@ export default function SalaInicial() {
             { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
             stepMs / 1000,
           )
+        }
+
+        // Pegou o Elixir Elétrico: libera o Tung Tung Sabor. O aviso espera a faixa do item sair da tela.
+        // (Numa run que já tem o Elixir ao continuar, a chamada devolve "já liberado" e nada aparece.)
+        if (!elixirHandled && run.items.includes(ELIXIR_ITEM_ID)) {
+          elixirHandled = true
+          void unlock(SABOR_ID, BANNER_TOTAL_MS)
         }
 
         // Segurar R escurece a tela e, ao completar, recomeça a run (não vale na morte nem depois do fim)
@@ -853,7 +904,10 @@ export default function SalaInicial() {
     void loadGame()
     // Parado na janela sem foco, não há o que salvar
     const saveTimer = window.setInterval(() => {
-      if (!isPaused) void saveProgress().catch(() => {})
+      if (!isPaused) {
+        void saveProgress().catch(() => {})
+        void retryUnlocks() // uma liberação que falhou antes (fila no navegador) tenta de novo junto com o salvamento
+      }
     }, SAVE_INTERVAL_MS)
     animationFrame = window.requestAnimationFrame(update)
 
@@ -865,13 +919,12 @@ export default function SalaInicial() {
       window.removeEventListener('focus', handleFocus)
       BLOCKED_MOUSE_EVENTS.forEach((name) => window.removeEventListener(name, blockMouse))
       window.clearInterval(saveTimer)
+      noticeTimers.forEach((timer) => window.clearTimeout(timer))
       window.cancelAnimationFrame(animationFrame)
       isCancelled = true
       void saveProgress() // ao sair da sala (depois do fim da run, não salva)
     }
   }, [navigate, selectedCharacter.id])
-
-  const characterName = selectedCharacter.name || 'Tung Tung Sahur'
 
   return (
     <main
@@ -897,6 +950,9 @@ export default function SalaInicial() {
         role="img"
         aria-label={floorInfo ? `Andar ${floorInfo.number}, ${floorInfo.name}, com ${characterName}` : `Sala com ${characterName}`}
       />
+
+      {/* Personagem que acabou de ser liberado (o Sabor pelo Elixir, o God ao vencer com o Sahur) */}
+      {characterNotice && <AvisoPersonagem key={characterNotice} characterId={characterNotice} />}
 
       {pauseView === 'menu' && (
         <div className="sala-inicial__pausa" role="dialog" aria-modal="true" aria-label="Menu de pausa">

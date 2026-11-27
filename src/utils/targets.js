@@ -26,6 +26,7 @@ export function createTarget({ id, x, y, width, height, health }) {
     deadMs: 0, // há quanto tempo morreu
     slowMs: 0, // lento: ms que faltam
     slowMultiplier: 1, // velocidade enquanto está lento (0,5 = metade)
+    whiskyMs: 0, // respingo de whisky do Sabor: ms que faltam (só desenho: tinge e pinga; a lentidão é o slowMs)
     stunMs: 0, // preso: ms que faltam (não anda nem ataca)
     stunImmuneMs: 0, // ms até poder ser preso de novo (Muçarela)
     hurtMs: Infinity, // ms desde o último dano (a animação "dano" dos inimigos toca no começo)
@@ -41,9 +42,16 @@ export function createTrainingTarget(position) {
   return { ...target, training: true, home: { x: position.x, y: position.y } }
 }
 
-// Caixa que o golpe acerta
+// Fundura máxima (u) da caixa que o golpe e as lascas acertam, contada dos pés para cima: a do inimigo comum mais alto
+// (o Fenicottero, 136 u). Na sala vista de cima, a altura do desenho também vira fundura: sem o limite, o golpe para
+// baixo acertava a cabeça de um chefe alto (o Tralalero tem 354 u) estando quase 400 u acima dos pés dele.
+// Os inimigos comuns e o alvo de treino cabem no limite e não mudam; só os chefes ficam com a caixa mais baixa.
+export const MAX_HIT_DEPTH = 136
+
+// Caixa que o golpe acerta: a largura do corpo e, na altura, o corpo até MAX_HIT_DEPTH
 export function getTargetBox(target) {
-  return { x: target.x - target.width / 2, y: target.y - target.height, width: target.width, height: target.height }
+  const height = Math.min(target.height, MAX_HIT_DEPTH)
+  return { x: target.x - target.width / 2, y: target.y - height, width: target.width, height }
 }
 
 // Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda.
@@ -69,10 +77,13 @@ export function damageTarget(target, amount) {
   return { ...target, health, dead: health === 0, deadMs: 0, hurtMs: 0, damageTexts }
 }
 
-// Fica lento por `ms`, andando a `multiplier` da velocidade. Se já estava lento, vale o tempo maior.
+// Fica lento por `ms`, andando a `multiplier` da velocidade. Se já estava lento, vale o tempo maior e a lentidão MAIS
+// FORTE (a menor velocidade): o respingo do Sabor (0,6) e a poça da Concha (0,5 ou 0,4) não se somam, vale a mais forte.
+// Limite: só guardamos uma velocidade; se a mais forte acabar antes, a mais fraca só volta quando o tempo todo acabar.
 export function slowTarget(target, multiplier, ms) {
   if (!isTargetable(target)) return target
-  return { ...target, slowMultiplier: multiplier, slowMs: Math.max(target.slowMs, ms) }
+  const slowMultiplier = target.slowMs > 0 ? Math.min(target.slowMultiplier, multiplier) : multiplier
+  return { ...target, slowMultiplier, slowMs: Math.max(target.slowMs, ms) }
 }
 
 // Fica preso por `ms`: não anda nem ataca. Se já estava preso, vale o tempo maior.
@@ -115,6 +126,7 @@ function respawn(target) {
     deadMs: 0,
     slowMs: 0,
     slowMultiplier: 1,
+    whiskyMs: 0,
     stunMs: 0,
     stunImmuneMs: 0,
     push: null,
@@ -130,6 +142,7 @@ export function updateTarget(target, deltaSeconds, solids) {
   let next = {
     ...target,
     slowMs: Math.max(0, target.slowMs - stepMs),
+    whiskyMs: Math.max(0, target.whiskyMs - stepMs),
     stunMs: Math.max(0, target.stunMs - stepMs),
     stunImmuneMs: Math.max(0, target.stunImmuneMs - stepMs),
     hurtMs: target.hurtMs + stepMs,

@@ -35,6 +35,7 @@ import {
   RESTART_HOLD_MS,
   ROOM_TRANSITION_MS,
   STARTING_FORKS,
+  hasPactItem,
   toggleTrainingTarget,
   updateRestartHold,
   updateRestartKey,
@@ -255,6 +256,7 @@ describe('createRun', () => {
       items: [],
       floorHealsUsed: 0,
       pactRoomType: null,
+      branchOffered: [],
     })
   })
 
@@ -1421,6 +1423,14 @@ describe('pedestais: coleta, banner e custo do Pacto', () => {
     // com a vida baixa, ela não muda
     run = walkIntoPedestal(runInRoom(2, 'pacto', { health: 3 }))
     assert.equal(run.health, 3)
+  })
+
+  test('pegar o item na Sala do Pacto fecha o God: o jogo passa a ver que ele tem um item do Pacto', () => {
+    const before = runInRoom(2, 'pacto')
+    assert.equal(hasPactItem(before), false)
+    assert.equal(hasPactItem(walkIntoPedestal(before)), true)
+    // item de outro tipo de sala, pego numa sala do Tesouro, não conta
+    assert.equal(hasPactItem(walkIntoPedestal(runInRoom(1, 'tesouro'))), false)
   })
 
   test('Sala do Pacto com vários itens: cada um tem o seu custo e dá para pegar mais de um', () => {

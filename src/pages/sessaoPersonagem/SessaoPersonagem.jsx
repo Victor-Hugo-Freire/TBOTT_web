@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BotaoVoltar from '../../components/BotaoVoltar/BotaoVoltar.jsx'
+import CharacterSprite from '../../components/CharacterSprite/CharacterSprite.jsx'
 import Login from '../../components/Login/Login.jsx'
+import { CHARACTER_SPRITES } from '../../data/characterSprites.js'
+import { UNLOCK_HINTS } from '../../data/characterUnlocks.js'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { createProgressSnapshot } from '../../utils/progress.js'
+import { retryPendingUnlocks } from '../../services/unlocks.js'
+import { isCharacterLocked, readPendingUnlocks } from '../../utils/unlocks.js'
 import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './SessaoPersonagem.css'
 
@@ -35,12 +40,56 @@ function getVisibleCharacters(characters, currentIndex) {
   ]
 }
 
+// Cadeado em pixels (grade de 10x12), na cor da borda dos cards
+function Cadeado() {
+  return (
+    <svg className="sessao-personagem__cadeado" viewBox="0 0 10 12" shapeRendering="crispEdges" aria-hidden="true">
+      <rect x="3" y="0" width="4" height="1" />
+      <rect x="2" y="1" width="1" height="4" />
+      <rect x="7" y="1" width="1" height="4" />
+      <rect x="1" y="5" width="8" height="7" />
+      <rect x="4" y="7" width="2" height="2" className="sessao-personagem__cadeado-furo" />
+      <rect x="4" y="9" width="2" height="1" className="sessao-personagem__cadeado-furo" />
+    </svg>
+  )
+}
+
+// O que aparece dentro do card. Liberado: a foto, o nome e a descrição.
+// Bloqueado: a silhueta cinza do Tung Tung Sahur com um cadeado, sem foto e sem nome ("???"), e a dica de como liberar.
+function CardPersonagem({ character }) {
+  if (character.locked) {
+    return (
+      <div className="sessao-personagem__info">
+        <div className="sessao-personagem__imagem">
+          <CharacterSprite sprite={CHARACTER_SPRITES.tungTungSahurPiscar} className="sessao-personagem__silhueta" />
+          <Cadeado />
+        </div>
+        <span className="sessao-personagem__nome">???</span>
+        <p className="sessao-personagem__descricao">{UNLOCK_HINTS[character.id] ?? 'Ainda bloqueado'}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="sessao-personagem__info">
+      {character.spritePath && (
+        <div className="sessao-personagem__imagem">
+          <img className="sessao-personagem__foto" src={character.spritePath} alt="" />
+        </div>
+      )}
+      <span className="sessao-personagem__nome">{character.name}</span>
+      <p className="sessao-personagem__descricao">{character.description}</p>
+    </div>
+  )
+}
+
 export default function SessaoPersonagem() {
   const navigate = useNavigate()
   const backRef = useRef(null)
   const userRef = useRef(null)
   const mainRef = useRef(null)
-  const startRef = useRef(null) // "Começar Jogo": o foco volta para ele quando o aviso de substituir fecha
+  const centerRef = useRef(null) // o card do meio: é onde o foco fica enquanto se escolhe o personagem
+  const startRef = useRef(null) // "Começar Jogo": o foco vai para ele ao escolher e volta quando o aviso de substituir fecha
   const [characters, setCharacters] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedCharacterId, setSelectedCharacterId] = useState(null)
@@ -59,10 +108,21 @@ export default function SessaoPersonagem() {
       setError('')
 
       try {
-        const response = await apiRequest('/api/characters')
+        // Uma liberação que ficou na fila (a API estava fora do ar quando ele pegou o Elixir ou venceu) tenta de novo
+        // antes de ler a lista, para o personagem já aparecer liberado
+        if (readPendingUnlocks().length > 0) await retryPendingUnlocks()
+        if (!isActive) return
+
+        // Os personagens (público) e quais o jogador já liberou. Se a lista de liberados falhar, os bloqueados
+        // continuam bloqueados (melhor do que deixar jogar com um personagem que ele não tem).
+        const [response, unlockResponse] = await Promise.all([
+          apiRequest('/api/characters'),
+          apiRequest('/api/unlocks', { credentials: 'include' }).catch(() => null),
+        ])
         if (!isActive) return
 
         const list = Array.isArray(response?.characters) ? response.characters : []
+        const unlockedIds = Array.isArray(unlockResponse?.unlocks) ? unlockResponse.unlocks.map((unlock) => unlock.characterId) : []
         const normalized = [...list]
           .sort((left, right) => {
             const leftOrder = Number(left.displayOrder ?? 0)
@@ -77,6 +137,7 @@ export default function SessaoPersonagem() {
             description: character.description ?? 'Sem descrição disponível.',
             spritePath: character.spritePath ?? character.sprite_path ?? null,
           }))
+          .map((character) => ({ ...character, locked: isCharacterLocked(character, unlockedIds) }))
 
         setCharacters(normalized)
         setCurrentIndex(0)
@@ -100,12 +161,6 @@ export default function SessaoPersonagem() {
   const selectedCharacter = characters.find((character) => character.id === selectedCharacterId) ?? null
   const visibleCharacters = useMemo(() => getVisibleCharacters(characters, currentIndex), [characters, currentIndex])
 
-  const selectionIndicators = visibleCharacters.map(({ character, index }) => ({
-    ...character,
-    index,
-    isActive: selectedCharacterId ? character.id === selectedCharacterId : false,
-  }))
-
   function moveCarousel(direction) {
     if (characters.length === 0) return
 
@@ -117,8 +172,23 @@ export default function SessaoPersonagem() {
     if (!nextCharacter) return
 
     setCurrentIndex(index)
+    if (nextCharacter.locked) return // bloqueado: o card vira o do meio, mas não dá para escolher
     setSelectedCharacterId(nextCharacter.id)
+    // Já estava escolhido: o botão já está ligado e o foco vai direto. Se não, o efeito abaixo leva o foco
+    // quando o botão ligar.
+    if (nextCharacter.id === selectedCharacterId) startRef.current?.focus()
   }
+
+  // Teclado: o foco fica no card do meio (ao abrir a tela e a cada troca de personagem), então as setas para os lados
+  // trocam de personagem e Enter escolhe
+  useEffect(() => {
+    centerRef.current?.focus()
+  }, [currentIndex, isLoading])
+
+  // Escolheu um personagem: o foco vai para "Começar Jogo", e Enter de novo começa
+  useEffect(() => {
+    if (selectedCharacterId) startRef.current?.focus()
+  }, [selectedCharacterId])
 
   useEffect(() => {
     if (!showOverwriteDialog) return
@@ -187,7 +257,11 @@ export default function SessaoPersonagem() {
 
       event.preventDefault()
 
-      const buttons = Array.from(mainRef.current?.querySelectorAll('button:not(:disabled)') ?? [])
+      // Para cima e para baixo só passa por três lugares: Voltar, o card do meio e Começar Jogo (quando está ligado)
+      const buttons = []
+      for (const button of [backRef.current, centerRef.current, startRef.current]) {
+        if (button && !button.disabled) buttons.push(button)
+      }
       if (buttons.length === 0) return
 
       const currentIndex = buttons.findIndex((button) => button === document.activeElement)
@@ -276,21 +350,20 @@ export default function SessaoPersonagem() {
                     return (
                       <button
                         key={`${character.id}-${position}`}
+                        ref={centerRef}
                         type="button"
-                        className={`sessao-personagem__preview sessao-personagem__preview--${position} ${selectedCharacterId === character.id ? 'sessao-personagem__preview--selecionado' : ''}`}
+                        className={`sessao-personagem__preview sessao-personagem__preview--${position} ${selectedCharacterId === character.id ? 'sessao-personagem__preview--selecionado' : ''} ${character.locked ? 'sessao-personagem__preview--bloqueado' : ''}`}
                         style={
                           position === 'center'
                             ? { '--offset-x': '0%', '--scale': '1', '--lift': '0rem', '--z-index': '3' }
                             : undefined
                         }
-                        aria-label={`Selecionar ${character.name}`}
+                        aria-label={character.locked ? `Personagem bloqueado. ${UNLOCK_HINTS[character.id] ?? ''}` : `Selecionar ${character.name}`}
+                        aria-disabled={character.locked}
                         onClick={() => handleSelectCharacter(index)}
                         aria-pressed={selectedCharacterId === character.id}
                       >
-                        <div className="sessao-personagem__info">
-                          <span className="sessao-personagem__nome">{character.name}</span>
-                          <p className="sessao-personagem__descricao">{character.description}</p>
-                        </div>
+                        <CardPersonagem character={character} />
                       </button>
                     )
                   }
@@ -306,22 +379,10 @@ export default function SessaoPersonagem() {
                       }
                       aria-hidden="true"
                     >
-                      <div className="sessao-personagem__info">
-                        <span className="sessao-personagem__nome">{character.name}</span>
-                        <p className="sessao-personagem__descricao">{character.description}</p>
-                      </div>
+                      <CardPersonagem character={character} />
                     </div>
                   )
                 })}
-
-                <div className="sessao-personagem__indicadores" aria-hidden="true">
-                  {selectionIndicators.map((character) => (
-                    <span
-                      key={character.id}
-                      className={`sessao-personagem__indicador ${character.isActive ? 'sessao-personagem__indicador--ativo' : ''}`}
-                    />
-                  ))}
-                </div>
               </>
             )}
           </div>

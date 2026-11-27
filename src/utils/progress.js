@@ -159,6 +159,9 @@ export function normalizeProgressPayload(value) {
     // A sala ao lado do chefe deste andar, decidida na morte dele: 'god' (venceu sem perder vida) ou 'pacto'.
     // null = o chefe ainda não morreu, o andar não tem essa sala, ou save antigo (vale o tipo da geração do andar).
     pactRoomType: PACT_ROOM_TYPES.includes(source.pactRoomType) ? source.pactRoomType : null,
+    // Itens que as salas do Pacto/God dos andares anteriores já ofereceram (cada um aparece em uma sala só da run).
+    // Save antigo, sem o campo: nenhum.
+    branchOffered: normalizeItems(source.branchOffered),
   }
 }
 
@@ -182,6 +185,7 @@ export function createProgressSnapshot({
   items,
   floorHealsUsed,
   pactRoomType,
+  branchOffered,
 }) {
   return normalizeProgressPayload({
     roomId,
@@ -202,6 +206,7 @@ export function createProgressSnapshot({
     items,
     floorHealsUsed,
     pactRoomType,
+    branchOffered,
   })
 }
 

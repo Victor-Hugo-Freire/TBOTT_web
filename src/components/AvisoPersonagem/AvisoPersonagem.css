@@ -1,0 +1,97 @@
+/* Aviso de personagem liberado, no canto inferior direito, por cima do jogo e do aviso de fim da run */
+.aviso-personagem {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  max-width: min(22rem, calc(100vw - 2.5rem));
+  padding: 0.6rem 1.1rem 0.6rem 0.6rem;
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: rgba(29, 23, 19, 0.96);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-text-light);
+  pointer-events: none; /* só avisa: não pega o mouse nem o foco */
+  /* entra deslizando pela direita, fica e sai (a duração vem do componente: AVISO_PERSONAGEM_MS) */
+  animation-name: aviso-personagem;
+  animation-timing-function: ease;
+  animation-fill-mode: both;
+}
+
+/* O rosto: o topo da foto em pé, ampliado para mostrar só a cabeça */
+.aviso-personagem__rosto {
+  flex: none;
+  width: 4.5rem;
+  height: 4.5rem;
+  overflow: hidden;
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: rgba(16, 10, 8, 0.7);
+}
+
+.aviso-personagem__rosto img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 12%;
+  transform: scale(1.6);
+  transform-origin: 50% 18%;
+}
+
+.aviso-personagem__texto {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+/* Pixelify Sans só no peso 400 e a partir de 18 px: menor, os pixels se juntam */
+.aviso-personagem__titulo {
+  color: #e2b846;
+  font-size: 1.125rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.aviso-personagem__nome {
+  font-size: 1.4rem;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+@keyframes aviso-personagem {
+  0% {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+  8%,
+  92% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+}
+
+/* "Reduzir movimento": o aviso só aparece e some, sem deslizar */
+@media (prefers-reduced-motion: reduce) {
+  .aviso-personagem {
+    animation-name: aviso-personagem-sem-movimento;
+  }
+
+  @keyframes aviso-personagem-sem-movimento {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    8%,
+    92% {
+      opacity: 1;
+    }
+  }
+}

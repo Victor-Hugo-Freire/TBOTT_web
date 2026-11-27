@@ -1,27 +1,22 @@
-import { APPEARANCE_SPRITES } from '../../../data/appearanceSprites.js'
+import { APPEARANCE_SPRITES, getAppearancePath } from '../../../data/appearanceSprites.js'
 import { BOSS_SPRITES } from '../../../data/bossSprites.js'
-import { CHARACTER_SPRITES } from '../../../data/characterSprites.js'
+import { getCharacterSheets } from '../../../data/characterSprites.js'
 import { ENEMY_SPRITES } from '../../../data/enemySprites.js'
 import { getImage } from './images.js'
 
 // Cada folha tem o seu sprite (grade e pés) e a sua imagem. As chaves são as de getPlayerPose (pose.sheet),
 // mais "legs": as pernas ficam atrás do tronco, também durante o golpe. "death" é a morte (corpo inteiro).
-export function loadSheets() {
-  const sheets = {
-    legs: { sprite: CHARACTER_SPRITES.tungTungSahurPernas },
-    walk: { sprite: CHARACTER_SPRITES.tungTungSahurAndar },
-    attack: { sprite: CHARACTER_SPRITES.tungTungSahurAtaque },
-    hurt: { sprite: CHARACTER_SPRITES.tungTungSahurDano },
-    death: { sprite: CHARACTER_SPRITES.tungTungSahurMorte },
+// As folhas são as do personagem escolhido (getCharacterSheets).
+export function loadSheets(characterId) {
+  const sheets = {}
+  for (const [name, sprite] of Object.entries(getCharacterSheets(characterId))) {
+    sheets[name] = { sprite, image: new Image() }
+    sheets[name].image.src = sprite.src
   }
-  for (const sheet of Object.values(sheets)) {
-    sheet.image = new Image()
-    sheet.image.src = sheet.sprite.src
-  }
-  // Camadas dos itens no Tung (drawPlayer.js): pedidas já agora, para não sumirem na primeira vez que ele vira
+  // Camadas dos itens no personagem (drawPlayer.js): pedidas já agora, para não sumirem na primeira vez que ele vira
   for (const item of Object.values(APPEARANCE_SPRITES)) {
     for (const layer of Object.values(item.layers)) {
-      if (layer) getImage(layer.path)
+      if (layer) getImage(getAppearancePath(layer, item, characterId))
     }
   }
   // Camadas dos inimigos e dos chefes (@1x, pequenas): pedidas já agora, para não aparecerem sem desenho na primeira sala
