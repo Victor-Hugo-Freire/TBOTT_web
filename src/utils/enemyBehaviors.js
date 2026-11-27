@@ -70,6 +70,11 @@ export function isHitFrame(enemy) {
   return hitFrames.includes(getTimedFrame(durations, enemy.animationMs))
 }
 
+function emitMobCue(world, enemy, cue) {
+  world.mobEvents ??= []
+  world.mobEvents.push({ enemyId: enemy.enemyId, cue })
+}
+
 // Quanto tempo somam os quadros de acerto de uma animação
 function getHitWindowMs(enemy, animation) {
   const { durations, hitFrames = [] } = getEnemySprite(enemy.enemyId).animations[animation]
@@ -198,14 +203,22 @@ function updateFormaggino(enemy, world) {
   if (enemy.animation === 'atacando') {
     // O salto acontece só nos quadros de acerto, na direção guardada ao agachar, e cobre jumpDistance
     if (isHitFrame(enemy)) {
+      if (!enemy.biteCuePlayed) {
+        emitMobCue(world, enemy, 'mordida')
+        enemy = { ...enemy, biteCuePlayed: true }
+      }
       const speed = (FORMAGGINO.jumpDistance / getHitWindowMs(enemy, 'atacando')) * 1000
       enemy = moveEnemy(enemy, enemy.aim, speed, world)
     }
-    return isAnimationOver(enemy) ? rest(enemy, FORMAGGINO.restMs) : enemy
+    if (isAnimationOver(enemy)) {
+      emitMobCue(world, enemy, 'pouso')
+      return rest(enemy, FORMAGGINO.restMs)
+    }
+    return enemy
   }
   if (canReach(enemy, world, FORMAGGINO.attackRange)) {
     const to = getDirectionTo(enemy, world.player)
-    return { ...face(setAnimation(enemy, 'atacando'), to), aim: to }
+    return { ...face(setAnimation(enemy, 'atacando'), to), aim: to, biteCuePlayed: false }
   }
   return chase(setAnimation(enemy, 'andando'), world, enemy.speed)
 }
@@ -217,12 +230,14 @@ function updateCannolo(enemy, world) {
   if (enemy.animation === 'preparando') {
     // Raspa o pé virado para o Tung; no fim, investe para onde ele está
     if (!isAnimationOver(enemy)) return face(enemy, to)
+    emitMobCue(world, enemy, 'investida')
     return { ...setAnimation(enemy, 'atacando'), aim: to }
   }
   if (enemy.animation === 'atacando') {
     const moved = moveEnemy(enemy, enemy.aim, CANNOLO.chargeSpeed, world)
     if (moved.blocked) {
       // Bateu numa parede ou num obstáculo: o impacto e as estrelas de atordoado em cima da cabeça
+      emitMobCue(world, moved, 'impacto')
       world.flashes.push(createEnemyFlash('impacto', moved.x + moved.aim.x * 30, moved.y - 40))
       world.flashes.push(createEnemyFlash('estrela-atordoado', moved.x, moved.y - moved.height, CANNOLO.stunnedMs))
       return setAnimation(moved, 'atordoado')
@@ -246,10 +261,15 @@ function updatePolpetta(enemy, world) {
     if (to.distance > POLPETTA.emergeRange && enemy.animationMs < POLPETTA.hiddenMs) return chase(enemy, world, enemy.speed)
     return { ...setAnimation(enemy, 'emergindo'), hidden: false }
   }
-  if (enemy.animation === 'emergindo') return isAnimationOver(enemy) ? setAnimation(enemy, 'atacando') : enemy
+  if (enemy.animation === 'emergindo') {
+    if (!isAnimationOver(enemy)) return enemy
+    emitMobCue(world, enemy, 'mordida')
+    return setAnimation(enemy, 'atacando')
+  }
   if (enemy.animation === 'atacando') return isAnimationOver(enemy) ? rest(enemy, POLPETTA.surfacedMs) : enemy
   if (enemy.animation === 'afundando') return isAnimationOver(enemy) ? { ...setAnimation(enemy, 'escondida'), hidden: true } : enemy
   // Parada na superfície (no começo da sala ou depois de morder): afunda
+  emitMobCue(world, enemy, 'afundar')
   return setAnimation(enemy, 'afundando')
 }
 
@@ -257,6 +277,7 @@ function updatePolpetta(enemy, world) {
 
 // A explosão: o efeito (do tamanho da área do dano) e, se o Tung estiver perto, o dano dele (uma vez só)
 function blast(enemy, world) {
+  emitMobCue(world, enemy, 'explosao')
   world.flashes.push({ ...createEnemyFlash('explosao', enemy.x, enemy.y - enemy.height / 2), scale: PEPERONCINO.blastScale })
   if (getDirectionTo(enemy, world.player).distance <= PEPERONCINO.blastRadius) {
     world.hits.push({ damage: enemy.damage, cause: enemy.enemyId })
@@ -300,6 +321,7 @@ function updatePinguino(enemy, world) {
   if (enemy.animation === 'atacando') {
     // Toma impulso e se joga de barriga (o aviso); depois desliza para onde o Tung estava
     if (!isAnimationOver(enemy)) return enemy
+    emitMobCue(world, enemy, 'deslize')
     return { ...setAnimation(enemy, 'deslizando'), trailFrom: { x: enemy.x, y: enemy.y } }
   }
   if (enemy.animation === 'deslizando') {
@@ -307,9 +329,17 @@ function updatePinguino(enemy, world) {
     // Um pedaço de rastro a cada trailSpacing deslizados
     if (Math.hypot(moved.x - moved.trailFrom.x, moved.y - moved.trailFrom.y) >= PINGUINO.trailSpacing) {
       world.floor.push(createIceTrail(moved.x, moved.y))
+      emitMobCue(world, moved, 'gelo')
       moved = { ...moved, trailFrom: { x: moved.x, y: moved.y } }
     }
-    if (moved.blocked || moved.animationMs >= PINGUINO.maxSlideMs) return rest(moved, PINGUINO.restMs)
+    if (moved.blocked) {
+      emitMobCue(world, moved, 'impacto')
+      return rest(moved, PINGUINO.restMs)
+    }
+    if (moved.animationMs >= PINGUINO.maxSlideMs) {
+      emitMobCue(world, moved, 'pouso')
+      return rest(moved, PINGUINO.restMs)
+    }
     return moved
   }
   if (canReach(enemy, world, PINGUINO.slideRange)) {
@@ -325,6 +355,7 @@ function updatePistacchio(enemy, world) {
   if (enemy.animation === 'atacando') {
     // O caroço sai no quadro do emits, mirando onde o Tung está agora
     if (reachedEmitFrame(enemy)) {
+      emitMobCue(world, enemy, 'lancamento')
       world.shots.push(createSeed(enemy, world.player))
       enemy = { ...enemy, emitted: true }
     }
@@ -344,6 +375,7 @@ function updateFenicottero(enemy, world) {
   if (enemy.animation === 'atacando') {
     // A boca do forno acende (o aviso) e a pizza sai no quadro do emits, para onde o Tung está agora
     if (reachedEmitFrame(enemy)) {
+      emitMobCue(world, enemy, 'lancamento')
       world.shots.push(createPizza(enemy, world.player))
       enemy = { ...enemy, emitted: true }
     }
@@ -375,6 +407,7 @@ function updateMoka(enemy, world) {
   if (enemy.animation === 'escudo') {
     // O vapor chega no aliado no quadro do emits (updateEnemies põe o escudo nele)
     if (reachedEmitFrame(enemy)) {
+      emitMobCue(world, enemy, 'escudo')
       world.shields.push(enemy.allyId)
       enemy = { ...enemy, emitted: true }
     }
@@ -383,6 +416,7 @@ function updateMoka(enemy, world) {
   if (enemy.animation === 'atacando') {
     // A tampa pula e o anel de vapor sai no quadro do emits
     if (reachedEmitFrame(enemy)) {
+      emitMobCue(world, enemy, 'anel')
       world.shots.push(createSteamRing(enemy))
       enemy = { ...enemy, emitted: true }
     }
@@ -423,25 +457,35 @@ function updateVespina(enemy, world) {
     // Acelera parada, virada para o Tung (o aviso). A fumaça sai do escapamento, atrás dela, e fica na sala.
     enemy = face(enemy, to)
     if (reachedEmitFrame(enemy)) {
+      emitMobCue(world, enemy, 'motor')
       const smoke = createEnemyFlash('fumaca', enemy.x - to.x * 50, enemy.y - 30)
       world.flashes.push({ ...smoke, scale: SMOKE_SCALE, durationMs: VESPINA.smokeMs, hold: true })
       enemy = { ...enemy, emitted: true }
     }
     if (!isAnimationOver(enemy)) return enemy
+    emitMobCue(world, enemy, 'mergulho')
     return { ...setAnimation(enemy, 'atacando'), aim: to, divesLeft: VESPINA.dives }
   }
   if (enemy.animation === 'atacando') {
     // O mergulho com a ferroada: rápido, virando pouco. Bateu em alguma coisa, para.
     const moved = steer(enemy, world, VESPINA.diveSpeed, VESPINA.diveTurn)
-    if (moved.blocked) return rest(moved, VESPINA.restMs)
+    if (moved.blocked) {
+      emitMobCue(world, moved, 'impacto')
+      return rest(moved, VESPINA.restMs)
+    }
     if (!isAnimationOver(moved)) return moved
-    if (moved.divesLeft > 1) return { ...setAnimation(moved, 'curva'), divesLeft: moved.divesLeft - 1 }
+    if (moved.divesLeft > 1) {
+      emitMobCue(world, moved, 'curva')
+      return { ...setAnimation(moved, 'curva'), divesLeft: moved.divesLeft - 1 }
+    }
     return rest(moved, VESPINA.restMs)
   }
   if (enemy.animation === 'curva') {
     // A curva fechada: mais devagar e virando muito; no fim, mergulha de novo
     const moved = steer(enemy, world, VESPINA.curveSpeed, VESPINA.curveTurn)
-    return isAnimationOver(moved) ? setAnimation(moved, 'atacando') : moved
+    if (!isAnimationOver(moved)) return moved
+    emitMobCue(world, moved, 'mergulho')
+    return setAnimation(moved, 'atacando')
   }
   if (canReach(enemy, world, VESPINA.attackRange)) return face(setAnimation(enemy, 'acelerando'), to)
   return chase(setAnimation(enemy, 'andando'), world, enemy.speed)
@@ -453,13 +497,19 @@ function updateZanzarina(enemy, world) {
   if (enemy.animation === 'atacando') {
     // O mergulho acontece só nos quadros de acerto, na direção guardada, e cobre diveDistance (como o salto do Formaggino)
     if (isHitFrame(enemy)) {
+      if (!enemy.diveCuePlayed) {
+        emitMobCue(world, enemy, 'mergulho')
+        enemy = { ...enemy, diveCuePlayed: true }
+      }
       const speed = (ZANZARINA.diveDistance / getHitWindowMs(enemy, 'atacando')) * 1000
       enemy = moveEnemy(enemy, enemy.aim, speed, world)
     }
     return isAnimationOver(enemy) ? rest(enemy, ZANZARINA.restMs) : enemy
   }
   const to = getDirectionTo(enemy, world.player)
-  if (to.distance <= ZANZARINA.diveRange) return { ...face(setAnimation(enemy, 'atacando'), to), aim: to }
+  if (to.distance <= ZANZARINA.diveRange) {
+    return { ...face(setAnimation(enemy, 'atacando'), to), aim: to, diveCuePlayed: false }
+  }
   // A dança: voa direto para o Tung (por cima dos obstáculos), balançando para os lados
   enemy = setAnimation(enemy, 'andando')
   const sway = Math.sin((enemy.animationMs / ZANZARINA.swayMs) * 2 * Math.PI) * ZANZARINA.sway

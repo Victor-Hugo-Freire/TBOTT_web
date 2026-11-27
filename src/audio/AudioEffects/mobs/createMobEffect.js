@@ -1,13 +1,16 @@
 import { createMobAudioSource } from './createMobAudioSource.js'
 import { MOB_SOUND_PROFILES } from './profileRegistry.js'
 
+const PROFILE_EVENTS = new Set(['aviso', 'dano', 'morte', 'ataque'])
+
 export function createMobEffect(name, recipe, options) {
-  const identity = /^mob-(.+)-(aviso|dano|morte|ataque)$/.exec(name)
+  const identity = /^mob-(.+)-(aviso|dano|morte|ataque|investida|impacto|lancamento|voo|pouso|mordida|escudo|anel|explosao|deslize|gelo|afundar|motor|mergulho|curva)$/.exec(name)
   if (!identity) throw new TypeError(`Nome de efeito de mob inválido: "${name}".`)
 
   const [, enemyId, event] = identity
   const profile = MOB_SOUND_PROFILES[enemyId]
   if (!profile) throw new TypeError(`Perfil sonoro de mob não encontrado: "${enemyId}".`)
+  const profileEvent = PROFILE_EVENTS.has(event) ? event : 'ataque'
 
   const organicRecipe = {
     ...recipe,
@@ -18,7 +21,7 @@ export function createMobEffect(name, recipe, options) {
 
   return {
     name,
-    createSource: (context) => createMobAudioSource(context, organicRecipe, profile, event),
+    createSource: (context) => createMobAudioSource(context, organicRecipe, profile, profileEvent),
     options,
   }
 }

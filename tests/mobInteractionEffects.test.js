@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
+  MOB_ATTACK_SOUND_CUES,
   captureMobAudioState,
   getMobInteractionSounds,
 } from '../src/audio/AudioEffects/mobs/mobInteractionEffects.js'
@@ -76,8 +77,12 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     }
 
     registerMobEffects(manager)
-    assert.equal(MOB_EFFECTS.length, MOB_IDS.length * 4)
-    assert.equal(registered.size, MOB_IDS.length * 4)
+    const expectedEffectNames = MOB_IDS.flatMap((id) => [
+      ...['aviso', 'dano', 'morte', 'ataque'].map((event) => `mob-${id}-${event}`),
+      ...MOB_ATTACK_SOUND_CUES[id].map((cue) => `mob-${id}-${cue}`),
+    ])
+    assert.equal(MOB_EFFECTS.length, expectedEffectNames.length)
+    assert.equal(registered.size, expectedEffectNames.length)
     assert.equal(new Set(MOB_EFFECTS.map(({ name }) => name)).size, MOB_EFFECTS.length)
     assert.deepEqual(Object.keys(MOB_SOUND_PROFILES).sort(), [...MOB_IDS].sort())
     assert.equal(
@@ -90,6 +95,9 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     for (const id of MOB_IDS) {
       for (const event of ['aviso', 'dano', 'morte', 'ataque']) {
         assert.ok(registered.has(`mob-${id}-${event}`))
+      }
+      for (const cue of MOB_ATTACK_SOUND_CUES[id]) {
+        assert.ok(registered.has(`mob-${id}-${cue}`))
       }
     }
 
@@ -177,5 +185,24 @@ describe('efeitos sonoros dos inimigos comuns', () => {
       player: { lastDamageEvent: { sequence: 3, cause: 'cannolo-carica' } },
     })
     assert.deepEqual(getMobInteractionSounds(hit, nextHit), ['mob-cannolo-carica-ataque'])
+  })
+
+  test('toca eventos de fase uma vez e ignora eventos de mobs não registrados', () => {
+    const previous = captureMobAudioState({ targets: [], mobEvents: [], mobEventSequence: 4 })
+    const next = captureMobAudioState({
+      targets: [],
+      mobEvents: [
+        { enemyId: 'fenicottero-fornarino', cue: 'voo', sequence: 5 },
+        { enemyId: 'pinguino-sorbettino', cue: 'gelo', sequence: 6 },
+        { enemyId: 'cannolo-carica', cue: 'som-desconhecido', sequence: 7 },
+      ],
+      mobEventSequence: 7,
+    })
+
+    assert.deepEqual(getMobInteractionSounds(previous, next), [
+      'mob-fenicottero-fornarino-voo',
+      'mob-pinguino-sorbettino-gelo',
+    ])
+    assert.deepEqual(getMobInteractionSounds(next, next), [])
   })
 })

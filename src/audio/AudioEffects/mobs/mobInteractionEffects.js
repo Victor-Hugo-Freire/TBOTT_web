@@ -11,12 +11,27 @@ export const MOB_ATTACK_CUE_ANIMATIONS = {
   'zanzarina-tarantella': ['atacando'],
 }
 
+export const MOB_ATTACK_SOUND_CUES = {
+  'cannolo-carica': ['investida', 'impacto'],
+  'fenicottero-fornarino': ['lancamento', 'voo', 'pouso'],
+  'formaggino-saltellino': ['mordida', 'pouso'],
+  'moka-scudiera': ['escudo', 'anel'],
+  'peperoncino-kamikaze': ['explosao'],
+  'pinguino-sorbettino': ['deslize', 'gelo', 'impacto', 'pouso'],
+  'pistacchio-sputacchio': ['lancamento', 'impacto'],
+  'polpetta-sotterranea': ['mordida', 'afundar'],
+  'vespina-lambrettina': ['motor', 'mergulho', 'curva', 'impacto'],
+  'zanzarina-tarantella': ['mergulho'],
+}
+
 export function captureMobAudioState(run) {
   return {
     targets: (run.targets ?? [])
       .filter((target) => MOB_ATTACK_CUE_ANIMATIONS[target.enemyId] && !target.boss && !target.clone)
       .map(({ id, enemyId, animation, health, dead }) => ({ id, enemyId, animation, health, dead })),
     playerHit: run.player?.lastDamageEvent ?? null,
+    mobEvents: run.mobEvents ?? [],
+    mobEventSequence: run.mobEventSequence ?? 0,
   }
 }
 
@@ -42,6 +57,12 @@ export function getMobInteractionSounds(previous, next) {
   if (next.playerHit?.sequence !== previous.playerHit?.sequence &&
     MOB_ATTACK_CUE_ANIMATIONS[next.playerHit?.cause]) {
     sounds.push(`mob-${next.playerHit.cause}-ataque`)
+  }
+
+  for (const event of next.mobEvents) {
+    if (event.sequence <= previous.mobEventSequence) continue
+    if (!MOB_ATTACK_SOUND_CUES[event.enemyId]?.includes(event.cue)) continue
+    sounds.push(`mob-${event.enemyId}-${event.cue}`)
   }
 
   return [...new Set(sounds)]

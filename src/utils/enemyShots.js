@@ -35,6 +35,11 @@ const ROOT_BOX = { width: 60, height: 36 }
 
 const EXPLOSION_MS = getTotalDuration(EFFECT_SPRITES.explosao.animations.explosao.durations) // a explosão da bomba
 
+function emitMobCue(world, enemyId, cue) {
+  world.mobEvents ??= []
+  world.mobEvents.push({ enemyId, cue })
+}
+
 // Caixa de tamanho `size` com o meio em (x, y)
 function boxAround(x, y, size) {
   return { x: x - size.width / 2, y: y - size.height / 2, width: size.width, height: size.height }
@@ -59,6 +64,7 @@ export function createPizza(enemy, target) {
     y: enemy.y,
     height: PIZZA_START_HEIGHT,
     ageMs: 0,
+    flightCuePlayed: false,
     damage: enemy.damage,
     cause: enemy.enemyId,
   }
@@ -148,7 +154,10 @@ function updateSeed(seed, world, feet) {
     world.hits.push({ damage: seed.damage, cause: seed.cause })
     return null
   }
-  if (world.solids.some((solid) => overlaps(box, solid))) return null
+  if (world.solids.some((solid) => overlaps(box, solid))) {
+    emitMobCue(world, seed.cause, 'impacto')
+    return null
+  }
   return { ...seed, x, y, ageMs: seed.ageMs + world.deltaSeconds * 1000 }
 }
 
@@ -247,15 +256,18 @@ function updatePizza(pizza, world, feet) {
   const ageMs = pizza.ageMs + world.deltaSeconds * 1000
   const t = Math.min(1, ageMs / FENICOTTERO.flightMs) // 0 = saiu do forno, 1 = caiu
   if (t === 1) {
+    if (!pizza.flightCuePlayed) emitMobCue(world, pizza.cause, 'voo')
+    emitMobCue(world, pizza.cause, 'pouso')
     if (overlaps(boxAround(pizza.to.x, pizza.to.y, CHEESE_BOX), feet)) world.hits.push({ damage: pizza.damage, cause: pizza.cause })
     world.floor.push(createHotCheese(pizza.to.x, pizza.to.y))
     return null
   }
+  if (!pizza.flightCuePlayed && t >= 0.5) emitMobCue(world, pizza.cause, 'voo')
   const x = pizza.from.x + (pizza.to.x - pizza.from.x) * t
   const y = pizza.from.y + (pizza.to.y - pizza.from.y) * t
   // Sai da boca do forno, sobe até arcHeight no meio do caminho e desce até o chão
   const height = PIZZA_START_HEIGHT * (1 - t) + 4 * FENICOTTERO.arcHeight * t * (1 - t)
-  return { ...pizza, x, y, height, ageMs }
+  return { ...pizza, x, y, height, ageMs, flightCuePlayed: pizza.flightCuePlayed || t >= 0.5 }
 }
 
 // O anel cresce até MOKA.ringRadius. Quando a borda chega nos pés do Tung, acerta (uma vez só).
@@ -276,6 +288,7 @@ function updateRing(ring, world) {
 // Um quadro dos projéteis. world = { player, solids, deltaSeconds, hits, floor } (o mesmo dos inimigos).
 // Devolve os que continuam voando.
 export function updateEnemyShots(shots, world) {
+  world.mobEvents ??= []
   const feet = getFeetBox(world.player)
   const next = []
   for (const shot of shots) {
