@@ -23,4 +23,9 @@ export default {
     partials: [{ ratio: 1, level: 0.68, decay: 4 }, { ratio: 1.52, level: 0.27, decay: 7 }],
     noise: { start: 0.18, length: 0.7, gain: 0.48, cutoff: 1200, decay: 13 },
   },
+  ataque: {
+    ratio: 0.54, length: 0.42, gain: 0.48, bend: -0.5,
+    partials: [{ ratio: 1, level: 0.72, decay: 14 }, { ratio: 2.4, level: 0.24, decay: 22 }],
+    noise: { start: 0, length: 0.56, gain: 0.62, cutoff: 1800, decay: 24 },
+  },
 }

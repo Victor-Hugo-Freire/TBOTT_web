@@ -180,9 +180,16 @@ function damagePlayer(run, player, health, effects, amount, cause, stats) {
 
   const nextHealth = applyDamage(health, amount)
   const hurtEffects = onPlayerHurt(run, effects)
-  if (nextHealth === 0) return { player: killPlayer(hurt), health: 0, death: { cause }, effects: hurtEffects, lostHealth: true }
+  const damagedPlayer = {
+    ...hurt,
+    lastDamageEvent: {
+      sequence: (player.lastDamageEvent?.sequence ?? 0) + 1,
+      cause,
+    },
+  }
+  if (nextHealth === 0) return { player: killPlayer(damagedPlayer), health: 0, death: { cause }, effects: hurtEffects, lostHealth: true }
   const healed = applyMotherHeal(run, nextHealth, stats.maxHealth, hurtEffects)
-  return { player: hurt, health: healed.health, death: null, effects: healed.effects, lostHealth: true }
+  return { player: damagedPlayer, health: healed.health, death: null, effects: healed.effects, lostHealth: true }
 }
 
 // Chifre da Sorte: cada abate do quadro (killed, os alvos que acabaram de morrer) tem extraCoinChance de soltar

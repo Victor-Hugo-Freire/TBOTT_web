@@ -64,7 +64,7 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     assert.ok(Math.max(...samples.slice(0, drySamples - 1000).map(Math.abs)) > 0.1)
   })
 
-  test('registra efeitos distintos de aviso, dano e morte para cada inimigo', () => {
+  test('registra efeitos distintos de aviso, dano, morte e ataque para cada inimigo', () => {
     const registered = new Map()
     const manager = {
       registerEffect(name, createSource, options) {
@@ -76,8 +76,8 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     }
 
     registerMobEffects(manager)
-    assert.equal(MOB_EFFECTS.length, MOB_IDS.length * 3)
-    assert.equal(registered.size, MOB_IDS.length * 3)
+    assert.equal(MOB_EFFECTS.length, MOB_IDS.length * 4)
+    assert.equal(registered.size, MOB_IDS.length * 4)
     assert.equal(new Set(MOB_EFFECTS.map(({ name }) => name)).size, MOB_EFFECTS.length)
     assert.deepEqual(Object.keys(MOB_SOUND_PROFILES).sort(), [...MOB_IDS].sort())
     assert.equal(
@@ -88,7 +88,7 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     )
 
     for (const id of MOB_IDS) {
-      for (const event of ['aviso', 'dano', 'morte']) {
+      for (const event of ['aviso', 'dano', 'morte', 'ataque']) {
         assert.ok(registered.has(`mob-${id}-${event}`))
       }
     }
@@ -157,5 +157,25 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     })
 
     assert.deepEqual(getMobInteractionSounds(previous, next), ['mob-cannolo-carica-dano'])
+  })
+
+  test('toca o ataque somente quando um mob causa dano real ao jogador', () => {
+    const previous = captureMobAudioState({
+      targets: [target()],
+      player: { lastDamageEvent: { sequence: 1, cause: 'chapa' } },
+    })
+    const hit = captureMobAudioState({
+      targets: [target()],
+      player: { lastDamageEvent: { sequence: 2, cause: 'cannolo-carica' } },
+    })
+
+    assert.deepEqual(getMobInteractionSounds(previous, hit), ['mob-cannolo-carica-ataque'])
+    assert.deepEqual(getMobInteractionSounds(hit, hit), [])
+
+    const nextHit = captureMobAudioState({
+      targets: [target()],
+      player: { lastDamageEvent: { sequence: 3, cause: 'cannolo-carica' } },
+    })
+    assert.deepEqual(getMobInteractionSounds(hit, nextHit), ['mob-cannolo-carica-ataque'])
   })
 })

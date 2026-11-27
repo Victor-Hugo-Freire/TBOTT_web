@@ -12,16 +12,19 @@ export const MOB_ATTACK_CUE_ANIMATIONS = {
 }
 
 export function captureMobAudioState(run) {
-  return (run.targets ?? [])
-    .filter((target) => MOB_ATTACK_CUE_ANIMATIONS[target.enemyId] && !target.boss && !target.clone)
-    .map(({ id, enemyId, animation, health, dead }) => ({ id, enemyId, animation, health, dead }))
+  return {
+    targets: (run.targets ?? [])
+      .filter((target) => MOB_ATTACK_CUE_ANIMATIONS[target.enemyId] && !target.boss && !target.clone)
+      .map(({ id, enemyId, animation, health, dead }) => ({ id, enemyId, animation, health, dead })),
+    playerHit: run.player?.lastDamageEvent ?? null,
+  }
 }
 
 export function getMobInteractionSounds(previous, next) {
-  const previousTargets = new Map(previous.map((target) => [target.id, target]))
+  const previousTargets = new Map(previous.targets.map((target) => [target.id, target]))
   const sounds = []
 
-  for (const target of next) {
+  for (const target of next.targets) {
     const before = previousTargets.get(target.id)
     if (!before || before.enemyId !== target.enemyId || before.dead) continue
 
@@ -34,6 +37,11 @@ export function getMobInteractionSounds(previous, next) {
       MOB_ATTACK_CUE_ANIMATIONS[target.enemyId]?.includes(target.animation)) {
       sounds.push(`mob-${target.enemyId}-aviso`)
     }
+  }
+
+  if (next.playerHit?.sequence !== previous.playerHit?.sequence &&
+    MOB_ATTACK_CUE_ANIMATIONS[next.playerHit?.cause]) {
+    sounds.push(`mob-${next.playerHit.cause}-ataque`)
   }
 
   return [...new Set(sounds)]

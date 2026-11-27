@@ -252,6 +252,7 @@ describe('inimigos na run', () => {
     run = updateRun(run, IDLE, STEP)
     assert.equal(run.health, 6 - enemy.damage)
     assert.ok(run.player.hurt)
+    assert.deepEqual(run.player.lastDamageEvent, { sequence: 1, cause: enemy.enemyId })
 
     run = runInCommonRoom({ health: 1 })
     run.player = createPlayer({ x: run.targets[0].x, y: run.targets[0].y })

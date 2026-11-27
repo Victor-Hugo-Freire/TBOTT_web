@@ -2,7 +2,7 @@ import { createMobAudioSource } from './createMobAudioSource.js'
 import { MOB_SOUND_PROFILES } from './profileRegistry.js'
 
 export function createMobEffect(name, recipe, options) {
-  const identity = /^mob-(.+)-(aviso|dano|morte)$/.exec(name)
+  const identity = /^mob-(.+)-(aviso|dano|morte|ataque)$/.exec(name)
   if (!identity) throw new TypeError(`Nome de efeito de mob inválido: "${name}".`)
 
   const [, enemyId, event] = identity
