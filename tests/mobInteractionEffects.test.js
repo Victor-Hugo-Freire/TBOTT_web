@@ -9,6 +9,7 @@ import {
   registerMobEffects,
   unregisterMobEffects,
 } from '../src/audio/AudioEffects/mobs/index.js'
+import { MOB_SOUND_PROFILES } from '../src/audio/AudioEffects/mobs/profileRegistry.js'
 import { createProceduralAudioSource } from '../src/audio/AudioEffects/createProceduralAudioSource.js'
 
 const MOB_IDS = [
@@ -78,6 +79,13 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     assert.equal(MOB_EFFECTS.length, MOB_IDS.length * 3)
     assert.equal(registered.size, MOB_IDS.length * 3)
     assert.equal(new Set(MOB_EFFECTS.map(({ name }) => name)).size, MOB_EFFECTS.length)
+    assert.deepEqual(Object.keys(MOB_SOUND_PROFILES).sort(), [...MOB_IDS].sort())
+    assert.equal(
+      new Set(Object.values(MOB_SOUND_PROFILES).map(({ partials }) =>
+        partials.map(({ ratio }) => ratio).join(','))).size,
+      MOB_IDS.length,
+      'cada mob deve ter uma assinatura harmônica própria',
+    )
 
     for (const id of MOB_IDS) {
       for (const event of ['aviso', 'dano', 'morte']) {
@@ -96,6 +104,10 @@ describe('efeitos sonoros dos inimigos comuns', () => {
     const lengths = MOB_EFFECTS.map(({ name }) => {
       const source = registered.get(name).createSource(context)
       assert.ok(source.buffer.length > 0, `${name} deve criar áudio`)
+      assert.ok(
+        source.buffer.getChannelData(0).some((sample) => Math.abs(sample) > 0.0001),
+        `${name} não deve gerar silêncio`,
+      )
       return source.buffer.length
     })
     assert.equal(new Set(lengths).size, MOB_EFFECTS.length)
