@@ -411,6 +411,7 @@ export default function SalaInicial() {
         enemyCatalog,
         bossCatalog,
         pactRoomType: progress.pactRoomType,
+        branchOffered: progress.branchOffered,
         items: progress.items,
         floorHealsUsed: progress.floorHealsUsed,
       })

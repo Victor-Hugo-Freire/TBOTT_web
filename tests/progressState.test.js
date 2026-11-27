@@ -30,6 +30,7 @@ describe('normalizeProgressPayload', () => {
       items: [],
       floorHealsUsed: 0,
       pactRoomType: null,
+      branchOffered: [],
     })
   })
 
@@ -143,6 +144,7 @@ describe('normalizeProgressPayload com dados estranhos', () => {
         items: [],
         floorHealsUsed: 0,
         pactRoomType: null,
+        branchOffered: [],
       })
     }
   })
@@ -175,6 +177,7 @@ describe('createProgressSnapshot', () => {
       items: [],
       floorHealsUsed: 0,
       pactRoomType: null,
+      branchOffered: [],
     })
   })
 

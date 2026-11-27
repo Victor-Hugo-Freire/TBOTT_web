@@ -9,13 +9,13 @@ import { createRoomBoss } from '../src/utils/enemies.js'
 import { generateFloor, getPactRoomType, LAST_FLOOR, setPactRoomType } from '../src/utils/floorGenerator.js'
 import { getDeathCauseLabel } from '../src/utils/health.js'
 import { buildBossCatalog } from '../src/utils/itemCatalog.js'
-import { getRoomPedestals } from '../src/utils/pedestals.js'
+import { getBranchItems, getRoomPedestals } from '../src/utils/pedestals.js'
 import { createPlayer, getAttackHitbox } from '../src/utils/player.js'
 import { normalizeProgressPayload } from '../src/utils/progress.js'
 import { getCellPoint, getLayout, getLayoutPoints } from '../src/utils/roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS } from '../src/utils/roomMovement.js'
 import { overlaps } from '../src/utils/collision.js'
-import { createRun, createRunSnapshot, DRUM_AFTER_BOSS_MS, getCurrentRoom, getDrumBox, isDrumVisible, updateRun } from '../src/utils/run.js'
+import { createRun, createRunSnapshot, DRUM_AFTER_BOSS_MS, getCurrentRoom, getDrumBox, hasPactItem, isDrumVisible, updateRun } from '../src/utils/run.js'
 import { damageTarget, stunTarget } from '../src/utils/targets.js'
 import { TEST_BOSSES, TEST_CATALOG, TEST_ENEMIES } from './helpers/testCatalog.js'
 
@@ -100,6 +100,7 @@ function continueRun(run, change = (saved) => saved) {
     enemyCatalog: TEST_ENEMIES,
     bossCatalog: TEST_BOSSES,
     pactRoomType: saved.pactRoomType,
+    branchOffered: saved.branchOffered,
   })
 }
 
@@ -319,6 +320,40 @@ describe('Pacto ou Tung Tung God depois do chefe', () => {
     assert.equal(getPactRoomType(run.floor), 'god')
   })
 
+  test('depois de pegar um item do Pacto, vencer sem perder vida ainda dá o Pacto: a sala do God não aparece mais', () => {
+    const noItem = killBoss(bossRun(PACT_SEED, 2))
+    assert.equal(getPactRoomType(noItem.floor), 'god', 'sem o item do Pacto, vencer sem dano dá o God')
+    const withPactItem = killBoss(bossRun(PACT_SEED, 2, { items: ['dente-de-tubarao'] }))
+    assert.equal(withPactItem.hurtInRoom, false, 'ele não perdeu vida')
+    assert.equal(getPactRoomType(withPactItem.floor), 'pacto')
+    assert.ok(withPactItem.floor.rooms.every((room) => room.type !== 'god'), 'nenhuma sala do God no andar')
+    assert.equal(getLayout(withPactItem.floor.rooms.find((room) => room.type === 'pacto').layoutId).type, 'pacto')
+  })
+
+  test('vale em qualquer andar com a sala do Pacto/God (2 a 4) e também quando a geração tinha posto o God', () => {
+    for (const floorNumber of [2, 3, 4]) {
+      const seed = findSeed(floorNumber, (room) => room.type === 'god')
+      const run = killBoss(bossRun(seed, floorNumber, { items: ['dente-de-tubarao'] }))
+      assert.equal(getPactRoomType(run.floor), 'pacto', `andar ${floorNumber}`)
+    }
+  })
+
+  test('item de outro tipo de sala (ou o do God) não fecha o God: só o do Pacto', () => {
+    for (const itemId of ['caldo-da-mamae', 'cafe-duplo', 'rolo-de-bronze']) {
+      const run = killBoss(bossRun(PACT_SEED, 2, { items: [itemId] }))
+      assert.equal(getPactRoomType(run.floor), 'god', itemId)
+    }
+  })
+
+  test('hasPactItem: lê o campo roomTypes do catálogo; sem catálogo ou com item desconhecido, não tem', () => {
+    assert.equal(hasPactItem({ items: ['dente-de-tubarao'], catalog: TEST_CATALOG }), true)
+    assert.equal(hasPactItem({ items: ['cafe-duplo', 'dente-de-tubarao'], catalog: TEST_CATALOG }), true)
+    assert.equal(hasPactItem({ items: ['cafe-duplo'], catalog: TEST_CATALOG }), false)
+    assert.equal(hasPactItem({ items: [], catalog: TEST_CATALOG }), false)
+    assert.equal(hasPactItem({ items: ['dente-de-tubarao'], catalog: {} }), false)
+    assert.equal(hasPactItem({ items: ['item-que-nao-existe'], catalog: TEST_CATALOG }), false)
+  })
+
   test('a troca muda só a sala do Pacto/God: o resto do andar fica igual', () => {
     const floor = generateFloor(PACT_SEED, 2)
     const before = JSON.parse(JSON.stringify(floor.rooms))
@@ -361,6 +396,13 @@ describe('progresso salvo com o chefe', () => {
     const again = continueRun(run)
     assert.equal(getPactRoomType(again.floor), 'god')
     assert.equal(getBoss(again), undefined, 'o chefe vencido não volta')
+  })
+
+  test('o item do Pacto vem no save (items): ao continuar num andar seguinte, o God continua fechado', () => {
+    // o Dente está nos itens do save; depois de salvar e continuar, vencer o chefe sem perder vida dá o Pacto
+    const saved = continueRun(bossRun(PACT_SEED, 2, { items: ['dente-de-tubarao'] }))
+    assert.deepEqual(saved.items, ['dente-de-tubarao'])
+    assert.equal(getPactRoomType(killBoss(saved).floor), 'pacto')
   })
 
   test('save antigo, sem o campo: vale a sala da geração do andar', () => {
@@ -430,5 +472,99 @@ describe('o tambor fica fora da luta', () => {
     }
     assert.ok(activeFrames > 0, 'o golpe passou pelo lugar do tambor')
     assert.equal(getCurrentRoom(run).hits, 0)
+  })
+})
+
+describe('itens da sala do Pacto/God (só o tipo final, uma sala só da run)', () => {
+  // Bate no tambor 3 vezes (a luta já acabou): o andar acaba e a run vai para o seguinte
+  function finishFloor(run) {
+    run = waitDrum(run)
+    while (run.drumDrop) run = updateRun(run, IDLE, STEP)
+    const drum = getDrumBox()
+    for (let hit = 0; hit < 3; hit++) {
+      run.player = createPlayer({ x: drum.x + drum.width / 2, y: drum.y + drum.height + 45 })
+      run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+      while (run.player.attack && !run.transition) run = updateRun(run, IDLE, STEP)
+    }
+    while (run.transition) run = updateRun(run, IDLE, STEP)
+    return run
+  }
+  const itemsOf = (run) => getRoomPedestals(run, run.floor.rooms.find((room) => ['pacto', 'god'].includes(room.type))).map((pedestal) => pedestal.itemId)
+  // Seed em que o andar 2 sorteou o God e o andar 3 também tem a sala (a geração do 3 nem importa: o tipo final vem da luta)
+  const SEED = findSeed(2, (room) => room.type === 'god')
+  const ROOM_GOD_LAYOUT = 'god'
+
+  test('a geração do andar não dá item à sala do Pacto/God: ele depende de como a luta termina', () => {
+    const run = bossRun(SEED, 2)
+    const room = run.floor.rooms.find((item) => ['pacto', 'god'].includes(item.type))
+    assert.equal(run.pedestalItems[`2:${room.id}`], undefined)
+  })
+
+  test('vencendo sem perder vida a sala é a do God e mostra o item do God; perdendo vida, a do Pacto e o do Pacto', () => {
+    const won = killBoss(bossRun(SEED, 2))
+    assert.deepEqual(itemsOf(won), ['caldo-da-mamae'])
+    const hurt = killBoss(touchBoss(bossRun(SEED, 2)))
+    assert.deepEqual(itemsOf(hurt), ['dente-de-tubarao'])
+  })
+
+  test('sempre do tipo final, nas duas trocas possíveis (geração do God virando Pacto e a do Pacto virando God)', () => {
+    for (const generated of ['pacto', 'god']) {
+      const seed = findSeed(2, (room) => room.type === generated)
+      const won = killBoss(bossRun(seed, 2))
+      assert.deepEqual(getBranchItems(won, getCurrentBranchRoom(won)), ['caldo-da-mamae'], `gerada ${generated}, vencida sem dano`)
+      const pact = killBoss(touchBoss(bossRun(seed, 2)))
+      assert.deepEqual(getBranchItems(pact, getCurrentBranchRoom(pact)), ['dente-de-tubarao'], `gerada ${generated}, com dano`)
+    }
+  })
+
+  function getCurrentBranchRoom(run) {
+    return run.floor.rooms.find((room) => ['pacto', 'god'].includes(room.type))
+  }
+
+  test('ao trocar de andar, o que a sala ofereceu fica guardado e não volta (mesmo recusado)', () => {
+    let run = killBoss(bossRun(SEED, 2)) // venceu sem dano: ofereceu o Caldo, que ele não pegou
+    run = finishFloor(run)
+    assert.equal(run.floor.number, 3)
+    assert.deepEqual(run.branchOffered, ['caldo-da-mamae'])
+    // salva e continua num andar adiante: o que foi oferecido continua no save
+    const saved = normalizeProgressPayload(JSON.parse(JSON.stringify(createRunSnapshot(run, 5000))))
+    assert.deepEqual(saved.branchOffered, ['caldo-da-mamae'])
+  })
+
+  test('no andar seguinte, o item já oferecido não volta: o God fica sem pedestal e o Pacto ainda oferece o dele', () => {
+    const floor3Seed = findSeed(3, (room) => room.type === 'god')
+    const boss = (fields) => bossRun(floor3Seed, 3, { branchOffered: ['caldo-da-mamae'], ...fields })
+    const god = killBoss(boss())
+    assert.equal(getPactRoomType(god.floor), 'god')
+    assert.deepEqual(itemsOf(god), [], 'o Caldo já foi oferecido no andar 2')
+    const pact = killBoss(touchBoss(boss()))
+    assert.deepEqual(itemsOf(pact), ['dente-de-tubarao'], 'o do Pacto ainda não foi oferecido')
+  })
+
+  test('o Dente oferecido num andar não volta no seguinte, e o item do Pacto pego fecha o God', () => {
+    const floor3Seed = findSeed(3, (room) => room.type === 'pacto')
+    const run = killBoss(bossRun(floor3Seed, 3, { items: ['dente-de-tubarao'], branchOffered: ['dente-de-tubarao'] }))
+    assert.equal(getPactRoomType(run.floor), 'pacto', 'com o item do Pacto, vencer sem dano ainda dá o Pacto')
+    assert.deepEqual(itemsOf(run), [], 'sem item para oferecer')
+  })
+
+  test('save antigo, sem branchOffered: começa sem nada oferecido', () => {
+    assert.deepEqual(normalizeProgressPayload({}).branchOffered, [])
+    assert.deepEqual(normalizeProgressPayload({ branchOffered: 'x' }).branchOffered, [])
+    assert.deepEqual(normalizeProgressPayload({ branchOffered: ['caldo-da-mamae', 'caldo-da-mamae', 3] }).branchOffered, ['caldo-da-mamae'])
+  })
+
+  test('getBranchItems: um item por casa do layout atual, só do tipo da sala, sem os já oferecidos', () => {
+    const pools = { pacto: ['a', 'b', 'c'], god: ['x', 'y'] }
+    const room = (type, layoutId) => ({ type, layoutId })
+    const count = (id) => getLayoutPoints(id).items.length
+    const pactLayout = ['pacto', 'pacto-02', 'pacto-03'].map((id) => ({ id, n: count(id) }))
+    for (const { id, n } of pactLayout) {
+      assert.deepEqual(getBranchItems({ branchPools: pools, branchOffered: [] }, room('pacto', id)), pools.pacto.slice(0, n), id)
+    }
+    assert.deepEqual(getBranchItems({ branchPools: pools, branchOffered: ['a'] }, room('pacto', 'pacto-03')), ['b', 'c'].slice(0, count('pacto-03')))
+    assert.deepEqual(getBranchItems({ branchPools: pools, branchOffered: ['x', 'y'] }, room('god', ROOM_GOD_LAYOUT)), [])
+    assert.deepEqual(getBranchItems({ branchPools: pools }, room('god', ROOM_GOD_LAYOUT)), pools.god.slice(0, count(ROOM_GOD_LAYOUT)), 'sem branchOffered')
+    assert.deepEqual(getBranchItems({}, room('god', ROOM_GOD_LAYOUT)), [], 'sem catálogo')
   })
 })

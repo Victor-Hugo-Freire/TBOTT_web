@@ -1,5 +1,6 @@
 import { SHOP_PRICES } from '../data/economy.js'
 import { overlaps } from './collision.js'
+import { BOSS_BRANCH_TYPES } from './doors.js'
 import { generateFloor, LAST_FLOOR } from './floorGenerator.js'
 import { createRandom, mixSeed, shuffle } from './random.js'
 import { getCellRect, getLayoutPoints } from './roomLayout.js'
@@ -50,12 +51,10 @@ export const ELIXIR_CHANCE = 0.05
 export const ELIXIR_FLOORS = [1, 2, 3, 4]
 const ELIXIR_SEED = 9200
 
-// Itens de cada pedestal da run inteira, decididos uma vez no começo dela (createRun).
-// Os itens de cada tipo de sala são embaralhados pela seed. Depois, do andar 1 ao 5, cada sala com pedestal
-// pega os próximos itens da lista do tipo dela, um por casa 't' do layout. Assim nenhum item repete na run,
-// nem nas salas de escolha; quando a lista acaba, a sala fica com menos pedestais (ou nenhum).
-// Devolve { 'andar:idDaSala': [ids dos itens, na ordem das casas 't'] }. Não vai para o save: sai da seed.
-export function assignPedestalItems(seed, catalog) {
+// Os itens de cada tipo de sala com pedestal, embaralhados pela seed: { tipo: [ids] }. A ordem é a em que as salas do
+// tipo pegam os itens. O sorteio anda tipo por tipo na ordem de PEDESTAL_VARIANTS, então a lista de um tipo não
+// depende do que as salas fizeram com ela.
+function buildItemPools(seed, catalog) {
   const random = createRandom(mixSeed(seed, ITEM_DRAW_SEED))
   const pools = {}
   for (const type of Object.keys(PEDESTAL_VARIANTS)) {
@@ -66,6 +65,40 @@ export function assignPedestalItems(seed, catalog) {
     }
     pools[type] = shuffle(random, candidates)
   }
+  return pools
+}
+
+// Os itens da sala ao lado do chefe, por tipo: { pacto: [ids], god: [ids] }. Quem pega deles é getBranchItems.
+export function getBranchPools(seed, catalog) {
+  const pools = buildItemPools(seed, catalog)
+  return { pacto: pools.pacto, god: pools.god }
+}
+
+// Itens da sala do Pacto ou do God de um andar. Vêm do tipo FINAL da sala (a luta com o chefe decide se ela é o Pacto ou
+// o God: setPactRoomType), e não do tipo que o andar sorteou na geração: antes o item podia ser de outro tipo (o Caldo
+// de graça no Pacto). Cada item aparece em UMA sala só da run, a primeira cujo tipo final combina com ele: o que já foi
+// oferecido em andares anteriores (run.branchOffered, que vai no save) não volta, mesmo que o jogador tenha recusado.
+// Um item por casa 't' do layout atual da sala; quando a lista acaba, a sala fica com menos pedestais (ou nenhum).
+export function getBranchItems(run, room) {
+  const pool = run.branchPools?.[room.type] ?? []
+  const offered = run.branchOffered ?? []
+  const count = getLayoutPoints(room.layoutId).items.length
+  const items = []
+  for (const id of pool) {
+    if (items.length >= count) break
+    if (!offered.includes(id)) items.push(id)
+  }
+  return items
+}
+
+// Itens de cada pedestal da run inteira, decididos uma vez no começo dela (createRun).
+// Os itens de cada tipo de sala são embaralhados pela seed. Depois, do andar 1 ao 5, cada sala com pedestal
+// pega os próximos itens da lista do tipo dela, um por casa 't' do layout. Assim nenhum item repete na run,
+// nem nas salas de escolha; quando a lista acaba, a sala fica com menos pedestais (ou nenhum).
+// Fora disso: a sala do Pacto/God (os itens dela dependem de como a luta com o chefe termina: getBranchItems).
+// Devolve { 'andar:idDaSala': [ids dos itens, na ordem das casas 't'] }. Não vai para o save: sai da seed.
+export function assignPedestalItems(seed, catalog) {
+  const pools = buildItemPools(seed, catalog)
 
   // Em que andar o Elixir cai nesta run (ou nenhum): sorteio próprio da seed
   const elixirRandom = createRandom(mixSeed(seed, ELIXIR_SEED))
@@ -76,7 +109,7 @@ export function assignPedestalItems(seed, catalog) {
   for (let floorNumber = 1; floorNumber <= LAST_FLOOR; floorNumber++) {
     for (const room of generateFloor(seed, floorNumber).rooms) {
       const pool = pools[room.type]
-      if (!pool) continue
+      if (!pool || BOSS_BRANCH_TYPES.includes(room.type)) continue
       const count = getLayoutPoints(room.layoutId).items.length
       const items = []
       // A Adega só leva o item (o Elixir) se a run tem Elixir e o andar é o sorteado; as outras ficam sem pedestal
@@ -103,7 +136,7 @@ export function getRoomPedestals(run, room) {
   if (!variant) return []
   if (room.type === 'chefe' && !room.drumDropped) return [] // o pedestal do chefe aparece junto com o tambor
 
-  const items = run.pedestalItems[`${run.floor.number}:${room.id}`] ?? []
+  const items = BOSS_BRANCH_TYPES.includes(room.type) ? getBranchItems(run, room) : (run.pedestalItems[`${run.floor.number}:${room.id}`] ?? [])
   const points = getLayoutPoints(room.layoutId).items
   const pedestals = []
   for (let index = 0; index < items.length; index++) {

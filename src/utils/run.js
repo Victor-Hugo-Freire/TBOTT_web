@@ -10,6 +10,7 @@ import {
   getEntryPosition,
   getExitSide,
   getRoomDoors,
+  BOSS_BRANCH_TYPES,
   HITS_TO_OPEN,
   isNearDoor,
   OPPOSITE_SIDE,
@@ -46,6 +47,8 @@ import {
   assignPedestalItems,
   CHOICE_ROOM_TYPES,
   findTouchedPedestal,
+  getBranchItems,
+  getBranchPools,
   getPedestalSolids,
   getRoomPedestals,
   getRoomTypeItem,
@@ -330,11 +333,18 @@ function hasFight(run, room) {
   return pickRoomEnemies(run.seed, run.floor.number, room, run.enemyCatalog).length > 0
 }
 
+// Já pegou algum item do Pacto nesta run? Vem dos itens que ele tem (o campo roomTypes do catálogo diz de que sala é
+// cada um), e não de um campo salvo: assim vale também para um save que já tinha o item.
+export function hasPactItem(run) {
+  return run.items.some((itemId) => run.catalog[itemId]?.roomTypes?.includes('pacto'))
+}
+
 // O chefe morreu (a sala já ficou limpa: as portas abrem). A sala do chefe não dá a recompensa de sala limpa: o prêmio
 // dela é o item do pedestal. A sala ao lado vira a do Tung Tung God se ele não perdeu vida na sala, senão o Pacto
-// (setPactRoomType). O tambor e o pedestal esperam DRUM_AFTER_BOSS_MS (drumWaitMs, veja dropDrum).
+// (setPactRoomType). Depois de pegar um item do Pacto, a sala do God não aparece mais na run: vira sempre o Pacto,
+// mesmo sem perder vida. O tambor e o pedestal esperam DRUM_AFTER_BOSS_MS (drumWaitMs, veja dropDrum).
 function defeatBoss(run) {
-  setPactRoomType(run.floor, run.hurtInRoom ? 'pacto' : 'god')
+  setPactRoomType(run.floor, run.hurtInRoom || hasPactItem(run) ? 'pacto' : 'god')
   return { ...run, drumWaitMs: DRUM_AFTER_BOSS_MS }
 }
 
@@ -619,6 +629,7 @@ export function getRoomStates(floor) {
 // enemyCatalog = inimigos do catálogo, por id (buildEnemyCatalog); vazio = nenhuma sala tem inimigos.
 // bossCatalog = chefes do catálogo, por id (buildBossCatalog); vazio = a sala do chefe fica limpa ao entrar, sem luta.
 // pactRoomType = a sala ao lado do chefe, já decidida pela luta ('pacto' ou 'god'); null = vale a geração do andar.
+// branchOffered = os itens que as salas do Pacto/God de andares anteriores já ofereceram (não voltam; veja getBranchItems).
 export function createRun({
   seed,
   floorNumber = 1,
@@ -635,6 +646,7 @@ export function createRun({
   enemyCatalog = {},
   bossCatalog = {},
   pactRoomType = null,
+  branchOffered = [],
   items = [],
   floorHealsUsed = 0,
 }) {
@@ -681,6 +693,8 @@ export function createRun({
     bosses: pickRunBosses(seed, bossCatalog), // o chefe de cada andar (bosses.js): não vai para o save, sai da seed
     items: [...items], // na ordem em que foram pegos
     pedestalItems: assignPedestalItems(seed, catalog), // itens dos pedestais de todos os andares (pedestals.js)
+    branchPools: getBranchPools(seed, catalog), // os itens do Pacto e do God (não vão para o save: saem da seed)
+    branchOffered: [...branchOffered], // o que as salas do Pacto/God de andares anteriores já ofereceram (vai no save)
     pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
     vanishing: [], // itens sumindo da sala de escolha: { roomId, pedestalId, itemId, elapsedMs } (VANISH_MS)
     effects: createItemEffects(floorHealsUsed), // tempos e contagens dos efeitos dos itens (itemEffects.js)
@@ -723,6 +737,7 @@ export function createRunSnapshot(run, elapsedMs) {
     items: run.items,
     floorHealsUsed: run.effects.floorHealsUsed,
     pactRoomType: getSavedPactRoomType(run.floor),
+    branchOffered: run.branchOffered,
   })
 }
 
@@ -1025,6 +1040,10 @@ function updateFloorTransition(run, stepMs) {
     next.transition.switched = true
     // A tela fica escura: o fim da run é mostrado pela página
     if (run.floor.number >= LAST_FLOOR) return { ...next, finished: true }
+
+    // Os itens que a sala do Pacto/God deste andar ofereceu não voltam nos próximos (mesmo os que ele recusou)
+    const branchRoom = run.floor.rooms.find((room) => BOSS_BRANCH_TYPES.includes(room.type))
+    if (branchRoom) next.branchOffered = [...run.branchOffered, ...getBranchItems(run, branchRoom)]
 
     const floor = generateFloor(run.seed, run.floor.number + 1)
     prepareCellarDrops(floor)

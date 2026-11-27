@@ -207,13 +207,25 @@ function addCellar(rooms, occupied, number, random) {
   return true
 }
 
-// Pacto ou sala do Tung Tung God, tipo 'god' (andares 2 a 4, 1 chance em 2): ao lado da sala do chefe. Nunca no andar 1 (pedido do Victor).
+// Pacto ou sala do Tung Tung God, tipo 'god' (andares 2 a 4): ao lado da sala do chefe. Nunca no andar 1 (pedido do Victor).
 // A seed escolhe uma das duas, meio a meio; com a luta, quem decide é a morte do chefe (setPactRoomType).
 // A porta é normal nos dois sentidos; quem esconde a porta até o chefe ficar limpo é doors.js.
-function addPactRoom(rooms, occupied, number, random) {
+//
+// Chance de a sala existir: PACT_ROOM_CHANCE (3 em 4). Na prática sai em cerca de 60% dos andares, porque em 1 de cada 5
+// o chefe não tem casa livre ao lado (veja getFreeSides). Era 1 em 2 (cerca de 40% dos andares).
+// Como o aumento não mexe no resto do andar: o sorteio original de 1 em 2 continua no sorteio do andar (como era), e o
+// que ele não deu tem uma segunda chance com um sorteio PRÓPRIO (bonusRandom). Assim os andares que já existiam ficam
+// iguais e só ganham a sala; o sorteio do andar não anda a mais e os layouts das outras salas não mudam.
+export const PACT_ROOM_CHANCE = 0.75
+const PACT_BASE_CHANCE = 0.5 // o sorteio que já estava no sorteio do andar
+const PACT_BONUS_SEED = 7500 // separa o sorteio da segunda chance (e das escolhas dela) do sorteio do andar
+
+function addPactRoom(rooms, occupied, number, random, bonusRandom) {
   // A chance é sorteada também no andar 1 (e descartada): assim o resto do sorteio do andar 1 quase não muda
-  const rolled = chance(random, 0.5)
-  if (number < 2 || number > 4 || !rolled) return
+  const rolled = chance(random, PACT_BASE_CHANCE)
+  const bonus = !rolled && chance(bonusRandom, (PACT_ROOM_CHANCE - PACT_BASE_CHANCE) / (1 - PACT_BASE_CHANCE))
+  if (number < 2 || number > 4 || !(rolled || bonus)) return
+  const picker = rolled ? random : bonusRandom // o lado e o tipo vêm do sorteio de quem deu a chance
 
   const boss = rooms.find((room) => room.type === 'chefe')
   // Como no Isaac, a sala nunca fica embaixo do chefe: assim a porta dela nunca é a de cima, e a estátua do God
@@ -221,9 +233,9 @@ function addPactRoom(rooms, occupied, number, random) {
   const sides = getFreeSides(occupied, boss).filter((side) => side !== 'down')
   if (sides.length === 0) return
 
-  const side = pick(random, sides)
+  const side = pick(picker, sides)
   const { col, row } = getNextCell(boss, side)
-  const pact = createRoom(col, row, pick(random, ['pacto', 'god']))
+  const pact = createRoom(col, row, pick(picker, ['pacto', 'god']))
   pact.distance = boss.distance + 1
   linkRooms(boss, side, pact)
   rooms.push(pact)
@@ -262,6 +274,7 @@ export function generateFloor(seed, number) {
 
   const floorSeed = mixSeed(seed, number)
   const random = createRandom(floorSeed)
+  const bonusRandom = createRandom(mixSeed(floorSeed, PACT_BONUS_SEED)) // só da segunda chance da sala do Pacto/God
 
   for (let attempts = 1; attempts <= MAX_ATTEMPTS; attempts++) {
     const total = randomInt(random, info.minRooms, info.maxRooms)
@@ -273,7 +286,7 @@ export function generateFloor(seed, number) {
 
     const occupied = new Map(rooms.map((room) => [room.id, room]))
     if (!addCellar(rooms, occupied, number, random)) continue
-    addPactRoom(rooms, occupied, number, random)
+    addPactRoom(rooms, occupied, number, random, bonusRandom)
 
     for (const room of rooms) {
       room.layoutId = room.type === 'inicial' ? 'inicial' : pickLayout(room.type, getLinkedSides(room), random)

@@ -8,6 +8,7 @@ import {
   generateFloor,
   getLinkedSides,
   LAST_FLOOR,
+  PACT_ROOM_CHANCE,
   pickSpecialRooms,
   SPECIAL_ROOM_TYPES,
 } from '../src/utils/floorGenerator.js'
@@ -253,7 +254,8 @@ describe('generateFloor (salas especiais) em 300 seeds x 5 andares', () => {
     const floors2to4 = ALL_FLOORS.filter((floor) => floor.number >= 2 && floor.number <= 4)
     const pactRate = floors2to4.filter((floor) => countByType(floor, 'pacto') + countByType(floor, 'god') > 0).length / floors2to4.length
 
-    assert.ok(pactRate >= 0.3 && pactRate <= 0.7, `pacto/God em ${pactRate}`)
+    // 3 em 4 de chance (PACT_ROOM_CHANCE), menos o quinto dos andares em que o chefe não tem casa livre: cerca de 60%
+    assert.ok(pactRate >= 0.5 && pactRate <= 0.7, `pacto/God em ${pactRate}`)
     for (const type of ['pacto', 'god', 'fliperama', 'descanso', 'palco']) {
       assert.ok(ALL_FLOORS.some((floor) => countByType(floor, type) > 0), `${type} nunca aparece`)
     }
@@ -290,5 +292,54 @@ describe('regeneração', () => {
     assert.ok(retried, 'nenhum andar precisou de outra tentativa')
     assert.equal(countByType(retried, 'chefe'), 1)
     assert.deepEqual(generateFloor(retried.seed, retried.number), retried)
+  })
+})
+
+describe('chance da sala do Pacto/God (3 em 4)', () => {
+  // Fotografia da versão com 1 chance em 2, quando a chance subiu: de cada andar, o tipo da sala do Pacto/God e as outras
+  // salas (sem o chefe, que pode mudar de layout para abrir a porta nova) com tipo e layout. Seeds 12345 e 3.
+  const BEFORE = {
+    3: {
+      1: { branch: null, rooms: '4-3:inicial:inicial|4-2:comum:comum-02|3-3:comum:comum-09|4-1:comum:comum-10|5-2:comum:comum-06|3-4:loja:loja|2-3:comum:comum-10|6-2:tesouro:tesouro-03|2-2:adega:adega' },
+      2: { branch: 'god', rooms: '4-3:inicial:inicial|5-3:comum:comum-09|4-4:palco:palco|6-3:comum:comum-08|7-3:loja:loja|6-4:comum:comum-08|6-5:comum:comum-01|7-5:comum:comum-06|5-5:comum:comum-02|5-6:tesouro:tesouro-05|7-6:adega:adega' },
+      3: { branch: null, rooms: '4-3:inicial:inicial|5-3:comum:comum-03|3-3:comum:comum-10|5-2:comum:comum-10|6-3:comum:comum-05|3-4:tesouro:tesouro-05|2-3:comum:comum-07|5-1:comum:comum-04|7-3:palco:palco|1-3:loja:loja|4-1:adega:adega' },
+      4: { branch: 'god', rooms: '4-3:inicial:inicial|4-2:comum:comum-09|3-3:comum:comum-07|4-1:comum:comum-01|5-2:comum:comum-01|3-4:tesouro:tesouro-05|4-0:palco:palco|3-1:comum:comum-10|6-2:loja:loja|2-3:adega:adega' },
+      5: { branch: null, rooms: '4-3:inicial:inicial|4-2:palco:palco|5-3:comum:comum-09|5-4:comum:comum-03|6-4:comum:comum-10|7-4:comum:comum-03|7-3:comum:comum-06|7-5:comum:comum-10|7-2:comum:comum-09|8-3:comum:comum-03|8-5:tesouro:tesouro-05|7-6:loja:loja' },
+    },
+    12345: {
+      1: { branch: null, rooms: '4-3:inicial:inicial|4-2:comum:comum-07|4-4:comum:comum-05|4-1:comum:comum-05|5-4:comum:comum-09|5-1:comum:comum-02|3-1:loja:loja|6-4:tesouro:tesouro-05|5-5:comum:comum-01|6-1:adega:adega' },
+      2: { branch: 'god', rooms: '4-3:inicial:inicial|4-2:comum:comum-03|5-3:loja:loja|4-4:comum:comum-04|3-2:comum:comum-08|3-4:palco:palco|2-2:comum:comum-09|2-3:tesouro:tesouro-02|1-2:adega:adega' },
+      3: { branch: null, rooms: '4-3:inicial:inicial|5-3:comum:comum-03|5-2:comum:comum-03|6-3:palco:palco|5-4:comum:comum-10|5-1:comum:comum-08|5-5:comum:comum-06|6-1:comum:comum-03|4-5:comum:comum-04|7-1:tesouro:tesouro-03|4-6:loja:loja|4-1:adega:adega' },
+      4: { branch: null, rooms: '4-3:inicial:inicial|4-4:comum:comum-02|5-4:tesouro:tesouro-01|4-2:comum:comum-01|4-5:comum:comum-06|3-2:comum:comum-03|4-6:comum:comum-03|3-5:palco:palco|2-2:comum:comum-02|5-6:comum:comum-05|1-2:loja:loja|6-6:adega:adega' },
+      5: { branch: null, rooms: '4-3:inicial:inicial|5-3:palco:palco|4-4:comum:comum-08|3-3:comum:comum-09|4-5:comum:comum-06|3-2:comum:comum-10|3-5:comum:comum-10|2-5:comum:comum-09|3-1:tesouro:tesouro-04|3-6:loja:loja' },
+    },
+  }
+  const isBranch = (room) => room.type === 'pacto' || room.type === 'god'
+  const signature = (floor) => floor.rooms.filter((room) => !isBranch(room) && room.type !== 'chefe').map((room) => `${room.id}:${room.type}:${room.layoutId}`).join('|')
+
+  test('a chance é de 3 em 4 e os andares 1 e 5 continuam sem a sala', () => {
+    assert.equal(PACT_ROOM_CHANCE, 0.75)
+    for (const floor of ALL_FLOORS) {
+      if (floor.number === 1 || floor.number === LAST_FLOOR) assert.equal(floor.rooms.filter(isBranch).length, 0, `andar ${floor.number}`)
+    }
+  })
+
+  test('os andares que já existiam não mudam: quem tinha a sala fica com ela (mesmo tipo) e as outras salas ficam iguais', () => {
+    for (const [seed, floors] of Object.entries(BEFORE)) {
+      for (const [number, before] of Object.entries(floors)) {
+        const floor = generateFloor(Number(seed), Number(number))
+        const branch = floor.rooms.find(isBranch)
+        if (before.branch) assert.equal(branch?.type, before.branch, `seed ${seed} andar ${number}: a sala do ${before.branch} sumiu ou mudou`)
+        assert.equal(signature(floor), before.rooms, `seed ${seed} andar ${number}: as outras salas mudaram`)
+      }
+    }
+  })
+
+  test('é decidido pela seed: o mesmo andar sai sempre igual', () => {
+    for (const seed of [3, 12345, 2026]) {
+      for (let number = 1; number <= LAST_FLOOR; number++) {
+        assert.deepEqual(generateFloor(seed, number), generateFloor(seed, number), `seed ${seed} andar ${number}`)
+      }
+    }
   })
 })

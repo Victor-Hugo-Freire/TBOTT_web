@@ -30,7 +30,9 @@ function fakeRoom(layoutId, fields = {}) {
   return { id: '4-4', type, layoutId, cleared: true, emptied: [], ...fields }
 }
 function fakeRun(room, items, fields = {}) {
-  return { catalog: TEST_CATALOG, floor: { number: 1 }, items: [], pedestalItems: { [`1:${room.id}`]: items }, ...fields }
+  // Pacto/God: os itens vêm de branchPools (getBranchItems); aqui a lista dada vale como a lista dos dois tipos
+  const branchPools = { pacto: items, god: items }
+  return { catalog: TEST_CATALOG, floor: { number: 1 }, items: [], pedestalItems: { [`1:${room.id}`]: items }, branchPools, branchOffered: [], ...fields }
 }
 // Pedestais de um layout com itens de Tesouro em todas as casas 't'
 function pedestalsOf(layoutId) {
@@ -283,14 +285,14 @@ describe('Fliperama: o pedestal à frente do tambor', () => {
   })
 })
 
-// Itens (por 'andar:sala') das salas que não são Adega na seed 12345, como eram antes da regra do Elixir
+// Itens (por 'andar:sala') das salas que não são Adega, Pacto nem God na seed 12345, como eram antes das regras do Elixir
+// e do Pacto/God (a sala do God desta seed levava o Caldo na geração; agora o item sai do tipo final: getBranchItems)
 const SEED_12345_WITHOUT_CELLAR = {
   '1:4-0': ['rolo-de-bronze'],
   '1:6-4': ['cafe-duplo', 'mucarela'],
   '2:3-4': ['batuta-do-maestro'],
   '2:2-1': [],
   '2:2-3': ['palitos-de-pao'],
-  '2:2-0': ['caldo-da-mamae'],
   '3:6-3': [],
   '3:6-0': [],
   '3:7-1': ['concha-longa', 'parmesao-curado'],
@@ -363,7 +365,7 @@ describe('Elixir Elétrico em 5% das runs (desbloqueia o Tung Tung Sabor)', () =
     const assigned = assignPedestalItems(12345, TEST_CATALOG)
     const nonCellar = Object.entries(assigned).filter(([key]) => {
       const [floorNumber, roomId] = key.split(':')
-      return generateFloor(12345, Number(floorNumber)).rooms.find((room) => room.id === roomId).type !== 'adega'
+      return !['adega', 'pacto', 'god'].includes(generateFloor(12345, Number(floorNumber)).rooms.find((room) => room.id === roomId).type)
     })
     assert.ok(nonCellar.length > 0)
     for (const [, items] of nonCellar) assert.ok(!items.includes('elixir-eletrico'))
