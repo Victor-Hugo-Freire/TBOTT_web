@@ -9,8 +9,10 @@ import { ROOM_PLAYER_BOUNDS, ROOM_WALLS } from '../src/utils/roomMovement.js'
 import { getAirSolids, getFlyingSortY, getRoomSolids } from '../src/utils/roomObstacles.js'
 import { createRun, getRoomObstacles, toggleTrainingTarget, updateRun } from '../src/utils/run.js'
 import { getBaseStats } from '../src/utils/stats.js'
-import { createTrainingTarget, slowTarget } from '../src/utils/targets.js'
-import { TEST_CATALOG } from './helpers/testCatalog.js'
+import { createTrainingTarget, getBaseBox, slowTarget } from '../src/utils/targets.js'
+import { overlaps } from '../src/utils/collision.js'
+import { createEnemy } from '../src/utils/enemies.js'
+import { TEST_CATALOG, TEST_ENEMIES } from './helpers/testCatalog.js'
 
 const STEP = 1 / 20
 const IDLE = { movement: { x: 0, y: 0 }, attackDirection: null }
@@ -39,6 +41,42 @@ describe('voo do Tung Tung God', () => {
   test('o Sahur para no obstáculo e o God passa por cima dele', () => {
     assert.ok(walkAcrossBarrel(SAHUR).player.x < BARREL.box.x, 'o Sahur ficou antes do barril')
     assert.ok(walkAcrossBarrel(GOD).player.x > BARREL.box.x + BARREL.box.width, 'o God passou do barril')
+  })
+
+  test('com o God, os inimigos continuam desviando dos obstáculos (só ele voa por cima deles)', () => {
+    // Um muro alto entre o Formaggino (que persegue) e o Tung parado do outro lado: o inimigo tem de dar a volta
+    const WALL = { id: 'muro', col: 0, row: 0, kind: 'barril', mechanic: 'solido', blocking: true, box: { x: 760, y: 330, width: 84, height: 380 } }
+    for (const characterId of [SAHUR, GOD]) {
+      let run = createRun({ seed: 1, characterId, catalog: TEST_CATALOG, enemyCatalog: TEST_ENEMIES })
+      run.obstacles = [WALL]
+      run.player = createPlayer({ x: 1000, y: 520 })
+      const enemy = createEnemy(TEST_ENEMIES['formaggino-saltellino'], 1, 3)
+      run.targets = [{ ...enemy, x: 600, y: 520, waitMs: 0 }]
+      for (let i = 0; i < 80 && !run.death; i++) {
+        run = updateRun(run, IDLE, STEP)
+        assert.equal(overlaps(getBaseBox(run.targets[0]), WALL.box), false, `${characterId}: o inimigo entrou no muro (quadro ${i})`)
+      }
+    }
+  })
+
+  test('o God em cima de um perigo do chão (chapa quente ou cacos): os inimigos não se machucam tentando alcançá-lo', () => {
+    const box = { x: 900, y: 500, width: 84, height: 60 }
+    const hazards = [
+      { id: 'chapa', col: 0, row: 0, kind: 'chapa', mechanic: 'quente', blocking: true, box },
+      { id: 'cacos', col: 0, row: 0, kind: 'cacos', mechanic: 'cacos', blocking: false, box },
+    ]
+    const ids = ['formaggino-saltellino', 'pistacchio-sputacchio', 'cannolo-carica', 'pinguino-sorbettino', 'vespina-lambrettina']
+    for (const hazard of hazards) {
+      for (const id of ids) {
+        let run = createRun({ seed: 1, characterId: GOD, catalog: TEST_CATALOG, enemyCatalog: TEST_ENEMIES })
+        run.obstacles = [hazard]
+        run.player = createPlayer({ x: box.x + box.width / 2, y: box.y + box.height / 2 }) // o God parado em cima do perigo
+        run.targets = [{ ...createEnemy(TEST_ENEMIES[id], 1, 3), x: 500, y: 530, waitMs: 0 }]
+        const health = run.targets[0].health
+        run = steps(run, 200) // 10 s
+        assert.equal(run.targets[0].health, health, `${id} se machucou em ${hazard.kind}`)
+      }
+    }
   })
 
   test('a parede continua bloqueando o God', () => {

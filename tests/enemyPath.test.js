@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { PEPERONCINO } from '../src/data/enemyBehavior.js'
 import { createEnemy, updateEnemies } from '../src/utils/enemies.js'
-import { createChaseMap, getCellAt, getChasePoint, hasClearPath } from '../src/utils/enemyPath.js'
+import { createChaseMap, getCellAt, getChasePoint, getHazardBoxes, hasClearPath } from '../src/utils/enemyPath.js'
 import { getCellPoint, getCellRect } from '../src/utils/roomLayout.js'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
 import { TEST_ENEMIES } from './helpers/testCatalog.js'
@@ -53,6 +53,37 @@ describe('mapa de distâncias (busca em largura)', () => {
     assert.equal(Math.abs(next.col - 3) + Math.abs(next.row - 3), 1, 'uma casa vizinha')
     assert.equal(map[next.row][next.col], 11, 'uma casa mais perto do Tung')
     assert.deepEqual(getChasePoint(LEFT, RIGHT, createChaseMap(ROOM_WALLS, RIGHT), ROOM_WALLS), RIGHT)
+  })
+})
+
+describe('alvo numa casa ocupada (o Tung que voa, em cima de um obstáculo ou de um perigo do chão)', () => {
+  const TARGET_CELL = { col: 8, row: 3 }
+  const TARGET = getCellPoint(TARGET_CELL.col, TARGET_CELL.row)
+  const NEXT_TO_IT = getCellPoint(7, 3) // a casa vizinha, onde o inimigo chega antes de entrar na casa do alvo
+  const TABLE = obstacle(TARGET_CELL.col, TARGET_CELL.row)
+  // A chapa quente: bloqueia e tem folga em volta (getHazardBoxes), então as casas vizinhas também ficam vedadas
+  const HOT_PLATE = { id: 'chapa', kind: 'chapa', mechanic: 'quente', blocking: true, box: TABLE }
+  const HAZARDS = getHazardBoxes([HOT_PLATE])
+
+  test('a casa do alvo não é destino: o inimigo ao lado dela não anda para dentro dela', () => {
+    const solids = [...ROOM_WALLS, TABLE]
+    const map = createChaseMap(solids, TARGET)
+    assert.equal(map[TARGET_CELL.row][TARGET_CELL.col], 0, 'o mapa parte da casa do alvo')
+    // sem perigo, em cima de uma mesa comum: continua indo direto (bate nela, sem se ferir)
+    assert.deepEqual(getChasePoint(NEXT_TO_IT, TARGET, map, solids, []), TARGET)
+  })
+
+  test('com o alvo dentro de um perigo do chão, o inimigo fica parado onde está em vez de entrar nele', () => {
+    const solids = [...ROOM_WALLS, TABLE, ...HAZARDS]
+    const map = createChaseMap(solids, TARGET)
+    const inside = { x: TABLE.x + TABLE.width / 2, y: TABLE.y + TABLE.height / 2 }
+    assert.deepEqual(getChasePoint(NEXT_TO_IT, inside, map, solids, HAZARDS), NEXT_TO_IT)
+  })
+
+  test('alvo numa casa livre: nada muda (vai direto, ou até a vizinha mais perto)', () => {
+    const map = createChaseMap(SOLIDS, RIGHT)
+    assert.deepEqual(getChasePoint(LEFT, RIGHT, createChaseMap(ROOM_WALLS, RIGHT), ROOM_WALLS, []), RIGHT)
+    assert.equal(map[getCellAt(getChasePoint(LEFT, RIGHT, map, SOLIDS, [])).row][getCellAt(getChasePoint(LEFT, RIGHT, map, SOLIDS, [])).col], 11)
   })
 })
 

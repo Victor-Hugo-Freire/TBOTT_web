@@ -769,16 +769,18 @@ function updateRoom(run, input, deltaSeconds) {
   // Os pedestais são sólidos, como os obstáculos
   const pedestals = getRoomPedestals(run, room)
   const pedestalBoxes = getPedestalSolids(pedestals)
-  // Quem voa (o God) passa por cima dos obstáculos: só as paredes e os pedestais o bloqueiam
-  const solids = stats.flying ? getAirSolids(pedestalBoxes) : getRoomSolids(run.obstacles, pedestalBoxes)
+  // O que bloqueia na sala (inimigos, empurrões, lascas) e o que bloqueia o jogador. Quem voa (o God) passa por cima
+  // dos obstáculos: só as paredes e os pedestais o bloqueiam. Os inimigos continuam desviando deles.
+  const solids = getRoomSolids(run.obstacles, pedestalBoxes)
+  const playerSolids = stats.flying ? getAirSolids(pedestalBoxes) : solids
 
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
-    solids,
+    solids: playerSolids,
     speedMultiplier: effect.speedMultiplier,
     stats,
   })
   const slip = stopBlockedAxes(slipping.slip, run.player, player, deltaSeconds)
-  player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, solids) }
+  player = { ...player, ...pushPlayer(player, effect.push, deltaSeconds, playerSolids) }
 
   // Chapa quente (encostar) e cacos de vidro (pisar): meio coração por machucado. Encostar num inimigo vivo: o dano
   // dele (catálogo), e a causa da morte é o id dele. Tudo passa por damagePlayer; enquanto ele está invencível,

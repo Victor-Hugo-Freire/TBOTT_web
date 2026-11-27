@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { createPlayer, getAttackHitbox } from '../src/utils/player.js'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
 import {
   createTarget,
@@ -195,5 +196,31 @@ describe('lentidão, prisão e empurrão', () => {
     const targets = updateTargets([stunTarget(createTrainingTarget(HOME), 100), createTrainingTarget(HOME)], 0.05, ROOM_WALLS)
     assert.equal(targets.length, 2)
     assert.equal(targets[0].stunMs, 50)
+  })
+})
+
+describe('fundura da caixa que o golpe acerta (chefes altos)', () => {
+  // Golpe para baixo no meio da janela de acerto, com os pés do Tung `above` u acima dos pés do alvo
+  function swingDownFrom(above) {
+    return { ...createPlayer({ x: 800, y: 600 - above }), attack: { direction: 'down', elapsed: 250, area: 1 } }
+  }
+  const TRALALERO = createTarget({ id: 'tralalero', x: 800, y: 600, width: 301, height: 354, health: 100 })
+
+  test('de cima, o golpe para baixo alcança um chefe alto como um inimigo comum (a cabeça desenhada não é fundura)', () => {
+    assert.deepEqual(findSwingHits([TRALALERO], getAttackHitbox(swingDownFrom(170)), []), [0], 'perto: acerta')
+    assert.deepEqual(findSwingHits([TRALALERO], getAttackHitbox(swingDownFrom(250)), []), [], 'a 250 u acima dos pés: não')
+  })
+
+  test('os inimigos comuns e o alvo de treino não mudam: a caixa vai do pé até o alto do corpo', () => {
+    const enemy = createTarget({ id: 'e', x: 800, y: 600, width: 108, height: 136, health: 5 })
+    assert.deepEqual(getTargetBox(enemy), { x: 746, y: 464, width: 108, height: 136 })
+    assert.equal(getTargetBox(createTrainingTarget(HOME)).height, 120)
+  })
+
+  test('o chefe continua levando o golpe de lado e de baixo para cima', () => {
+    const side = { ...createPlayer({ x: 800 - 150, y: 600 }), attack: { direction: 'right', elapsed: 250, area: 1 } }
+    assert.deepEqual(findSwingHits([TRALALERO], getAttackHitbox(side), []), [0])
+    const below = { ...createPlayer({ x: 800, y: 700 }), attack: { direction: 'up', elapsed: 250, area: 1 } }
+    assert.deepEqual(findSwingHits([TRALALERO], getAttackHitbox(below), []), [0])
   })
 })

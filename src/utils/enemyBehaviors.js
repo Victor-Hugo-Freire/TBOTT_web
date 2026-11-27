@@ -23,6 +23,8 @@ import { damageTarget, getBaseBox, isTargetable } from './targets.js'
 //   deltaSeconds: o tempo do quadro; chaseMap: o mapa para chegar ao Tung desviando dos obstáculos (enemyPath.js);
 //   floorObstacles: os obstáculos da sala e o gelo do Pinguino, para o piso valer também nos inimigos;
 //   pathSolids: o que o caminho não atravessa (solids mais os perigos do chão, que ele evita);
+//   hazardBoxes: só os perigos do chão (chapa quente e cacos, com a folga): o inimigo não entra neles nem para alcançar
+//   o Tung que voa em cima de um deles (veja getChasePoint);
 // - enemies: todos os alvos da sala no começo do quadro (a Moka procura neles um aliado para proteger);
 // - hits: dano no Tung que não é de encostar ({ damage, cause }, ex.: a explosão do Peperoncino);
 // - flashes: efeitos visuais que tocam uma vez (explosão, impacto, estrelas); floor: rastros novos no chão;
@@ -145,7 +147,7 @@ export function settleOnFloor(enemy, world) {
 
 // Anda até o Tung a `speed` u/s, desviando dos obstáculos pelo caminho da grade (enemyPath.js)
 export function chase(enemy, world, speed) {
-  const point = getChasePoint(enemy, world.player, world.chaseMap, world.pathSolids)
+  const point = getChasePoint(enemy, world.player, world.chaseMap, world.pathSolids, world.hazardBoxes)
   return moveEnemy(enemy, getDirectionTo(enemy, point), speed, world)
 }
 

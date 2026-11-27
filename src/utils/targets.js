@@ -42,9 +42,16 @@ export function createTrainingTarget(position) {
   return { ...target, training: true, home: { x: position.x, y: position.y } }
 }
 
-// Caixa que o golpe acerta
+// Fundura máxima (u) da caixa que o golpe e as lascas acertam, contada dos pés para cima: a do inimigo comum mais alto
+// (o Fenicottero, 136 u). Na sala vista de cima, a altura do desenho também vira fundura: sem o limite, o golpe para
+// baixo acertava a cabeça de um chefe alto (o Tralalero tem 354 u) estando quase 400 u acima dos pés dele.
+// Os inimigos comuns e o alvo de treino cabem no limite e não mudam; só os chefes ficam com a caixa mais baixa.
+export const MAX_HIT_DEPTH = 136
+
+// Caixa que o golpe acerta: a largura do corpo e, na altura, o corpo até MAX_HIT_DEPTH
 export function getTargetBox(target) {
-  return { x: target.x - target.width / 2, y: target.y - target.height, width: target.width, height: target.height }
+  const height = Math.min(target.height, MAX_HIT_DEPTH)
+  return { x: target.x - target.width / 2, y: target.y - height, width: target.width, height }
 }
 
 // Caixa da base (os pés): é ela que bate nas paredes e nos obstáculos, no empurrão e quando o inimigo anda.
