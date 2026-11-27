@@ -3,6 +3,17 @@ import { WALK_CYCLE_DISTANCE } from '../../../utils/spriteAnimation.js'
 const CHARACTER_ID = 'tung-tung-sahur'
 const SOUND_PREFIX = 'character-tung-tung-sahur'
 const STEP_DISTANCE = WALK_CYCLE_DISTANCE / 2
+const ITEM_AUDIO_CUES = {
+  'caldo-da-mamae': { escudo: 'escudo', cura: 'cura' },
+  'cafe-duplo': { impulso: 'cafe-impulso' },
+  tiramisu: { ativacao: 'tiramisu' },
+  'concha-longa': { poca: 'concha-poca' },
+  'parmesao-curado': {
+    lancamento: 'parmesao-lancamento',
+    impacto: 'parmesao-impacto',
+  },
+  'dente-de-tubarao': { frenesi: 'dente-frenesi' },
+}
 
 export function captureCharacterAudioState(run) {
   const player = run.player ?? {}
@@ -17,6 +28,8 @@ export function captureCharacterAudioState(run) {
     itemFlashes: (run.flashes ?? [])
       .filter(({ itemId, elapsedMs }) => itemId && elapsedMs === 0)
       .map(({ itemId, variant, targetId }) => `${itemId}:${variant}:${targetId ?? ''}`),
+    itemAudioEvents: run.itemAudioEvents ?? [],
+    itemAudioEventSequence: run.itemAudioEventSequence ?? 0,
   }
 }
 
@@ -42,6 +55,12 @@ export function getCharacterInteractionSounds(previous, next) {
   const previousItemFlashes = new Set(previous.itemFlashes)
   if (next.itemFlashes.some((flash) => !previousItemFlashes.has(flash))) {
     sounds.push(`${SOUND_PREFIX}-item-efeito`)
+  }
+
+  for (const event of next.itemAudioEvents) {
+    if (event.sequence <= previous.itemAudioEventSequence) continue
+    const cue = ITEM_AUDIO_CUES[event.itemId]?.[event.cue]
+    if (cue) sounds.push(`${SOUND_PREFIX}-item-${cue}`)
   }
 
   return [...new Set(sounds)]

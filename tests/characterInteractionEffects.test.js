@@ -17,6 +17,8 @@ function createRun({
   hitIds = [],
   items = [],
   flashes = [],
+  itemAudioEvents = [],
+  itemAudioEventSequence = 0,
   death = null,
 } = {}) {
   return {
@@ -26,6 +28,8 @@ function createRun({
     swing: { hitIds },
     items,
     flashes,
+    itemAudioEvents,
+    itemAudioEventSequence,
     death,
   }
 }
@@ -71,6 +75,36 @@ describe('efeitos sonoros do Tung Tung Sahur', () => {
       'character-tung-tung-sahur-dano',
       'character-tung-tung-sahur-item-coleta',
       'character-tung-tung-sahur-item-efeito',
+    ])
+    assert.deepEqual(getCharacterInteractionSounds(next, next), [])
+  })
+
+  test('toca cues específicos de procs novos uma vez e ignora eventos não registrados', () => {
+    const previous = captureCharacterAudioState(createRun())
+    const next = captureCharacterAudioState(createRun({
+      itemAudioEventSequence: 9,
+      itemAudioEvents: [
+        { itemId: 'caldo-da-mamae', cue: 'escudo', sequence: 1 },
+        { itemId: 'caldo-da-mamae', cue: 'cura', sequence: 2 },
+        { itemId: 'cafe-duplo', cue: 'impulso', sequence: 3 },
+        { itemId: 'tiramisu', cue: 'ativacao', sequence: 4 },
+        { itemId: 'concha-longa', cue: 'poca', sequence: 5 },
+        { itemId: 'parmesao-curado', cue: 'lancamento', sequence: 6 },
+        { itemId: 'parmesao-curado', cue: 'impacto', sequence: 7 },
+        { itemId: 'dente-de-tubarao', cue: 'frenesi', sequence: 8 },
+        { itemId: 'item-desconhecido', cue: 'som', sequence: 9 },
+      ],
+    }))
+
+    assert.deepEqual(getCharacterInteractionSounds(previous, next), [
+      'character-tung-tung-sahur-item-escudo',
+      'character-tung-tung-sahur-item-cura',
+      'character-tung-tung-sahur-item-cafe-impulso',
+      'character-tung-tung-sahur-item-tiramisu',
+      'character-tung-tung-sahur-item-concha-poca',
+      'character-tung-tung-sahur-item-parmesao-lancamento',
+      'character-tung-tung-sahur-item-parmesao-impacto',
+      'character-tung-tung-sahur-item-dente-frenesi',
     ])
     assert.deepEqual(getCharacterInteractionSounds(next, next), [])
   })

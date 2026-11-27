@@ -14,4 +14,6 @@ export default createBossEffects('cappuccino-assassino', {
   corte: { duration: 0.27, frequencyScale: 1.72, pitchBend: 0.31, gain: 0.64, noise: 0.47, noiseCutoff: 5000 },
   teleporte: { duration: 0.44, frequencyScale: 0.89, pitchBend: -0.19, gain: 0.56, noise: 0.72, noiseCutoff: 2900 },
   clones: { duration: 0.64, frequencyScale: 1.32, pitchBend: 0.24, gain: 0.59, noise: 0.5 },
+  'clone-dano': { duration: 0.18, frequencyScale: 1.5, pitchBend: -0.16, gain: 0.42, noise: 0.28 },
+  'clone-dissolver': { duration: 0.36, frequencyScale: 0.68, pitchBend: -0.42, gain: 0.48, noise: 0.52, noiseCutoff: 2500 },
 })

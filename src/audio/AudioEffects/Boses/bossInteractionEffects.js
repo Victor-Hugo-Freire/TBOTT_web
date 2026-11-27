@@ -17,7 +17,7 @@ export const BOSS_ATTACK_SOUND_CUES = {
   'brr-brr-patapim': ['pisao', 'raizes'],
   'ballerina-cappuccina': ['pirueta', 'impacto', 'vulneravel', 'gotas'],
   'bombardiro-crocodilo': ['bomba', 'explosao', 'pouso'],
-  'cappuccino-assassino': ['corte', 'teleporte', 'clones'],
+  'cappuccino-assassino': ['corte', 'teleporte', 'clones', 'clone-dano', 'clone-dissolver'],
 }
 
 export function captureBossAudioState(run) {
@@ -25,6 +25,9 @@ export function captureBossAudioState(run) {
     targets: (run.targets ?? [])
       .filter((target) => target.boss && !target.clone)
       .map(({ id, enemyId, animation, health, dead }) => ({ id, enemyId, animation, health, dead })),
+    clones: (run.targets ?? [])
+      .filter((target) => target.clone && target.enemyId === 'cappuccino-assassino')
+      .map(({ id, health, dead }) => ({ id, health, dead })),
     playerHit: run.player?.lastDamageEvent ?? null,
     bossEvents: run.bossEvents ?? [],
     bossEventSequence: run.bossEventSequence ?? 0,
@@ -48,6 +51,14 @@ export function getBossInteractionSounds(previous, next) {
       BOSS_ATTACK_CUE_ANIMATIONS[target.enemyId]?.includes(target.animation)) {
       sounds.push(`boss-${target.enemyId}-aviso`)
     }
+  }
+
+  const previousClones = new Map((previous.clones ?? []).map((clone) => [clone.id, clone]))
+  for (const clone of next.clones ?? []) {
+    const before = previousClones.get(clone.id)
+    if (!before || before.dead) continue
+    if (clone.dead) sounds.push('boss-cappuccino-assassino-clone-dissolver')
+    else if (clone.health < before.health) sounds.push('boss-cappuccino-assassino-clone-dano')
   }
 
   if (next.playerHit?.sequence !== previous.playerHit?.sequence &&

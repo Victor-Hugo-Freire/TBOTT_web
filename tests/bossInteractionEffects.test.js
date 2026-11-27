@@ -120,4 +120,24 @@ describe('efeitos sonoros dos chefes', () => {
     ])
     assert.deepEqual(getBossInteractionSounds(next, next), [])
   })
+
+  test('toca dano e desaparecimento dos clones do Cappuccino sem repetir cues', () => {
+    const initial = captureBossAudioState({
+      targets: [target({ id: 'clone-1', boss: false, clone: true, enemyId: 'cappuccino-assassino', health: 2 })],
+    })
+    const damaged = captureBossAudioState({
+      targets: [target({ id: 'clone-1', boss: false, clone: true, enemyId: 'cappuccino-assassino', health: 1 })],
+    })
+    const dead = captureBossAudioState({
+      targets: [target({ id: 'clone-1', boss: false, clone: true, enemyId: 'cappuccino-assassino', health: 0, dead: true })],
+    })
+
+    assert.deepEqual(getBossInteractionSounds(initial, damaged), [
+      'boss-cappuccino-assassino-clone-dano',
+    ])
+    assert.deepEqual(getBossInteractionSounds(damaged, dead), [
+      'boss-cappuccino-assassino-clone-dissolver',
+    ])
+    assert.deepEqual(getBossInteractionSounds(dead, dead), [])
+  })
 })
