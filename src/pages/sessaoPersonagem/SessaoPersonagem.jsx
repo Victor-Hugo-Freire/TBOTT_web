@@ -8,7 +8,8 @@ import { UNLOCK_HINTS } from '../../data/characterUnlocks.js'
 import { apiRequest } from '../../services/api.js'
 import { ROUTES } from '../../routes/paths.js'
 import { createProgressSnapshot } from '../../utils/progress.js'
-import { isCharacterLocked } from '../../utils/unlocks.js'
+import { retryPendingUnlocks } from '../../services/unlocks.js'
+import { isCharacterLocked, readPendingUnlocks } from '../../utils/unlocks.js'
 import { getMenuNavigationAction, getNextIndex, isTypingTarget } from '../../utils/menuKeyboard.js'
 import './SessaoPersonagem.css'
 
@@ -107,6 +108,11 @@ export default function SessaoPersonagem() {
       setError('')
 
       try {
+        // Uma liberação que ficou na fila (a API estava fora do ar quando ele pegou o Elixir ou venceu) tenta de novo
+        // antes de ler a lista, para o personagem já aparecer liberado
+        if (readPendingUnlocks().length > 0) await retryPendingUnlocks()
+        if (!isActive) return
+
         // Os personagens (público) e quais o jogador já liberou. Se a lista de liberados falhar, os bloqueados
         // continuam bloqueados (melhor do que deixar jogar com um personagem que ele não tem).
         const [response, unlockResponse] = await Promise.all([

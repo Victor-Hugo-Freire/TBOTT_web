@@ -8,6 +8,8 @@ import { generateFloor, LAST_FLOOR } from '../src/utils/floorGenerator.js'
 import {
   assignPedestalItems,
   CHOICE_ROOM_TYPES,
+  ELIXIR_CHANCE,
+  ELIXIR_FLOORS,
   findNearbyPedestal,
   findTouchedPedestal,
   getPedestalSolids,
@@ -278,5 +280,93 @@ describe('Fliperama: o pedestal à frente do tambor', () => {
     assert.equal(getRoomTypeItem({ catalog: TEST_CATALOG, items: [] }, 'fliperama'), 'chifre-da-sorte')
     assert.equal(getRoomTypeItem({ catalog: TEST_CATALOG, items: ['chifre-da-sorte'] }, 'fliperama'), null)
     assert.equal(getRoomTypeItem({ catalog: TEST_CATALOG, items: [] }, 'loja'), 'tiramisu')
+  })
+})
+
+// Itens (por 'andar:sala') das salas que não são Adega na seed 12345, como eram antes da regra do Elixir
+const SEED_12345_WITHOUT_CELLAR = {
+  '1:4-0': ['rolo-de-bronze'],
+  '1:6-4': ['cafe-duplo', 'mucarela'],
+  '2:3-4': ['batuta-do-maestro'],
+  '2:2-1': [],
+  '2:2-3': ['palitos-de-pao'],
+  '2:2-0': ['caldo-da-mamae'],
+  '3:6-3': [],
+  '3:6-0': [],
+  '3:7-1': ['concha-longa', 'parmesao-curado'],
+  '4:5-4': [],
+  '4:3-5': [],
+  '4:5-7': [],
+  '5:5-3': [],
+  '5:2-4': [],
+  '5:3-1': [],
+}
+
+describe('Elixir Elétrico em 5% das runs (desbloqueia o Tung Tung Sabor)', () => {
+  const SEEDS = 1200 // cada seed gera os 5 andares: mais que isso deixa o teste lento
+
+  // { 'andar:sala': [itens] } -> os andares onde o Elixir aparece (vazio se a run não tem Elixir)
+  function elixirFloors(assigned) {
+    return Object.entries(assigned).filter(([, items]) => items.includes('elixir-eletrico')).map(([key]) => Number(key.split(':')[0]))
+  }
+
+  test('só cerca de 5% das runs têm o Elixir (e nunca mais de um)', () => {
+    let withElixir = 0
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const floors = elixirFloors(assignPedestalItems(seed, TEST_CATALOG))
+      assert.ok(floors.length <= 1, `seed ${seed}: o Elixir apareceu ${floors.length} vezes`)
+      withElixir += floors.length
+    }
+    const share = withElixir / SEEDS
+    assert.ok(share > 0.035 && share < 0.065, `${withElixir} de ${SEEDS} runs (${(share * 100).toFixed(1)}%)`)
+    assert.equal(ELIXIR_CHANCE, 0.05)
+  })
+
+  test('quando existe, fica na Adega de um dos andares 1 a 4, e todos esses andares são sorteados', () => {
+    const seen = new Set()
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const assigned = assignPedestalItems(seed, TEST_CATALOG)
+      for (const key of Object.keys(assigned)) {
+        if (!assigned[key].includes('elixir-eletrico')) continue
+        const [floorNumber, roomId] = key.split(':')
+        const room = generateFloor(seed, Number(floorNumber)).rooms.find((item) => item.id === roomId)
+        assert.equal(room.type, 'adega', `seed ${seed}: o Elixir fora da Adega`)
+        assert.ok(ELIXIR_FLOORS.includes(Number(floorNumber)), `seed ${seed}: andar ${floorNumber}`)
+        seen.add(Number(floorNumber))
+      }
+    }
+    assert.deepEqual([...seen].sort(), [1, 2, 3, 4])
+  })
+
+  test('as Adegas sem Elixir ficam sem pedestal (só os grãos e garfos delas)', () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const assigned = assignPedestalItems(seed, TEST_CATALOG)
+      for (let floorNumber = 1; floorNumber <= LAST_FLOOR; floorNumber++) {
+        for (const room of generateFloor(seed, floorNumber).rooms) {
+          if (room.type !== 'adega') continue
+          const items = assigned[`${floorNumber}:${room.id}`]
+          assert.ok(items.length === 0 || (items.length === 1 && items[0] === 'elixir-eletrico'), `seed ${seed}, andar ${floorNumber}`)
+        }
+      }
+    }
+  })
+
+  test('o sorteio é da seed: a mesma run sempre tem (ou não tem) o Elixir', () => {
+    for (const seed of [3, 77, 2024, 99999]) {
+      assert.deepEqual(assignPedestalItems(seed, TEST_CATALOG), assignPedestalItems(seed, TEST_CATALOG), `seed ${seed}`)
+    }
+  })
+
+  test('o sorteio do Elixir não mexe nos itens das outras salas: ficam os de antes da regra', () => {
+    // Fotografia da seed 12345 tirada antes da regra do Elixir (conferida em 300 seeds contra a versão antiga do arquivo):
+    // nenhuma dessas salas depende do Elixir. Se o sorteio dos itens da seed mudar, esta lista muda e o teste avisa.
+    const assigned = assignPedestalItems(12345, TEST_CATALOG)
+    const nonCellar = Object.entries(assigned).filter(([key]) => {
+      const [floorNumber, roomId] = key.split(':')
+      return generateFloor(12345, Number(floorNumber)).rooms.find((room) => room.id === roomId).type !== 'adega'
+    })
+    assert.ok(nonCellar.length > 0)
+    for (const [, items] of nonCellar) assert.ok(!items.includes('elixir-eletrico'))
+    assert.deepEqual(Object.fromEntries(nonCellar), SEED_12345_WITHOUT_CELLAR)
   })
 })

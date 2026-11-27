@@ -8,7 +8,7 @@ O jogo consome a [TBOTT_api](https://github.com/Victor-Hugo-Freire/TBOTT_api), q
 
 ## O jogo
 
-- Três personagens jogáveis, cada um com sprites e atributos iniciais próprios: o Tung Tung Sahur (liberado desde o começo), o Tung Tung Sabor e o Tung Tung God (que o jogador precisa liberar). Na tela de seleção, o personagem bloqueado aparece como uma silhueta cinza com cadeado e a dica de como liberar.
+- Três personagens jogáveis, cada um com sprites e atributos iniciais próprios: o Tung Tung Sahur (liberado desde o começo), o Tung Tung Sabor e o Tung Tung God (que o jogador precisa liberar). Na tela de seleção, o personagem bloqueado aparece como uma silhueta cinza com cadeado e a dica de como liberar. O Sabor é liberado ao pegar o Elixir Elétrico (que só existe em 5% das runs, numa Adega dos andares 1 a 4) e o God ao vencer o jogo com o Sahur; um aviso aparece no canto da tela. A liberação é guardada na API; se ela falhar, o jogo tenta de novo depois, sem travar a run.
 - Combate com um bastão, usado para atacar inimigos próximos.
 - Ranking pelo **menor tempo** de conclusão da partida.
 - Salas, mapas, inimigos e itens ainda estão em definição.

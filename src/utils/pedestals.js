@@ -43,6 +43,13 @@ export const PEDESTAL_TOP_HEIGHT = 30
 // Número que separa o sorteio dos itens dos outros sorteios da run (os andares usam mixSeed(seed, 1 a 5))
 const ITEM_DRAW_SEED = 9100
 
+// O Elixir Elétrico (o único item da Adega) só existe em ELIXIR_CHANCE das runs: ele desbloqueia o Tung Tung Sabor, então
+// é raro de propósito. Quando existe, fica na Adega de um andar sorteado entre os de ELIXIR_FLOORS; as outras Adegas ficam
+// sem item (só os grãos e garfos delas). Sorteio próprio da seed, para não mudar o dos outros itens.
+export const ELIXIR_CHANCE = 0.05
+export const ELIXIR_FLOORS = [1, 2, 3, 4]
+const ELIXIR_SEED = 9200
+
 // Itens de cada pedestal da run inteira, decididos uma vez no começo dela (createRun).
 // Os itens de cada tipo de sala são embaralhados pela seed. Depois, do andar 1 ao 5, cada sala com pedestal
 // pega os próximos itens da lista do tipo dela, um por casa 't' do layout. Assim nenhum item repete na run,
@@ -60,6 +67,11 @@ export function assignPedestalItems(seed, catalog) {
     pools[type] = shuffle(random, candidates)
   }
 
+  // Em que andar o Elixir cai nesta run (ou nenhum): sorteio próprio da seed
+  const elixirRandom = createRandom(mixSeed(seed, ELIXIR_SEED))
+  const hasElixir = elixirRandom() < ELIXIR_CHANCE
+  const elixirFloor = ELIXIR_FLOORS[Math.floor(elixirRandom() * ELIXIR_FLOORS.length)]
+
   const assigned = {}
   for (let floorNumber = 1; floorNumber <= LAST_FLOOR; floorNumber++) {
     for (const room of generateFloor(seed, floorNumber).rooms) {
@@ -67,7 +79,9 @@ export function assignPedestalItems(seed, catalog) {
       if (!pool) continue
       const count = getLayoutPoints(room.layoutId).items.length
       const items = []
-      for (let i = 0; i < count && pool.length > 0; i++) items.push(pool.shift())
+      // A Adega só leva o item (o Elixir) se a run tem Elixir e o andar é o sorteado; as outras ficam sem pedestal
+      const hasItem = room.type !== 'adega' || (hasElixir && floorNumber === elixirFloor)
+      for (let i = 0; i < count && pool.length > 0 && hasItem; i++) items.push(pool.shift())
       assigned[`${floorNumber}:${room.id}`] = items
     }
   }
