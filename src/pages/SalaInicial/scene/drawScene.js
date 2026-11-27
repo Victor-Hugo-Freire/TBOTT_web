@@ -61,6 +61,7 @@ export function drawRunScene(ctx, run, sheets, reduceMotion, screen) {
     stage: run.stage, // a luta das ondas do Palco (a cortina nas portas)
     fullHealth: run.health >= getRunStats(run).maxHealth, // sem a vida cheia, a porta do Palco aparece fechada
     visibleItems: getVisibleItems(run.items, run.catalog), // itens que aparecem no Tung (1 por slot)
+    characterId: run.characterId, // as asas do God e o chifre de cada personagem
   }
   const { transition } = run
   if (transition?.type !== 'room') {
@@ -131,7 +132,7 @@ export function getFloorFade(run) {
 // pedestals = getRoomPedestals da sala; player = null desenha a sala sem o jogador.
 function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecretMark, options) {
   const { sheets, reduceMotion, extraX, timeMs, unlocking, death, finMs, drumDrop, pickup, vanishing } = options
-  const { puddles, shards, flashes, effects, visibleItems } = options // efeitos e aparência dos itens
+  const { puddles, shards, flashes, effects, visibleItems, characterId } = options // efeitos e aparência dos itens
   const { collecting, notice, arcadeSpin } = options // grãos, garfos e corações; aviso; tambor do Fliperama
   const { targets, enemyFloor, enemyShots, stage, fullHealth } = options // os inimigos, os rastros deles no chão, os projéteis e o Palco
   // Morte na poça do Tralalero: puxado por ele ou caído sozinho. Nas duas, a barbatana da volta some
@@ -183,7 +184,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
       else if (fellInPuddle) drawPuddleFall(ctx, sheets, player, death.fin, reduceMotion)
       else {
         // Efeitos dos itens que acompanham o Tung, na frente dele: a bolha do escudo, o vapor e o cacau
-        drawPlayer(ctx, sheets, player, reduceMotion, visibleItems)
+        drawPlayer(ctx, sheets, player, reduceMotion, visibleItems, characterId, timeMs)
         if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs)
       }
       // Item que ele acabou de pegar, sobre a cabeça (não aparece na morte)

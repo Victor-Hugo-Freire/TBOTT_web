@@ -330,6 +330,30 @@ describe('getPlayerPose (o que desenhar)', () => {
     assert.equal(getPlayerPose({ ...player, attack: { direction: 'up', elapsed: 629 } }).frame, 7)
   })
 
+  test('quem voa (o God) bate as asas parado: o quadro do tronco vem do tempo, 50 ms cada, e as pernas ficam paradas', () => {
+    const player = createPlayer(START)
+    assert.deepEqual(getPlayerPose(player, false, true, 0), { sheet: 'walk', direction: 'down', frame: 0, legs: { direction: 'down', frame: 12 } })
+    assert.equal(getPlayerPose(player, false, true, 49).frame, 0)
+    assert.equal(getPlayerPose(player, false, true, 50).frame, 1)
+    assert.equal(getPlayerPose(player, false, true, 11 * 50).frame, 11)
+    assert.equal(getPlayerPose(player, false, true, 600).frame, 0, 'a batida se repete a cada 0,6 s')
+    assert.equal(getPlayerPose(player, false, true, 650).legs.frame, 12)
+  })
+
+  test('quem não voa fica no quadro 0 parado, mesmo com o relógio andando', () => {
+    assert.equal(getPlayerPose(createPlayer(START), false, false, 300).frame, 0)
+  })
+
+  test('quem voa e anda usa o quadro da distância andada, como os outros', () => {
+    const walking = { ...createPlayer(START), direction: 'left', walkDistance: 22 }
+    assert.equal(getPlayerPose(walking, false, true, 300).frame, 3)
+    assert.equal(getPlayerPose(walking, false, true, 300).legs.frame, 3)
+  })
+
+  test('quem voa, com reduzir movimento, fica parado no quadro 0 (sem bater as asas)', () => {
+    assert.equal(getPlayerPose(createPlayer(START), true, true, 300).frame, 0)
+  })
+
   test('reduzir movimento: o andar fica parado (pernas no quadro parado), mas o golpe anima', () => {
     const still = getPlayerPose({ ...createPlayer(START), walkDistance: 70 }, true)
     assert.deepEqual([still.frame, still.legs.frame], [0, 12])

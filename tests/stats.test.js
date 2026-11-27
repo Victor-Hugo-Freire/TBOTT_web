@@ -7,7 +7,19 @@ const TUNG = getBaseStats('tung-tung-sahur')
 
 describe('ficha do personagem', () => {
   test('o Tung Tung: golpe de 3, velocidades normais, 3 corações, 1 s de invencibilidade, golpe de tamanho normal e não voa', () => {
-    assert.deepEqual(TUNG, { damage: 3, moveSpeed: 1, attackSpeed: 1, maxHealth: 6, invincibilityMs: 1000, attackArea: 1, flying: false })
+    assert.deepEqual(TUNG, { name: 'Tung Tung Sahur', damage: 3, moveSpeed: 1, attackSpeed: 1, maxHealth: 6, invincibilityMs: 1000, attackArea: 1, flying: false })
+  })
+
+  test('o Sabor (garrafa lenta e resistente) e o God (rápido, frágil e voa) têm a ficha combinada', () => {
+    assert.deepEqual(getBaseStats('tung-tung-sabor'), { name: 'Tung Tung Sabor', damage: 3, moveSpeed: 0.9, attackSpeed: 0.9, maxHealth: 8, invincibilityMs: 1000, attackArea: 1, flying: false })
+    assert.deepEqual(getBaseStats('tung-tung-god'), { name: 'Tung Tung God', damage: 2.5, moveSpeed: 1.1, attackSpeed: 1, maxHealth: 4, invincibilityMs: 1000, attackArea: 1, flying: true })
+  })
+
+  test('só o God voa, e as fichas dos três ficam dentro dos limites', () => {
+    for (const [id, stats] of Object.entries(CHARACTER_STATS)) {
+      assert.equal(stats.flying, id === 'tung-tung-god', id)
+      for (const [name, { min, max }] of Object.entries(STAT_LIMITS)) assert.ok(stats[name] >= min && stats[name] <= max, id + ' ' + name)
+    }
   })
 
   test('id sem ficha (save antigo ou personagem que ainda não existe) usa a do Tung Tung', () => {

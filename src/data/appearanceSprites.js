@@ -1,6 +1,9 @@
 // Aparência do Tung Tung com itens. Usada na sala: utils/appearance.js decide o que aparece e
 // scene/drawPlayer.js desenha as camadas (imagens em public/sprites/characters/tung-tung-sahur/aparencia/).
 // Cada item visível é uma camada separada, por cima ou por baixo do personagem; o Tung original não muda.
+// Os três personagens (Sahur, Sabor e God) usam as mesmas camadas, porque as folhas novas foram derivadas das do Sahur.
+// A exceção é o chifre (perCharacter: true): a cabeça do Sabor e a do God ficam mais baixas, então cada um tem o seu
+// arquivo em public/sprites/characters/<id>/aparencia/ (getAppearancePath).
 // - Cada camada é uma imagem do tamanho da célula do tronco (296x259, a mesma de tungTungSahurAndar) e já vem
 //   desenhada no lugar certo do QUADRO 0 do andar. Só existe esse quadro: nos outros, o jogo soma o deslocamento de APPEARANCE_ANCHORS.
 // - Slots: cabeca, costas, bastao e aura (pés não foi feito). No máximo 1 item por slot; se 2 itens disputam o slot,
@@ -8,13 +11,17 @@
 // - position diz quando desenhar a camada:
 //   1) 'aura' (no chão) e 2) 'atras', antes das pernas; 3) pernas; 4) tronco; 5) 'frente', depois do tronco.
 // - Deslocamento por quadro (px da célula, em relação ao quadro 0 do andar):
-//   cabeca e costas seguem APPEARANCE_ANCHORS.<direção>.walk[quadro].head (no golpe, attackHead; no dano, hurtHead);
+//   cabeca segue APPEARANCE_ANCHORS.<direção>.walk[quadro].head (no golpe, attackHead; no dano, hurtHead);
+//   costas seguem o CORPO, que não se mexe igual à cabeça: de frente e de costas a cabeça balança até 3 px para os
+//   lados e o corpo não (andando, walkBody[quadro]; no golpe, attackHead);
 //   bastao segue batRing (o anel muda de lugar) e batAngle (o ângulo muda até 8 graus no andar). No golpe o bastão
 //   dá a volta inteira em volta do ombro (shoulder): attackBat[quadro] = [dx, dy, giro em graus] do ombro, com as
 //   mesmas contas que geraram ataque.png (golpe.py); null = a ponta fica atrás da cabeça ou do corpo (some no quadro);
 //   aura não se mexe (os pés ficam parados).
 // - Dano: o 1º quadro é o Tung inteiro branco e os outros são vermelhos; esconda as camadas no dano ou tinja igual.
 // Gerado a partir de ancoras.json e das camadas da arte (docs/sprites/aparencia/).
+
+import { getCharacterFolder } from './characterSprites.js'
 
 // Ordem de desenho das posições (pernas e tronco são do personagem)
 export const APPEARANCE_DRAW_ORDER = ['aura', 'atras', 'pernas', 'tronco', 'frente']
@@ -23,6 +30,7 @@ export const APPEARANCE_DRAW_ORDER = ['aura', 'atras', 'pernas', 'tronco', 'fren
 export const APPEARANCE_SPRITES = {
   'chifre-da-sorte': {
     slot: 'cabeca',
+    perCharacter: true,
     layers: {
       down: { path: '/sprites/characters/tung-tung-sahur/aparencia/chifre-da-sorte-baixo.png', position: 'frente' },
       left: { path: '/sprites/characters/tung-tung-sahur/aparencia/chifre-da-sorte-esquerda.png', position: 'frente' },
@@ -69,6 +77,12 @@ export const APPEARANCE_SPRITES = {
   },
 }
 
+// Caminho da imagem de uma camada: o do Sahur, ou o da pasta do personagem nos itens perCharacter
+export function getAppearancePath(layer, item, characterId) {
+  if (!item.perCharacter) return layer.path
+  return layer.path.replace('/sprites/characters/tung-tung-sahur', getCharacterFolder(characterId))
+}
+
 // Âncoras medidas no Tung (12 quadros do andar, 8 do ataque e 4 do dano, por direção)
 export const APPEARANCE_ANCHORS = {
   down: {
@@ -86,6 +100,7 @@ export const APPEARANCE_ANCHORS = {
       { head: [-3, -4], batRing: [242.4, 203.1], batAngle: -144.7 },
       { head: [-2, -3], batRing: [241.1, 207.2], batAngle: -141.8 },
     ],
+    walkBody: [[0, 0], [0, -1], [0, -4], [0, -6], [0, -5], [0, -1], [0, 0], [0, -1], [0, -4], [0, -6], [0, -4], [0, -2]],
     attackHead: [[0, -3], [0, -6], [0, 2], [0, 5], [0, 7], [0, 5], [0, 2], [0, 0]],
     hurtHead: [[0, -4], [0, -8], [0, -4], [0, 0]],
     shoulder: [184, 167],
@@ -106,6 +121,7 @@ export const APPEARANCE_ANCHORS = {
       { head: [0, -3], batRing: [245.4, 158.3], batAngle: 137.3 },
       { head: [0, -2], batRing: [245.9, 159.7], batAngle: 139.1 },
     ],
+    walkBody: [[0, 0], [0, -1], [0, -4], [0, -5], [0, -4], [0, -1], [0, 0], [0, -1], [0, -4], [0, -5], [0, -4], [0, -1]],
     attackHead: [[3, 0], [6, 0], [-2, 0], [-5, 0], [-7, 0], [-5, 0], [-2, 0], [0, 0]],
     hurtHead: [[5, 0], [18, 18], [15, 4], [0, 0]],
     shoulder: [181, 180],
@@ -126,6 +142,7 @@ export const APPEARANCE_ANCHORS = {
       { head: [0, -3], batRing: [39.1, 167.3], batAngle: 28.2 },
       { head: [0, -2], batRing: [38.9, 161.8], batAngle: 29.5 },
     ],
+    walkBody: [[0, 0], [0, -1], [0, -4], [0, -5], [0, -4], [0, -1], [0, 0], [0, -1], [0, -4], [0, -5], [0, -4], [0, -1]],
     attackHead: [[-3, 0], [-6, 0], [2, 0], [5, 0], [7, 0], [5, 0], [2, 0], [0, 0]],
     hurtHead: [[-4, 0], [-18, 16], [-12, 3], [0, 0]],
     shoulder: [116, 165],
@@ -146,6 +163,7 @@ export const APPEARANCE_ANCHORS = {
       { head: [-3, -4], batRing: [239.5, 147.2], batAngle: 127.0 },
       { head: [-2, -3], batRing: [240.5, 149.3], batAngle: 130.2 },
     ],
+    walkBody: [[0, 0], [0, -1], [0, -4], [0, -6], [0, -5], [0, -1], [0, 0], [0, -1], [0, -4], [0, -6], [0, -4], [0, -2]],
     attackHead: [[0, 3], [0, 6], [0, -2], [0, -5], [0, -7], [0, -5], [0, -2], [0, 0]],
     hurtHead: [[0, 4], [0, 8], [0, 4], [0, 0]],
     shoulder: [187, 165],

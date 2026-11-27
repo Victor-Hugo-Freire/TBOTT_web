@@ -1,5 +1,5 @@
 import { CHARACTER_SPRITES } from '../data/characterSprites.js'
-import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance } from './spriteAnimation.js'
+import { getTimedFrame, getTotalDuration, getWalkFrame, updateWalkDistance, WALK_FRAME_COUNT } from './spriteAnimation.js'
 import { moveRoomPlayer, PLAYER_SCALE, ROOM_WALLS } from './roomMovement.js'
 import { getBaseStats } from './stats.js'
 
@@ -28,6 +28,10 @@ const DEFAULT_STATS = getBaseStats('tung-tung-sahur')
 // Morte: a animação toca uma vez e para no último quadro (ele fica deitado). Morto, não anda, não ataca e não leva dano.
 const DEATH = CHARACTER_SPRITES.tungTungSahurMorte
 export const DEATH_DURATION_MS = getTotalDuration(DEATH.durations)
+
+// Quem voa (o God) bate as asas mesmo parado: o tronco percorre os 12 quadros do andar pelo tempo, 50 ms cada (uma batida
+// a cada 0,6 s). As pernas ficam paradas.
+export const FLAP_FRAME_MS = 50
 
 // Passo máximo de lógica por quadro: depois de uma pausa (aba escondida) o jogo não "pula"
 const MAX_STEP_MS = 50
@@ -217,8 +221,9 @@ export function getAttackArc(player) {
 // O personagem é desenhado em camadas: as pernas (legs) atrás e o tronco (sheet/direction/frame) na frente.
 // legs é null no dano e na morte, que têm o corpo inteiro numa folha só.
 // O corpo não inclina ao andar: o Victor rejeitou o balanço (2026-11-13); o passo fica todo na folha.
+// flying (atributo do personagem) e timeMs (relógio da cena): quem voa e está parado anima as asas pelo tempo.
 // Parado (ou reduzir movimento), as pernas ficam no quadro parado; andando, o quadro das pernas e o do tronco vêm da mesma distância andada, inclusive no golpe.
-export function getPlayerPose(player, reduceMotion = false) {
+export function getPlayerPose(player, reduceMotion = false, flying = false, timeMs = 0) {
   if (player.dead) {
     // Depois do fim (ou com reduzir movimento, sem a queda), fica no último quadro: deitado
     const last = DEATH.durations.length - 1
@@ -229,7 +234,8 @@ export function getPlayerPose(player, reduceMotion = false) {
     return { sheet: 'hurt', direction: player.hurt.direction, frame: getTimedFrame(HURT.durations, player.hurt.elapsed), legs: null }
   }
   const walking = player.walkDistance > 0 && !reduceMotion
-  const walkFrame = walking ? getWalkFrame(player.walkDistance) : 0
+  let walkFrame = walking ? getWalkFrame(player.walkDistance) : 0
+  if (flying && !walking && !reduceMotion) walkFrame = Math.floor(timeMs / FLAP_FRAME_MS) % WALK_FRAME_COUNT
   const legsFrame = walking ? walkFrame : LEGS.idleFrame
   if (player.attack) {
     const { direction, elapsed } = player.attack

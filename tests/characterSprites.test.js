@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
-import { CHARACTER_SPRITES, getFramePosition } from '../src/data/characterSprites.js'
+import { CHARACTER_SPRITES, getCharacterFolder, getCharacterSheets, getFramePosition } from '../src/data/characterSprites.js'
 import { drawSprite, PLAYER_SPRITE_SCALE } from '../src/pages/SalaInicial/scene/drawSprite.js'
 import { PLAYER_SCALE } from '../src/utils/roomMovement.js'
 
@@ -176,6 +176,78 @@ describe('folhas do Tung Tung Sahur (o jogo nunca reamostra nem redesenha: só m
 
   test('o md5 das folhas não mudou', () => {
     for (const [file, md5] of Object.entries(ORIGINALS)) {
+      const bytes = readFileSync(new URL(`../public/sprites/characters/${file}`, import.meta.url))
+      assert.equal(createHash('md5').update(bytes).digest('hex'), md5, file)
+    }
+  })
+})
+
+describe('folhas dos três personagens (Sahur, Sabor e God)', () => {
+  const IDS = ['tung-tung-sahur', 'tung-tung-sabor', 'tung-tung-god']
+  const FILES = { legs: 'pernas', walk: 'andar', attack: 'ataque', hurt: 'dano', death: 'morte' }
+
+  test('cada personagem tem as 5 folhas na sua pasta, com a grade do Sahur e o tamanho do arquivo certo', () => {
+    for (const id of IDS) {
+      const sheets = getCharacterSheets(id)
+      assert.deepEqual(Object.keys(sheets), Object.keys(FILES), id)
+      for (const [name, file] of Object.entries(FILES)) {
+        assert.equal(sheets[name].src, `/sprites/characters/${id}/${file}.png`, `${id} ${name}`)
+        assert.deepEqual(pngSize(sheets[name].src), {
+          width: sheets[name].frameWidth * sheets[name].framesPerRow,
+          height: sheets[name].frameHeight * Object.keys(sheets[name].rows).length,
+        }, `${id} ${name}`)
+      }
+    }
+  })
+
+  test('a grade, os pés e os tempos são os do Sahur nos três; a vista esquerda continua 4% maior', () => {
+    const sahur = CHARACTER_SPRITES
+    for (const id of IDS) {
+      const sheets = getCharacterSheets(id)
+      assert.deepEqual({ ...sheets.walk, src: '' }, { ...sahur.tungTungSahurAndar, src: '' }, id)
+      assert.deepEqual({ ...sheets.attack, src: '' }, { ...sahur.tungTungSahurAtaque, src: '' }, id)
+      assert.deepEqual({ ...sheets.death, src: '' }, { ...sahur.tungTungSahurMorte, src: '' }, id)
+      for (const name of ['walk', 'attack', 'hurt']) assert.equal(sheets[name].directionScale.left, 1.04, `${id} ${name}`)
+    }
+  })
+
+  test('o Sahur usa as folhas de sempre e um id desconhecido cai na pasta dele', () => {
+    assert.deepEqual(getCharacterSheets('tung-tung-sahur').walk, CHARACTER_SPRITES.tungTungSahurAndar)
+    for (const id of ['x', undefined, null, '']) assert.equal(getCharacterFolder(id), '/sprites/characters/tung-tung-sahur', String(id))
+  })
+
+  test('cada personagem tem a foto da tela de seleção', () => {
+    for (const id of IDS) {
+      const bytes = readFileSync(new URL(`../public/sprites/characters/${id}/selecao.jpg`, import.meta.url))
+      assert.ok(bytes.length > 1000, id)
+    }
+  })
+
+  // md5 das folhas e dos chifres aprovados do Sabor e do God (saem do derivar.py, fora do repositório).
+  // Se uma folha for regerada de propósito, atualize o md5 dela aqui.
+  const NEW_FILES = {
+    'tung-tung-sabor/andar.png': 'b2d512b8f02ff78452318e74e0f5e560',
+    'tung-tung-sabor/ataque.png': 'de4071765c7107f19bfec7ab76e640f8',
+    'tung-tung-sabor/dano.png': '5221d9687eace64d0381b3271bad8d73',
+    'tung-tung-sabor/morte.png': '3028cd7c078f5e647a940aa9ec4b5aef',
+    'tung-tung-sabor/pernas.png': '320fbd93334f39ccb2a6d93fd4a89453',
+    'tung-tung-sabor/aparencia/chifre-da-sorte-baixo.png': '9366204d23f2b7dec822e5071b9e3f30',
+    'tung-tung-sabor/aparencia/chifre-da-sorte-esquerda.png': '03ce19d1d9cf44397b73fa74b965f2ec',
+    'tung-tung-sabor/aparencia/chifre-da-sorte-direita.png': '25035f841656e8315a402c9392772456',
+    'tung-tung-sabor/aparencia/chifre-da-sorte-cima.png': '12bc9a241779d20583f92af6c53fba15',
+    'tung-tung-god/andar.png': '8e0c0321b20c4a09d1e4e1f293d455ab',
+    'tung-tung-god/ataque.png': 'd38541d553bcfc10f6dc7333f58274b7',
+    'tung-tung-god/dano.png': '67919fb75f286650849e7eabc5579eb8',
+    'tung-tung-god/morte.png': '7cad7d80c93447dade8595030090c54a',
+    'tung-tung-god/pernas.png': 'a41f445e4726a7b0783488be8f016e0c',
+    'tung-tung-god/aparencia/chifre-da-sorte-baixo.png': 'eba6de99dbf394444c5cfaaa432e34d3',
+    'tung-tung-god/aparencia/chifre-da-sorte-esquerda.png': '3702e24518e6521064ccd06239763dac',
+    'tung-tung-god/aparencia/chifre-da-sorte-direita.png': '09d51faaf9b9b7a1f5af54bb28281052',
+    'tung-tung-god/aparencia/chifre-da-sorte-cima.png': '52846eeb308a0ec4e007958c56f9ee7f',
+  }
+
+  test('o md5 das folhas do Sabor e do God não mudou', () => {
+    for (const [file, md5] of Object.entries(NEW_FILES)) {
       const bytes = readFileSync(new URL(`../public/sprites/characters/${file}`, import.meta.url))
       assert.equal(createHash('md5').update(bytes).digest('hex'), md5, file)
     }

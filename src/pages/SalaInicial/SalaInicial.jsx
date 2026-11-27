@@ -54,6 +54,7 @@ import Opcoes from '../Opcoes/Opcoes.jsx'
 import { ITEM_SPRITES } from '../../data/itemSprites.js'
 import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
 import { canPauseRun } from '../../utils/pause.js'
+import { getBaseStats } from '../../utils/stats.js'
 import { getGameMusicContext, isSameGameMusicContext, notifyGameMusic } from '../../audio/music/contextoDoJogo.js'
 
 function normalizePauseItemIcon(image) {
@@ -181,12 +182,14 @@ export default function SalaInicial() {
 
 
   // Personagem escolhido na seleção: o id vai para a run (e para o ranking) e o nome para o leitor de tela.
-  // O canvas desenha sempre o Tung Tung Sahur, o único com sprite (os outros virão depois)
+  // Quem manda é o progresso salvo: no Continue não há personagem no state, então a sala troca o nome (e as folhas)
+  // quando lê o progresso.
   const selectedCharacter = location.state?.character ?? {
     id: 'tung-tung-sahur',
     name: 'Tung Tung Sahur',
     description: 'Personagem principal do jogo.',
   }
+  const [characterName, setCharacterName] = useState(selectedCharacter.name || 'Tung Tung Sahur')
 
   useEffect(() => {
     endingStateRef.current = ending
@@ -258,7 +261,7 @@ export default function SalaInicial() {
 
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
-    const sheets = loadSheets()
+    let sheets = null // as folhas do personagem: carregadas quando o progresso diz quem ele é (draw só desenha com a run pronta)
     const hudImages = loadHudImages()
     loadDescriptionFont()
     // Quem pede "reduzir movimento" no sistema vê o andar parado no quadro 0, a faixa sem deslizar
@@ -353,6 +356,9 @@ export default function SalaInicial() {
         // (isso protege o que já existe)
         if (error?.status !== 401) console.warn('Não foi possível carregar o progresso.', error)
       }
+
+      sheets = loadSheets(characterId)
+      setCharacterName(getBaseStats(characterId).name)
 
       // Partida nova (ou save antigo, sem seed): a sala cria a seed e salva na hora
       const isNewSeed = progress.seed === null
@@ -870,8 +876,6 @@ export default function SalaInicial() {
       void saveProgress() // ao sair da sala (depois do fim da run, não salva)
     }
   }, [navigate, selectedCharacter.id])
-
-  const characterName = selectedCharacter.name || 'Tung Tung Sahur'
 
   return (
     <main

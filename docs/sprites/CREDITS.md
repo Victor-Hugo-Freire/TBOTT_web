@@ -54,6 +54,10 @@ O ZzFX é licenciado MIT por Frank Force (Copyright 2019). O ZzFXM é licenciado
 
 Abra `http://localhost:5173/__experimentos/zzfx` com `npm run dev`. Compare Ataque, Dano e Coleta repetidamente, ajuste cada parâmetro e registre volume percebido, clareza, contraste, adequação ao TBOTT e tempo de ajuste. Teste mute, cada volume e reprodução da música ZzFXM. As conclusões subjetivas não foram preenchidas automaticamente por esta implementação.
 
+## Fotos da tela de seleção de personagem
+
+As três fotos (`public/sprites/characters/<personagem>/selecao.jpg`) são imagens enviadas pelo Victor, recortadas e reduzidas para o card da seleção (o letreiro "Tung Tung saBOR" foi tirado da foto do Sabor). A foto do Tung Tung God tem uma marca d'água de quem a criou, que não foi apagada (o card a deixa fora do recorte). As folhas de sprites do Tung Tung Sabor e do Tung Tung God foram derivadas das folhas do Tung Tung Sahur, e o desenho deles segue as fotos.
+
 ## Personagens inspirados em memes
 
 Segundo o relatório da arte (seção 9), os desenhos são interpretações próprias, mas o nome e a ideia de seis chefes vêm de memes de "brainrot italiano" criados por terceiros:

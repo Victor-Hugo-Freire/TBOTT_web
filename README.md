@@ -8,7 +8,7 @@ O jogo consome a [TBOTT_api](https://github.com/Victor-Hugo-Freire/TBOTT_api), q
 
 ## O jogo
 
-- Três personagens jogáveis, com atributos iniciais que podem ser diferentes. Hoje só um deles tem sprites.
+- Três personagens jogáveis, cada um com sprites e atributos iniciais próprios: o Tung Tung Sahur (liberado desde o começo), o Tung Tung Sabor e o Tung Tung God (que o jogador precisa liberar). Na tela de seleção, o personagem bloqueado aparece como uma silhueta cinza com cadeado e a dica de como liberar.
 - Combate com um bastão, usado para atacar inimigos próximos.
 - Ranking pelo **menor tempo** de conclusão da partida.
 - Salas, mapas, inimigos e itens ainda estão em definição.

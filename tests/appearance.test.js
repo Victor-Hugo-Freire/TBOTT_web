@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { describe, test } from 'node:test'
-import { APPEARANCE_ANCHORS } from '../src/data/appearanceSprites.js'
+import { APPEARANCE_ANCHORS, APPEARANCE_SPRITES } from '../src/data/appearanceSprites.js'
 import { getAppearanceLayers, getVisibleItems } from '../src/utils/appearance.js'
 import { getPlayerPose } from '../src/utils/player.js'
 import { TEST_CATALOG } from './helpers/testCatalog.js'
@@ -56,12 +57,48 @@ describe('getAppearanceLayers (camadas do quadro atual)', () => {
     }
   })
 
-  test('andando, cabeça e costas seguem a cabeça do quadro; a aura fica parada no chão', () => {
+  test('andando, a cabeça segue a cabeça do quadro, as costas seguem o corpo e a aura fica parada no chão', () => {
     const layers = getAppearanceLayers(visible, walkPose('down', 3))
     assert.deepEqual(findLayer(layers, 'chifre-da-sorte').offset, APPEARANCE_ANCHORS.down.walk[3].head)
     assert.deepEqual(findLayer(layers, 'caldo-da-mamae').offset, [0, 0])
     const side = getAppearanceLayers(visible, walkPose('left', 9))
-    assert.deepEqual(findLayer(side, 'elixir-eletrico').offset, APPEARANCE_ANCHORS.left.walk[9].head)
+    assert.deepEqual(findLayer(side, 'elixir-eletrico').offset, APPEARANCE_ANCHORS.left.walkBody[9])
+  })
+
+  test('de costas a cabeça balança para os lados e o corpo não: a Concha acompanha o corpo, sem balançar', () => {
+    const concha = ['concha-longa']
+    // quadro 2 de costas: a cabeça vai 3 px para o lado (head[0] = 3)
+    assert.equal(APPEARANCE_ANCHORS.up.walk[2].head[0], 3)
+    const layer = findLayer(getAppearanceLayers(concha, walkPose('up', 2)), 'concha-longa')
+    assert.equal(layer.offset[0], 0)
+    assert.deepEqual(layer.offset, APPEARANCE_ANCHORS.up.walkBody[2])
+  })
+
+  test('a tabela do corpo tem os 12 quadros do andar nas 4 direções, e o quadro 0 é a pose parada', () => {
+    for (const direction of ['down', 'left', 'right', 'up']) {
+      const { walkBody } = APPEARANCE_ANCHORS[direction]
+      assert.equal(walkBody.length, 12, direction)
+      assert.deepEqual(walkBody[0], [0, 0], direction)
+    }
+  })
+
+  test('o Chifre tem imagem própria por personagem; os outros itens usam a pasta do Sahur', () => {
+    for (const [characterId, folder] of [['tung-tung-sahur', 'tung-tung-sahur'], ['tung-tung-sabor', 'tung-tung-sabor'], ['tung-tung-god', 'tung-tung-god'], [undefined, 'tung-tung-sahur']]) {
+      const layers = getAppearanceLayers(['chifre-da-sorte', 'rolo-de-bronze'], walkPose('left', 0), characterId)
+      assert.equal(findLayer(layers, 'chifre-da-sorte').path, `/sprites/characters/${folder}/aparencia/chifre-da-sorte-esquerda.png`, String(characterId))
+      assert.equal(findLayer(layers, 'rolo-de-bronze').path, '/sprites/characters/tung-tung-sahur/aparencia/rolo-de-bronze-esquerda.png', String(characterId))
+    }
+  })
+
+  test('toda imagem de camada de todos os personagens existe em public', () => {
+    const walk = walkPose('left', 0)
+    for (const characterId of ['tung-tung-sahur', 'tung-tung-sabor', 'tung-tung-god']) {
+      for (const direction of ['down', 'left', 'right', 'up']) {
+        for (const layer of getAppearanceLayers(Object.keys(APPEARANCE_SPRITES), { ...walk, direction }, characterId)) {
+          assert.ok(existsSync(new URL('../public' + layer.path, import.meta.url)), layer.path)
+        }
+      }
+    }
   })
 
   test('andando, o bastão anda com o anel e gira com o ângulo, em volta do anel do quadro 0', () => {

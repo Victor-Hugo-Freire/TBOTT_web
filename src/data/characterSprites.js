@@ -110,6 +110,28 @@ export const CHARACTER_SPRITES = {
   },
 }
 
+// Os três personagens jogáveis têm a mesma grade e os mesmos tempos (as folhas novas foram derivadas das do Sahur),
+// então só muda a pasta das imagens: public/sprites/characters/<id>/. Um id desconhecido usa a do Sahur.
+const CHARACTER_IDS = ['tung-tung-sahur', 'tung-tung-sabor', 'tung-tung-god']
+
+export function getCharacterFolder(characterId) {
+  const id = CHARACTER_IDS.includes(characterId) ? characterId : 'tung-tung-sahur'
+  return `/sprites/characters/${id}`
+}
+
+// As folhas da sala de um personagem: { legs, walk, attack, hurt, death }, com o src da pasta dele.
+// O directionScale (vista esquerda 4% maior) fica, porque a vista esquerda das folhas novas também vem da do Sahur.
+export function getCharacterSheets(characterId) {
+  const folder = getCharacterFolder(characterId)
+  return {
+    legs: { ...CHARACTER_SPRITES.tungTungSahurPernas, src: `${folder}/pernas.png` },
+    walk: { ...CHARACTER_SPRITES.tungTungSahurAndar, src: `${folder}/andar.png` },
+    attack: { ...CHARACTER_SPRITES.tungTungSahurAtaque, src: `${folder}/ataque.png` },
+    hurt: { ...CHARACTER_SPRITES.tungTungSahurDano, src: `${folder}/dano.png` },
+    death: { ...CHARACTER_SPRITES.tungTungSahurMorte, src: `${folder}/morte.png` },
+  }
+}
+
 // Posição do quadro dentro da folha, no formato do background-position do CSS.
 export function getFramePosition(sprite, direction, frame) {
   const rowCount = Object.keys(sprite.rows).length
