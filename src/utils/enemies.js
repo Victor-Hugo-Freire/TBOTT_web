@@ -145,6 +145,8 @@ export function areEnemiesDefeated(targets) {
 // No fim, o escudo de vapor que a Moka soltou neste quadro chega nos aliados (shielded: anula o próximo dano).
 // world = o que eles enxergam e onde deixam o que fizeram (veja enemyBehaviors.js). O alvo de treino não muda.
 export function updateEnemies(targets, world) {
+  world.mobEvents ??= []
+  world.bossEvents ??= []
   const stepMs = world.deltaSeconds * 1000
   // O caminho até o Tung desviando dos obstáculos e dos perigos do chão: um mapa só por quadro, para todos
   world.pathSolids = [...world.solids, ...getHazardBoxes(world.floorObstacles ?? [])]

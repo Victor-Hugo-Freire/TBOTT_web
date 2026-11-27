@@ -20,6 +20,11 @@ import {
 } from './enemyBehaviors.js'
 import { getBaseBox } from './targets.js'
 
+function emitBossCue(world, enemyId, cue) {
+  world.bossEvents ??= []
+  world.bossEvents.push({ enemyId, cue })
+}
+
 // Comportamento de cada chefe (issue #47): uma função por chefe, chamada a cada quadro por updateEnemies (enemies.js),
 // do mesmo jeito que os inimigos (enemyBehaviors.js): o ESTADO é a animação que está tocando (boss.animation) e há
 // quanto tempo ela toca (boss.animationMs). Os ajudantes (andar, virar, trocar de animação, efeitos) são os dos
@@ -79,7 +84,7 @@ function restCountdown(boss, world) {
 // A animação de dano do golpe que passou da marca é cortada (hurtMs): ela tem prioridade sobre as outras e, na folha
 // da troca, mostraria a fase antiga (a Nonna inteira levando dano). A própria animação de troca já mostra o golpe.
 // Devolve o chefe já trocando de fase, ou null se ele não chegou numa marca nova.
-function startPhaseChange(boss, to, animation, variant) {
+function startPhaseChange(boss, to, animation, variant, world) {
   if (getBossPhase(boss) <= boss.phase) return null
   const changing = {
     ...boss,
@@ -93,6 +98,12 @@ function startPhaseChange(boss, to, animation, variant) {
     biteHit: false,
     staffHit: false,
   }
+  const cue = boss.enemyId === 'chimpanzini-bananini'
+    ? 'fase2'
+    : boss.enemyId === 'nonna-lasagnona'
+      ? 'camada'
+      : `fase${changing.phase}`
+  emitBossCue(world, boss.enemyId, cue)
   return face(setAnimation(changing, animation), to)
 }
 
@@ -111,11 +122,19 @@ function chargeCinquecento(car, world) {
     car = { ...car, emitted: true }
   }
   const moved = moveEnemy(car, car.aim, CINQUECENTO.chargeSpeed, world)
-  if (!moved.blocked) return moved.animationMs >= CINQUECENTO.maxChargeMs ? setAnimation(moved, 'esfriando') : moved
+  if (!moved.blocked) {
+    if (moved.animationMs < CINQUECENTO.maxChargeMs) return moved
+    emitBossCue(world, moved.enemyId, 'vulneravel')
+    return setAnimation(moved, 'esfriando')
+  }
 
+  emitBossCue(world, moved.enemyId, 'impacto')
   world.flashes.push(createEnemyFlash('impacto', moved.x + moved.aim.x * (moved.base.width / 2), moved.y - 40))
   const bounces = moved.bounces + 1
-  if (bounces > CINQUECENTO.bounces) return setAnimation({ ...moved, bounces }, 'esfriando')
+  if (bounces > CINQUECENTO.bounces) {
+    emitBossCue(world, moved.enemyId, 'vulneravel')
+    return setAnimation({ ...moved, bounces }, 'esfriando')
+  }
   const aim = bounceAim(moved, moved.aim, world.solids)
   world.flashes.push(createEnemyFlash('marca-pneu', moved.x, moved.y))
   return { ...face(moved, aim), aim, bounces }
@@ -134,6 +153,7 @@ function honkCinquecento(car, world) {
     return { ...car, honkWarnMs, animationMs: honkWarnMs > 0 ? car.animationMs % HONK_WINDUP_MS : 0 }
   }
   if (reachedEmitFrame(car)) {
+    emitBossCue(world, car.enemyId, 'buzina')
     const wave = createEnemyFlash('buzina', car.x, car.y - car.height / 2)
     world.flashes.push({ ...wave, scale: CINQUECENTO.honkScale })
     car = { ...car, emitted: true }
@@ -150,6 +170,7 @@ function updateCinquecento(car, world) {
   if (car.animation === 'preparando-investida') {
     // Acelera parado, virado para o Tung (o aviso); no fim, investe para onde ele está
     if (!isAnimationOver(car)) return face(car, to)
+    emitBossCue(world, car.enemyId, 'investida')
     return { ...setAnimation(car, 'investida'), aim: { x: to.x, y: to.y }, bounces: 0, honked: false }
   }
   if (car.animation === 'investida') return chargeCinquecento(car, world)
@@ -160,9 +181,15 @@ function updateCinquecento(car, world) {
   // Andando atrás do Tung. Perto dele, buzina (se não acabou de buzinar); depois de andar walkMs, ou logo depois de
   // buzinar com ele ainda perto, prepara a investida.
   const near = to.distance <= CINQUECENTO.honkRange
-  if (near && !car.honked) return { ...face(setAnimation(car, 'atacando'), to), honked: true, honkWarnMs: CINQUECENTO.honkWarnMs }
+  if (near && !car.honked) {
+    emitBossCue(world, car.enemyId, 'aviso')
+    return { ...face(setAnimation(car, 'atacando'), to), honked: true, honkWarnMs: CINQUECENTO.honkWarnMs }
+  }
   const walkedEnough = car.animation === 'andando' && car.animationMs >= CINQUECENTO.walkMs
-  if (walkedEnough || (near && car.honked)) return face(setAnimation(car, 'preparando-investida'), to)
+  if (walkedEnough || (near && car.honked)) {
+    emitBossCue(world, car.enemyId, 'aviso')
+    return face(setAnimation(car, 'preparando-investida'), to)
+  }
   return chase(setAnimation(car, 'andando'), world, car.speed)
 }
 
@@ -203,6 +230,7 @@ function startStaff(fish, world) {
   }
   const drawing = createEnemyFlash('pauta', fish.x + (side * length) / 2, world.player.y + STAFF_DRAW_OFFSET)
   world.flashes.push({ ...drawing, scale: TRALALERO.staffScale, mirror: side < 0, durationMs: STAFF_MS, hold: true })
+  emitBossCue(world, fish.enemyId, 'pauta')
   return { ...fish, staff, staffHit: false }
 }
 
@@ -216,6 +244,7 @@ function startTralaleroAttack(fish, world, to) {
   if (attack === 'investida') return { ...face(setAnimation(next, 'preparando-investida'), to), dashesLeft: TRALALERO.dashes }
   if (attack === 'canto') return { ...face(setAnimation(next, 'canto-tralala'), to), volleys: 0 }
   if (attack === 'pauta') return startStaff(face(setAnimation(next, 'pauta'), to), world)
+  emitBossCue(world, fish.enemyId, 'mergulho')
   return setAnimation(next, 'salto-mergulho') // o mergulho
 }
 
@@ -224,13 +253,18 @@ function startTralaleroAttack(fish, world, to) {
 function updateTralaleroCharge(fish, world, to) {
   if (fish.animation === 'preparando-investida') {
     if (!isAnimationOver(fish)) return face(fish, to)
+    emitBossCue(world, fish.enemyId, 'investida')
     return { ...setAnimation(fish, 'investida'), aim: { x: to.x, y: to.y } }
   }
   const moved = moveEnemy(fish, fish.aim, getTralaleroSpeed(fish, TRALALERO.chargeSpeed), world)
   if (!moved.blocked && moved.animationMs < TRALALERO.dashMs) return moved
-  if (moved.blocked) world.flashes.push(createEnemyFlash('impacto', moved.x + moved.aim.x * (moved.base.width / 2), moved.y - 40))
+  if (moved.blocked) {
+    emitBossCue(world, moved.enemyId, 'impacto')
+    world.flashes.push(createEnemyFlash('impacto', moved.x + moved.aim.x * (moved.base.width / 2), moved.y - 40))
+  }
   const dashesLeft = moved.dashesLeft - 1
   if (dashesLeft > 0) return face(setAnimation({ ...moved, dashesLeft }, 'preparando-investida'), getDirectionTo(moved, world.player))
+  emitBossCue(world, moved.enemyId, 'vulneravel')
   return setAnimation({ ...moved, dashesLeft }, 'tropeco-vulneravel')
 }
 
@@ -238,6 +272,7 @@ function updateTralaleroCharge(fish, world, to) {
 // catálogo vale: 'atacando' (a mordida de perto) ou 'salto-mergulho' (saindo do chão, no fim do mergulho).
 function updateBite(fish, world) {
   if (isHitFrame(fish) && !fish.biteHit && getDirectionTo(fish, world.player).distance <= TRALALERO.biteRange) {
+    emitBossCue(world, fish.enemyId, 'mordida')
     world.hits.push({ damage: getAttackDamage(fish, fish.biteAttack), cause: fish.enemyId })
     fish = { ...fish, biteHit: true }
   }
@@ -249,6 +284,7 @@ function updateBite(fish, world) {
 function updateSong(fish, world) {
   const to = getDirectionTo(fish, world.player)
   if (reachedEmitFrame(fish)) {
+    emitBossCue(world, fish.enemyId, 'canto')
     const middle = Math.atan2(to.y, to.x)
     for (let k = 0; k < TRALALERO.notes; k++) {
       const angle = middle + (k - (TRALALERO.notes - 1) / 2) * TRALALERO.noteSpread
@@ -275,7 +311,7 @@ function updateTralalero(fish, world) {
 
   // Troca de fase: a da fase 2 é desenhada na folha normal (ele põe os óculos); a da fase 3, na folha de óculos (os
   // tênis piscam e brilham)
-  const changing = startPhaseChange(fish, to, 'transicao-fase2', fish.phase === 1 ? null : 'fase2')
+  const changing = startPhaseChange(fish, to, 'transicao-fase2', fish.phase === 1 ? null : 'fase2', world)
   if (changing) return changing
   const resting = restCountdown(fish, world)
   if (resting) return resting
@@ -297,6 +333,7 @@ function updateTralalero(fish, world) {
     // A barbatana persegue o Tung; perto dele (ou depois de finMaxMs), sai do chão mordendo
     const near = to.distance <= TRALALERO.emergeRange
     if (!near && fish.animationMs < TRALALERO.finMaxMs) return chase(fish, world, getTralaleroSpeed(fish, TRALALERO.finSpeed))
+    emitBossCue(world, fish.enemyId, 'respingo')
     world.flashes.push(createEnemyFlash('respingo', fish.x, fish.y - 20))
     return { ...face(setAnimation(fish, 'atacando'), to), hidden: false, biteAttack: 'salto-mergulho' }
   }
@@ -321,7 +358,7 @@ function createPeel(x, y) {
 function updateChimpanzini(chimp, world) {
   const to = getDirectionTo(chimp, world.player)
   // Na metade da vida ele se descasca: é a troca de fase, na folha normal (ela mostra a casca abrindo)
-  const changing = startPhaseChange(chimp, to, 'descascar', null)
+  const changing = startPhaseChange(chimp, to, 'descascar', null, world)
   if (changing) return changing
   const resting = restCountdown(chimp, world)
   if (resting) return resting
@@ -329,6 +366,7 @@ function updateChimpanzini(chimp, world) {
   if (chimp.animation === 'descascar') {
     // A casca cai no chão no quadro do emits e fica escorregadia; no fim ele já está descascado (a folha da fase 2)
     if (reachedEmitFrame(chimp)) {
+      emitBossCue(world, chimp.enemyId, 'casca')
       world.floor.push(createPeel(chimp.x, chimp.y))
       chimp = { ...chimp, emitted: true }
     }
@@ -337,6 +375,7 @@ function updateChimpanzini(chimp, world) {
   if (chimp.animation === 'atacando') {
     // As duas bananas saem da mão no quadro do emits, na direção do Tung: uma laça pela esquerda e a outra pela direita
     if (reachedEmitFrame(chimp)) {
+      emitBossCue(world, chimp.enemyId, 'banana')
       const damage = getAttackDamage(chimp, 'atacando')
       world.shots.push(createBanana(chimp, world.player, damage, -1), createBanana(chimp, world.player, damage, 1))
       chimp = { ...chimp, emitted: true }
@@ -391,6 +430,7 @@ function slamNonna(nonna, world) {
   const side = nonna.facingLeft ? -1 : 1
   const impact = { x: nonna.x + side * NONNA.slamReach, y: nonna.y }
   if (reachedEmitFrame(nonna)) {
+    emitBossCue(world, nonna.enemyId, 'colherada')
     world.flashes.push({ ...createEnemyFlash('onda-choque', impact.x, impact.y - 10), scale: NONNA.slamScale })
     nonna = { ...nonna, emitted: true }
   }
@@ -406,7 +446,7 @@ function updateNonna(nonna, world) {
   const nextLayer = NONNA_LAYERS[nonna.phase + 1]
   // A colherada e as almôndegas em andamento acabam antes da troca de camada (a troca não corta o ataque no meio)
   const busy = nonna.animation === 'atacando' || nonna.animation === 'invocar'
-  const changing = nextLayer && !busy ? startPhaseChange(nonna, to, nextLayer.animation, null) : null
+  const changing = nextLayer && !busy ? startPhaseChange(nonna, to, nextLayer.animation, null, world) : null
   if (changing) return changing
   const resting = restCountdown(nonna, world)
   if (resting) return resting
@@ -418,7 +458,10 @@ function updateNonna(nonna, world) {
   }
   if (animation === 'atacando') return slamNonna(nonna, world)
   if (animation === 'invocar') {
-    if (reachedEmitFrame(nonna)) nonna = { ...summonMeatballs(nonna, world), emitted: true }
+    if (reachedEmitFrame(nonna)) {
+      emitBossCue(world, nonna.enemyId, 'invocar')
+      nonna = { ...summonMeatballs(nonna, world), emitted: true }
+    }
     return isAnimationOver(nonna) ? restBoss(nonna, NONNA.restMs) : nonna
   }
 
@@ -440,6 +483,7 @@ function updatePatapim(boss, world) {
   if (boss.animation === 'atacando') {
     // O pisão: a onda de choque sai no quadro do emits; no quadro de acerto, machuca quem está a até stompRadius
     if (reachedEmitFrame(boss)) {
+      emitBossCue(world, boss.enemyId, 'pisao')
       world.flashes.push({ ...createEnemyFlash('onda-choque', boss.x, boss.y - 10), scale: PATAPIM.stompScale })
       boss = { ...boss, emitted: true }
     }
@@ -453,6 +497,7 @@ function updatePatapim(boss, world) {
   if (boss.animation === 'raizes') {
     // As raízes começam a brotar no quadro do emits, em linha na direção do Tung
     if (reachedEmitFrame(boss)) {
+      emitBossCue(world, boss.enemyId, 'raizes')
       world.shots.push(createRoots(boss, world.player, getAttackDamage(boss, 'raizes')))
       boss = { ...boss, emitted: true }
     }
@@ -472,10 +517,18 @@ function updatePatapim(boss, world) {
 // bounces + 1 (ou depois de maxSpinMs), fica tonta.
 function spinBallerina(dancer, world) {
   const moved = moveEnemy(dancer, dancer.aim, BALLERINA.spinSpeed, world)
-  if (!moved.blocked) return moved.animationMs >= BALLERINA.maxSpinMs ? setAnimation(moved, 'tonta') : moved
+  if (!moved.blocked) {
+    if (moved.animationMs < BALLERINA.maxSpinMs) return moved
+    emitBossCue(world, moved.enemyId, 'vulneravel')
+    return setAnimation(moved, 'tonta')
+  }
+  emitBossCue(world, moved.enemyId, 'impacto')
   world.flashes.push(createEnemyFlash('impacto', moved.x + moved.aim.x * (moved.base.width / 2), moved.y - 40))
   const bounces = moved.bounces + 1
-  if (bounces > BALLERINA.bounces) return setAnimation({ ...moved, bounces }, 'tonta')
+  if (bounces > BALLERINA.bounces) {
+    emitBossCue(world, moved.enemyId, 'vulneravel')
+    return setAnimation({ ...moved, bounces }, 'tonta')
+  }
   const aim = bounceAim(moved, moved.aim, world.solids)
   return { ...face(moved, aim), aim, bounces }
 }
@@ -488,6 +541,7 @@ function updateBallerina(dancer, world) {
   if (dancer.animation === 'atacando') {
     // As gotas de café saem no quadro do emits, em círculo em volta dela, a primeira na direção do Tung
     if (reachedEmitFrame(dancer)) {
+      emitBossCue(world, dancer.enemyId, 'gotas')
       const damage = getAttackDamage(dancer, 'atacando')
       const first = Math.atan2(to.y, to.x)
       for (let k = 0; k < BALLERINA.drops; k++) world.shots.push(createCoffeeDrop(dancer, first + (2 * Math.PI * k) / BALLERINA.drops, damage))
@@ -498,7 +552,10 @@ function updateBallerina(dancer, world) {
   // Andando atrás do Tung; depois de andar walkMs, reveza a pirueta e as gotas
   if (dancer.animation === 'andando' && dancer.animationMs >= BALLERINA.walkMs) {
     const next = { ...dancer, attackCount: dancer.attackCount + 1 }
-    if (dancer.attackCount % 2 === 0) return { ...face(setAnimation(next, 'pirueta'), to), aim: { x: to.x, y: to.y }, bounces: 0 }
+    if (dancer.attackCount % 2 === 0) {
+      emitBossCue(world, dancer.enemyId, 'pirueta')
+      return { ...face(setAnimation(next, 'pirueta'), to), aim: { x: to.x, y: to.y }, bounces: 0 }
+    }
     return face(setAnimation(next, 'atacando'), to)
   }
   return chase(setAnimation(dancer, 'andando'), world, dancer.speed)
@@ -513,6 +570,7 @@ const BOMBING_PATTERNS = ['linha', 'cruz', 'rasante', 'cerco'] // na ordem em qu
 function dropBomb(plane, world, x, y, fallMs = BOMBARDIRO.bombFallMs) {
   const markX = Math.min(ROOM_FLOOR.right - BOMB_MARGIN, Math.max(ROOM_FLOOR.left + BOMB_MARGIN, x))
   const markY = Math.min(ROOM_FLOOR.bottom - 10, Math.max(ROOM_FLOOR.top + BOMB_MARGIN, y))
+  emitBossCue(world, plane.enemyId, 'bomba')
   world.shots.push(createBomb(markX, markY, getAttackDamage(plane, 'atacando'), plane.enemyId, fallMs))
 }
 
@@ -555,13 +613,16 @@ function raidBombardiro(plane, world) {
     dropBomb(moved, world, moved.x, moved.y)
     moved = { ...moved, raidFrom: { x: moved.x, y: moved.y } }
   }
-  return moved.blocked || moved.animationMs >= BOMBARDIRO.raidMs ? endBombing(moved) : moved
+  return moved.blocked || moved.animationMs >= BOMBARDIRO.raidMs ? endBombing(moved, world) : moved
 }
 
 // Fim de um bombardeio: a cada bombingsBeforeLanding, ele pousa para abastecer; senão descansa
-function endBombing(plane) {
+function endBombing(plane, world) {
   const bombings = (plane.bombings ?? 0) + 1
-  if (bombings >= BOMBARDIRO.bombingsBeforeLanding) return setAnimation({ ...plane, bombings: 0 }, 'pousado')
+  if (bombings >= BOMBARDIRO.bombingsBeforeLanding) {
+    emitBossCue(world, plane.enemyId, 'pouso')
+    return setAnimation({ ...plane, bombings: 0 }, 'pousado')
+  }
   return rest({ ...plane, bombings }, BOMBARDIRO.restMs)
 }
 
@@ -576,7 +637,7 @@ function updateBombardiro(plane, world) {
       dropPattern(plane, world)
       plane = { ...plane, emitted: true }
     }
-    return isAnimationOver(plane) ? endBombing(plane) : plane
+    return isAnimationOver(plane) ? endBombing(plane, world) : plane
   }
   // Voando: chega a hoverRange do Tung (em linha reta: voando, os obstáculos não atrapalham) e fica pairando ali;
   // depois de voar walkMs, bombardeia com o próximo padrão (o rasante mira onde o Tung está agora)
@@ -609,6 +670,7 @@ function getBehindPoint(ninja, player) {
 // nos quadros de acerto, quem está a até slashRange leva o dano do ataque attackId do catálogo (uma vez)
 function slashKatana(ninja, world, attackId) {
   if (reachedEmitFrame(ninja)) {
+    emitBossCue(world, ninja.enemyId, 'corte')
     const side = ninja.facingLeft ? -1 : 1
     world.flashes.push({ ...createEnemyFlash('corte-katana', ninja.x + side * 60, ninja.y - 70), scale: CAPPUCCINO.slashScale })
     ninja = { ...ninja, emitted: true }
@@ -645,6 +707,7 @@ function summonClones(ninja, world) {
     world.flashes.push(createEnemyFlash('poof', spot.x, spot.y - 60))
     made++
   }
+  emitBossCue(world, ninja.enemyId, 'clones')
   return { ...ninja, clonesMade: made }
 }
 
@@ -663,6 +726,7 @@ function updateCappuccino(ninja, world) {
     // Vira fumaça no quadro do emits: some (nada o acerta) e a fumaça dele já aparece atrás do Tung; no fim,
     // reaparece e dá o corte
     if (reachedEmitFrame(ninja)) {
+      emitBossCue(world, ninja.enemyId, 'teleporte')
       world.flashes.push(createEnemyFlash('poof', ninja.x, ninja.y - 60))
       ninja = { ...ninja, ...getBehindPoint(ninja, world.player), hidden: true, emitted: true }
     }

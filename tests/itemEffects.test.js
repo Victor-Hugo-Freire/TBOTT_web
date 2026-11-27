@@ -65,6 +65,9 @@ describe('Café Duplo', () => {
   test('ao levar dano, corre boostSpeedMultiplier mais rápido por boostDurationMs', () => {
     let run = updateRun(onHotPlate(runWith(['cafe-duplo'])), IDLE, STEP)
     assert.ok(run.player.hurt)
+    assert.deepEqual(run.itemAudioEvents, [
+      { itemId: 'cafe-duplo', cue: 'impulso', sequence: 1 },
+    ])
     assert.ok(Math.abs(getRunStats(run).moveSpeed - 1.05 * 1.4) < 1e-9)
     run.obstacles = [] // sai da chapa
     run = steps(run, 3000 / STEP_MS - 2)
@@ -80,6 +83,25 @@ describe('Parmesão Curado', () => {
     // 3 do golpe + 3 lascas de 1
     assert.equal(run.targets[0].health, 30 - 3 - 3)
     assert.deepEqual(run.shards, [], 'as lascas somem depois de acertar')
+  })
+
+  test('toca o lançamento e o impacto das lascas que acertam um alvo', () => {
+    let run = updateRun(runWithTarget(['parmesao-curado']), {
+      movement: { x: 0, y: 0 },
+      attackDirection: 'up',
+    }, STEP)
+    while (!run.swing.shardsFired) run = updateRun(run, IDLE, STEP)
+    assert.ok(run.itemAudioEvents.some(({ itemId, cue }) =>
+      itemId === 'parmesao-curado' && cue === 'lancamento'))
+
+    let heardImpact = run.itemAudioEvents.some(({ itemId, cue }) =>
+      itemId === 'parmesao-curado' && cue === 'impacto')
+    for (let frame = 0; frame < 20 && !heardImpact; frame++) {
+      run = updateRun(run, IDLE, STEP)
+      heardImpact = run.itemAudioEvents.some(({ itemId, cue }) =>
+        itemId === 'parmesao-curado' && cue === 'impacto')
+    }
+    assert.ok(heardImpact, 'a colisão da lasca gera um cue de impacto')
   })
 
   test('as lascas voam até a parede: um alvo do outro lado da sala, na direção do golpe, também leva o dano', () => {
@@ -147,9 +169,13 @@ describe('Concha Longa', () => {
     assert.deepEqual(swing(runWithTarget(['concha-longa']), 'down').puddles, [], 'errou: sem poça')
     let run = runWithTarget(['concha-longa'])
     const { x, y } = run.targets[0]
-    run = swing(run)
+    run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
+    while (run.puddles.length === 0) run = updateRun(run, IDLE, STEP)
     assert.equal(run.puddles.length, 1)
     assert.deepEqual([run.puddles[0].x, run.puddles[0].y], [x, y])
+    assert.ok(run.itemAudioEvents.some(({ itemId, cue }) =>
+      itemId === 'concha-longa' && cue === 'poca'))
+    while (run.player.attack) run = updateRun(run, IDLE, STEP)
     run = steps(run, 2000 / STEP_MS + 1)
     assert.deepEqual(run.puddles, [])
   })
@@ -241,6 +267,8 @@ describe('Tiramisu', () => {
   test('o golpe que acerta deixa o golpe attackSpeedBonus mais rápido por bonusDurationMs', () => {
     let run = updateRun(runWithTarget(['tiramisu']), { movement: { x: 0, y: 0 }, attackDirection: 'up' }, STEP)
     while (!run.swing.hitAny) run = updateRun(run, IDLE, STEP)
+    assert.ok(run.itemAudioEvents.some(({ itemId, cue }) =>
+      itemId === 'tiramisu' && cue === 'ativacao'))
     assert.equal(run.effects.sugarMs, 2000)
     assert.ok(Math.abs(getRunStats(run).attackSpeed - 1.25) < 1e-9)
     assert.ok(Math.abs(getRunStats(run).moveSpeed - 1.2) < 1e-9, 'e anda 20% mais rápido')
@@ -317,6 +345,9 @@ describe('Dente de Tubarão', () => {
 
   test('cada abate soma uma carga do frenesi (até maxStacks), que some depois de bonusDurationMs', () => {
     let run = onKills(runWith(['dente-de-tubarao']), 1)
+    assert.deepEqual(run.itemAudioEvents, [
+      { itemId: 'dente-de-tubarao', cue: 'frenesi', sequence: 1 },
+    ])
     assert.ok(Math.abs(getRunStats(run).attackSpeed - 1.15) < 1e-9)
     run = onKills(run, 5)
     assert.equal(run.effects.frenzyStacks, 3)
@@ -368,6 +399,9 @@ describe('Caldo da Mamãe', () => {
     assert.equal(run.effects.coffeeBoostMs, 0)
     // o escudo estoura (no mesmo quadro o relógio já andou um passo)
     assert.equal(run.effects.shieldBreakMs, SHIELD_BREAK_MS - STEP_MS)
+    assert.deepEqual(run.itemAudioEvents, [
+      { itemId: 'caldo-da-mamae', cue: 'escudo', sequence: 1 },
+    ])
     run = steps(run, SHIELD_BREAK_MS / STEP_MS)
     assert.equal(run.effects.shieldBreakMs, 0, 'a animação acaba')
     // depois da invencibilidade, o próximo dano vale
@@ -382,6 +416,8 @@ describe('Caldo da Mamãe', () => {
   test('com a vida em healAtHealth ou menos, cura healAmount uma vez por andar (e isso vai para o save)', () => {
     let run = updateRun(onHotPlate(runWith(['caldo-da-mamae'], { health: 3 })), IDLE, STEP)
     assert.equal(run.health, 6, '3 - 1 = 2, e o colo de mãe cura 4')
+    assert.ok(run.itemAudioEvents.some(({ itemId, cue }) =>
+      itemId === 'caldo-da-mamae' && cue === 'cura'))
     assert.equal(run.effects.floorHealsUsed, 1)
     assert.equal(createRunSnapshot(run, 0).floorHealsUsed, 1)
     run = { ...run, health: 3, player: createPlayer(TOUCHING_PLATE) }

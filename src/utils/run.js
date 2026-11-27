@@ -84,6 +84,7 @@ import {
 import { getBaseStats, getPlayerStats, STAT_LIMITS } from './stats.js'
 import {
   addBumpFlashes,
+  appendItemAudioEvent,
   applyMotherHeal,
   armRoomShield,
   createItemEffects,
@@ -172,17 +173,46 @@ export function getRunStats(run) {
 // lostHealth = ele perdeu vida (mesmo que o Caldo cure logo depois): na sala do chefe, isso troca o God pelo Pacto.
 function damagePlayer(run, player, health, effects, amount, cause, stats) {
   const hurt = hurtPlayer(player, stats.invincibilityMs)
-  if (hurt === player) return { player, health, death: null, effects, lostHealth: false }
+  if (hurt === player) return { player, health, death: null, effects, lostHealth: false, itemAudioCues: [] }
   const shielded = spendShield(effects)
   if (shielded) {
-    return { player: { ...player, invincibleMs: stats.invincibilityMs }, health, death: null, effects: shielded, lostHealth: false }
+    return {
+      player: { ...player, invincibleMs: stats.invincibilityMs },
+      health,
+      death: null,
+      effects: shielded,
+      lostHealth: false,
+      itemAudioCues: [{ itemId: 'caldo-da-mamae', cue: 'escudo' }],
+    }
   }
 
   const nextHealth = applyDamage(health, amount)
   const hurtEffects = onPlayerHurt(run, effects)
-  if (nextHealth === 0) return { player: killPlayer(hurt), health: 0, death: { cause }, effects: hurtEffects, lostHealth: true }
+  const itemAudioCues = []
+  const coffee = getEffect(run, 'cafe-duplo')
+  if (effects.coffeeBoostMs <= 0 && coffee?.boostDurationMs) {
+    itemAudioCues.push({ itemId: 'cafe-duplo', cue: 'impulso' })
+  }
+  const damagedPlayer = {
+    ...hurt,
+    lastDamageEvent: {
+      sequence: (player.lastDamageEvent?.sequence ?? 0) + 1,
+      cause,
+    },
+  }
+  if (nextHealth === 0) {
+    return {
+      player: killPlayer(damagedPlayer),
+      health: 0,
+      death: { cause },
+      effects: hurtEffects,
+      lostHealth: true,
+      itemAudioCues,
+    }
+  }
   const healed = applyMotherHeal(run, nextHealth, stats.maxHealth, hurtEffects)
-  return { player: hurt, health: healed.health, death: null, effects: healed.effects, lostHealth: true }
+  if (healed.health > nextHealth) itemAudioCues.push({ itemId: 'caldo-da-mamae', cue: 'cura' })
+  return { player: damagedPlayer, health: healed.health, death: null, effects: healed.effects, lostHealth: true, itemAudioCues }
 }
 
 // Chifre da Sorte: cada abate do quadro (killed, os alvos que acabaram de morrer) tem extraCoinChance de soltar
@@ -525,6 +555,7 @@ function enterRoom(run, floor, room, position, direction = 'down') {
     enemyShots: [], // projéteis dos inimigos voando (enemyShots.js)
     flashes: [], // efeitos visuais que tocam uma vez (estalo, notas, mordida, faísca...)
     effects: { ...run.effects, shieldHits: 0 }, // o escudo do Caldo é de cada sala
+    itemAudioEvents: [],
     collecting: [], // o que acabou de ser pego, tocando a animação "coleta" (veja advanceCollecting)
     emptiedHere: [], // pedestais esvaziados nesta visita: só eles aparecem vazios (os outros vazios somem)
     touchingPedestal: null, // id do pedestal que ele estava tocando no quadro anterior (o aviso sai só no começo)
@@ -681,6 +712,8 @@ export function createRun({
     pickup: null, // item pego agora, sobre a cabeça do Tung: { itemId, elapsedMs } (some depois de PICKUP_MS)
     vanishing: [], // itens sumindo da sala de escolha: { roomId, pedestalId, itemId, elapsedMs } (VANISH_MS)
     effects: createItemEffects(floorHealsUsed), // tempos e contagens dos efeitos dos itens (itemEffects.js)
+    itemAudioEvents: [],
+    itemAudioEventSequence: 0,
     swing: createSwing(), // o golpe atual (o enterRoom zera de novo a cada sala)
     attackHeld: false, // a seta de ataque estava segurada no quadro anterior
     grains,
@@ -780,6 +813,7 @@ function updateRoom(run, input, deltaSeconds) {
   // dele (catálogo), e a causa da morte é o id dele. Tudo passa por damagePlayer; enquanto ele está invencível,
   // nada tira vida. Sem vida, ele morre (e a animação de dano nem toca).
   let { health, death, effects, hurtInRoom } = run
+  let itemAudioCues = []
   let hazard = null
   let hazardDamage = DAMAGE_LIGHT
   const touchedEnemy = findTouchingEnemy(run.targets, player)
@@ -796,6 +830,7 @@ function updateRoom(run, input, deltaSeconds) {
     player = hit.player
     health = hit.health
     effects = hit.effects
+    itemAudioCues.push(...hit.itemAudioCues)
     if (hit.death) death = hit.death
     if (hit.lostHealth) hurtInRoom = true
   }
@@ -862,7 +897,7 @@ function updateRoom(run, input, deltaSeconds) {
   const targetSolids = [...solids, ...Object.values(DOOR_HIT_ZONES)]
   // Os inimigos agem (enemyBehaviors.js) e deixam no "mundo" o que fizeram: dano fora do contato, efeitos, rastros
   // e projéteis novos. Depois os projéteis que já voavam andam (enemyShots.js) e também deixam dano e queijo.
-  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [] }
+  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [], mobEvents: [], bossEvents: [] }
   world.floorObstacles = [...obstacles, ...run.enemyFloor] // o piso vale para os inimigos também
   world.enemyCatalog = run.enemyCatalog // a Nonna chama almôndegas (Polpettas) do catálogo
   // O barril (ou a roda) rolando que encosta num inimigo tira ROLL_DAMAGE dele e quebra ali
@@ -875,9 +910,20 @@ function updateRoom(run, input, deltaSeconds) {
     player = result.player
     health = result.health
     effects = result.effects
+    itemAudioCues.push(...result.itemAudioCues)
     if (result.death) death = result.death
     if (result.lostHealth) hurtInRoom = true
   }
+  const previousMobEventSequence = run.mobEventSequence ?? 0
+  const mobEvents = world.mobEvents.map((event, index) => ({
+    ...event,
+    sequence: previousMobEventSequence + index + 1,
+  }))
+  const previousBossEventSequence = run.bossEventSequence ?? 0
+  const bossEvents = world.bossEvents.map((event, index) => ({
+    ...event,
+    sequence: previousBossEventSequence + index + 1,
+  }))
   let next = {
     ...run,
     player,
@@ -891,12 +937,19 @@ function updateRoom(run, input, deltaSeconds) {
     drumDrop,
     effects: updateEffectTimers(effects, stepMs),
     targets,
+    mobEvents,
+    mobEventSequence: previousMobEventSequence + mobEvents.length,
+    bossEvents,
+    bossEventSequence: previousBossEventSequence + bossEvents.length,
+    itemAudioEvents: [],
+    itemAudioEventSequence: run.itemAudioEventSequence ?? 0,
     flashes: [...updateFlashes(run.flashes, stepMs, targets), ...world.flashes], // o efeito em cima de um alvo vai junto com ele
     enemyFloor: [...updateEnemyFloor(run.enemyFloor, stepMs), ...world.floor], // o gelo do Pinguino e o queijo quente
     enemyShots, // caroços, pizzas e anéis de vapor voando
     // A seta está segurada agora? (a Batuta só conta o golpe de uma seta apertada de novo, e não segurada)
     attackHeld: input.attackDirection !== null,
   }
+  for (const { itemId, cue } of itemAudioCues) next = appendItemAudioEvent(next, itemId, cue)
   next = addBumpFlashes(next)
   if (swingEnded) next = endSwing(next)
   if (newSwing) next = startSwing(next, !run.attackHeld, stats)

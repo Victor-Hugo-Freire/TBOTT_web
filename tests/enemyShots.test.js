@@ -4,7 +4,7 @@ import { FENICOTTERO, MOKA, VESPINA, ZANZARINA } from '../src/data/enemyBehavior
 import { overlaps } from '../src/utils/collision.js'
 import { createEnemy, updateEnemies } from '../src/utils/enemies.js'
 import { getHazardBoxes } from '../src/utils/enemyPath.js'
-import { createHotCheese, createPizza, createSeed, createSteamRing, updateEnemyShots } from '../src/utils/enemyShots.js'
+import { createBomb, createHotCheese, createPizza, createSeed, createSteamRing, updateEnemyShots } from '../src/utils/enemyShots.js'
 import { createPlayer } from '../src/utils/player.js'
 import { getCellPoint, getCellRect } from '../src/utils/roomLayout.js'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
@@ -35,7 +35,7 @@ function spawn(id, col, row) {
 // Devolve os inimigos, os projéteis no ar e o que eles fizeram em todos os quadros. until(state) para antes.
 function simulate(enemies, player, ms, until = () => false, solids = ROOM_WALLS) {
   let shots = []
-  const done = { hits: [], flashes: [], floor: [] }
+  const done = { hits: [], flashes: [], floor: [], mobEvents: [] }
   for (let time = 0; time < ms; time += STEP_MS) {
     const world = { player, solids, deltaSeconds: STEP, hits: [], flashes: [], floor: [], shots: [] }
     enemies = updateEnemies(enemies, world)
@@ -43,6 +43,7 @@ function simulate(enemies, player, ms, until = () => false, solids = ROOM_WALLS)
     done.hits.push(...world.hits)
     done.flashes.push(...world.flashes)
     done.floor.push(...world.floor)
+    done.mobEvents.push(...world.mobEvents)
     if (until({ enemies, shots, ...done, time })) break
   }
   return { enemies, shots, ...done }
@@ -50,12 +51,14 @@ function simulate(enemies, player, ms, until = () => false, solids = ROOM_WALLS)
 
 // Só os projéteis, sem inimigos
 function flyShots(shots, player, ms, solids = ROOM_WALLS) {
-  const done = { hits: [], floor: [] }
+  const done = { hits: [], floor: [], mobEvents: [], bossEvents: [] }
   for (let time = 0; time < ms && shots.length > 0; time += STEP_MS) {
-    const world = { player, solids, deltaSeconds: STEP, hits: [], flashes: [], floor: [] }
+    const world = { player, solids, deltaSeconds: STEP, hits: [], flashes: [], floor: [], bossEvents: [] }
     shots = updateEnemyShots(shots, world)
     done.hits.push(...world.hits)
     done.floor.push(...world.floor)
+    done.mobEvents.push(...world.mobEvents)
+    done.bossEvents.push(...world.bossEvents)
   }
   return { shots, ...done }
 }
@@ -66,9 +69,10 @@ const SHOOTER = { x: 400, y: 525, damage: 1, enemyId: 'pistacchio-sputacchio' }
 describe('Pistacchio Sputacchio', () => {
   test('com a linha livre, cospe um caroço que voa até o Tung e acerta uma vez', () => {
     const player = getCellPoint(7, 3)
-    const { hits, shots } = simulate([spawn('pistacchio-sputacchio', 3, 3)], player, 3000, (state) => state.hits.length > 0)
+    const { hits, shots, mobEvents } = simulate([spawn('pistacchio-sputacchio', 3, 3)], player, 3000, (state) => state.hits.length > 0)
     assert.deepEqual(hits, [{ damage: 1, cause: 'pistacchio-sputacchio' }])
     assert.equal(shots.length, 0, 'o caroço some ao acertar')
+    assert.ok(mobEvents.some(({ cue }) => cue === 'lancamento'))
   })
 
   test('o caroço sai no quadro do emits (o aviso de abrir a casca)', () => {
@@ -82,9 +86,10 @@ describe('Pistacchio Sputacchio', () => {
 
   test('o caroço some ao bater num obstáculo, sem acertar o Tung', () => {
     const behindWall = getCellPoint(9, 3)
-    const { hits, shots } = flyShots([createSeed({ ...SHOOTER, ...getCellPoint(3, 3) }, behindWall)], behindWall, 4000, SOLIDS)
+    const { hits, shots, mobEvents } = flyShots([createSeed({ ...SHOOTER, ...getCellPoint(3, 3) }, behindWall)], behindWall, 4000, SOLIDS)
     assert.equal(hits.length, 0)
     assert.equal(shots.length, 0)
+    assert.ok(mobEvents.some(({ cue }) => cue === 'impacto'))
   })
 
   test('com um obstáculo no meio, não atira: anda até ter a linha livre', () => {
@@ -106,6 +111,9 @@ describe('Fenicottero Fornarino', () => {
     }, SOLIDS)
     assert.deepEqual(result.hits, [{ damage: 2, cause: 'fenicottero-fornarino' }])
     assert.ok(Math.abs(landedAt - thrownAt - FENICOTTERO.flightMs) <= STEP_MS, `voou ${landedAt - thrownAt} ms`)
+    for (const cue of ['lancamento', 'voo', 'pouso']) {
+      assert.ok(result.mobEvents.some((event) => event.cue === cue), `som de ${cue}`)
+    }
     assert.equal(result.floor.length, 1)
     const cheese = result.floor[0]
     assert.equal(cheese.kind, 'queijo-quente')
@@ -122,10 +130,12 @@ describe('Fenicottero Fornarino', () => {
     const inFlight = flyShots([pizza], target, FENICOTTERO.flightMs - 40)
     assert.equal(inFlight.shots.length, 1, 'ainda voando')
     assert.ok(inFlight.shots[0].height > 0)
+    assert.ok(inFlight.mobEvents.some(({ cue }) => cue === 'voo'))
     const away = { x: target.x, y: target.y - 150 }
     const landed = flyShots([pizza], away, FENICOTTERO.flightMs + 40)
     assert.equal(landed.hits.length, 0)
     assert.equal(landed.floor.length, 1)
+    assert.ok(landed.mobEvents.some(({ cue }) => cue === 'pouso'))
   })
 
   test('com o Tung perto demais, se afasta antes de lançar', () => {
@@ -151,12 +161,13 @@ describe('Moka Scudiera', () => {
     const near = { ...spawn('formaggino-saltellino', 7, 2), waitMs: 99999 }
     const far = { ...spawn('formaggino-saltellino', 11, 6), waitMs: 99999 }
     const player = getCellPoint(1, 0)
-    const { enemies } = simulate([moka, near, far], player, 1000, (state) => state.enemies.some((one) => one.shielded))
+    const { enemies, mobEvents } = simulate([moka, near, far], player, 1000, (state) => state.enemies.some((one) => one.shielded))
     const [mokaAfter, nearAfter, farAfter] = enemies
     assert.equal(mokaAfter.animation, 'escudo')
     assert.equal(nearAfter.shielded, true)
     assert.ok(!farAfter.shielded, 'um aliado por vez')
     assert.ok(!mokaAfter.shielded, 'ela não protege a si mesma')
+    assert.ok(mobEvents.some(({ cue }) => cue === 'escudo'))
 
     const blocked = damageTarget(nearAfter, 3)
     assert.equal(blocked.health, nearAfter.health, 'o dano não passa')
@@ -167,8 +178,9 @@ describe('Moka Scudiera', () => {
   test('sem aliado para proteger, chega perto e solta o anel, que acerta o Tung uma vez', () => {
     const moka = spawn('moka-scudiera', 6, 3)
     const player = { x: moka.x + 120, y: moka.y }
-    const { hits } = simulate([moka], player, 1000)
+    const { hits, mobEvents } = simulate([moka], player, 1000)
     assert.deepEqual(hits, [{ damage: 1, cause: 'moka-scudiera' }])
+    assert.ok(mobEvents.some(({ cue }) => cue === 'anel'))
   })
 
   test('o anel é achatado como o desenho: chega a ringRadius para os lados e menos para cima e para baixo', () => {
@@ -185,7 +197,7 @@ describe('Vespina Lambrettina', () => {
   test('acelera parada soltando a fumaça, que fica na sala, e depois mergulha atrás do Tung', () => {
     const vespina = spawn('vespina-lambrettina', 3, 3)
     const player = getCellPoint(6, 3)
-    let { enemies, flashes } = simulate([vespina], player, 540)
+    let { enemies, flashes, mobEvents } = simulate([vespina], player, 540)
     assert.equal(enemies[0].animation, 'acelerando')
     assert.equal(enemies[0].x, vespina.x, 'parada')
     assert.equal(flashes.length, 1)
@@ -193,21 +205,26 @@ describe('Vespina Lambrettina', () => {
     assert.equal(flashes[0].hold, true)
     assert.equal(flashes[0].durationMs, VESPINA.smokeMs)
     assert.ok(flashes[0].x < vespina.x, 'atrás dela (o Tung está à direita)')
-    enemies = simulate(enemies, player, 200).enemies
+    assert.ok(mobEvents.some(({ cue }) => cue === 'motor'))
+    const dive = simulate(enemies, player, 200)
+    enemies = dive.enemies
     assert.equal(enemies[0].animation, 'atacando')
     assert.ok(enemies[0].x > vespina.x + 50, 'mergulhou na direção do Tung')
+    assert.ok(dive.mobEvents.some(({ cue }) => cue === 'mergulho'))
   })
 
   test('mergulha, faz uma curva fechada, mergulha de volta e descansa depois do último mergulho', () => {
     const player = getCellPoint(5, 3)
     const seen = []
-    const { enemies } = simulate([spawn('vespina-lambrettina', 2, 3)], player, 4000, (state) => {
+    const { enemies, mobEvents } = simulate([spawn('vespina-lambrettina', 2, 3)], player, 4000, (state) => {
       const { animation } = state.enemies[0]
       if (seen[seen.length - 1] !== animation) seen.push(animation)
       return state.enemies[0].waitMs > 0
     })
     assert.deepEqual(seen, ['acelerando', 'atacando', 'curva', 'atacando', 'parado'])
     assert.ok(enemies[0].aim.x < 0, 'a curva a virou de volta para o Tung')
+    assert.ok(mobEvents.some(({ cue }) => cue === 'curva'))
+    assert.ok(mobEvents.filter(({ cue }) => cue === 'mergulho').length >= 2)
   })
 })
 
@@ -228,7 +245,19 @@ describe('Zanzarina Tarantella', () => {
     assert.ok(maxY - minY > 20, `balançou para os lados (${Math.round(maxY - minY)} u)`)
 
     const start = flying.enemies[0]
-    const { enemies } = simulate(flying.enemies, player, 2000, (state) => state.enemies[0].animation !== 'atacando', SOLIDS)
+    const { enemies, mobEvents } = simulate(flying.enemies, player, 2000, (state) => state.enemies[0].animation !== 'atacando', SOLIDS)
     assert.ok(Math.abs(distance(enemies[0], start) - ZANZARINA.diveDistance) < 10, `mergulhou ${distance(enemies[0], start)}`)
+    assert.ok(mobEvents.some(({ cue }) => cue === 'mergulho'))
+  })
+})
+
+describe('Bombardiro Crocodilo', () => {
+  test('a bomba emite o som da explosão mesmo quando não acerta o Tung', () => {
+    const bomb = createBomb(400, 525, 2, 'bombardiro-crocodilo', STEP_MS)
+    const result = flyShots([bomb], { x: 100, y: 100 }, STEP_MS * 2)
+
+    assert.deepEqual(result.hits, [])
+    assert.ok(result.bossEvents.some(({ enemyId, cue }) =>
+      enemyId === 'bombardiro-crocodilo' && cue === 'explosao'))
   })
 })

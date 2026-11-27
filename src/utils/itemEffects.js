@@ -50,6 +50,15 @@ export function getEffect(run, itemId) {
   return run.catalog[itemId]?.effect ?? null
 }
 
+export function appendItemAudioEvent(run, itemId, cue) {
+  const sequence = (run.itemAudioEventSequence ?? 0) + 1
+  return {
+    ...run,
+    itemAudioEvents: [...(run.itemAudioEvents ?? []), { itemId, cue, sequence }],
+    itemAudioEventSequence: sequence,
+  }
+}
+
 // Bônus dos itens nos atributos (stats.js): os de sempre e os que valem por um tempo
 export function getItemBonuses(run) {
   const bonuses = []
@@ -248,7 +257,11 @@ function fireShards(run, hitbox, direction) {
   if (!cheese?.shards || run.swing.shardsFired) return run
   const origin = { x: hitbox.x + hitbox.width / 2, y: hitbox.y + hitbox.height / 2 }
   const shards = [...run.shards, ...createShards(origin, direction, cheese.shards)]
-  return { ...run, shards, swing: { ...run.swing, shardsFired: true } }
+  return appendItemAudioEvent(
+    { ...run, shards, swing: { ...run.swing, shardsFired: true } },
+    'parmesao-curado',
+    'lancamento',
+  )
 }
 
 // Dano do golpe num alvo: o dano dos atributos, mais o do ritmo (Batuta) e o do raio (Elixir), vezes o do Dente
@@ -276,6 +289,7 @@ export function hitWithSwing(run, hitbox, direction, stats, solids = []) {
   let puddles = run.puddles
   const swing = { ...run.swing, hitIds: [...run.swing.hitIds], hitAny: true }
   const vector = DIRECTION_VECTORS[direction]
+  const itemAudioCues = []
 
   for (const index of indexes) {
     let target = targets[index]
@@ -301,6 +315,7 @@ export function hitWithSwing(run, hitbox, direction, stats, solids = []) {
     if (ladle?.puddleDurationMs) {
       puddles = [...puddles, { x: target.x, y: target.y, ms: ladle.puddleDurationMs, ageMs: 0 }]
       if (puddles.length > MAX_PUDDLES) puddles = puddles.slice(puddles.length - MAX_PUDDLES)
+      itemAudioCues.push({ itemId: 'concha-longa', cue: 'poca' })
     }
     // Rolo de Bronze: empurra o alvo na direção do golpe; batendo em parede ou obstáculo, leva dano a mais
     const roller = getEffect(run, 'rolo-de-bronze')
@@ -324,9 +339,13 @@ export function hitWithSwing(run, hitbox, direction, stats, solids = []) {
   // Tiramisu: acertou, o golpe fica mais rápido por bonusDurationMs (cada acerto renova o tempo)
   let effects = run.effects
   const sugar = getEffect(run, 'tiramisu')
+  const sugarActivated = Boolean(sugar?.bonusDurationMs && effects.sugarMs <= 0)
   if (sugar?.bonusDurationMs) effects = { ...effects, sugarMs: sugar.bonusDurationMs }
 
-  return { ...run, targets, flashes, puddles, swing, effects }
+  let next = { ...run, targets, flashes, puddles, swing, effects }
+  for (const { itemId, cue } of itemAudioCues) next = appendItemAudioEvent(next, itemId, cue)
+  if (sugarActivated) next = appendItemAudioEvent(next, 'tiramisu', 'ativacao')
+  return next
 }
 
 // Elixir Elétrico: os `count` alvos vivos mais perto do alvo `fromIndex`, a até `range` dele (sem ele mesmo)
@@ -377,6 +396,7 @@ export function updateShards(run, deltaSeconds, solids = []) {
   const effect = getEffect(run, 'parmesao-curado')
   const targets = [...run.targets]
   const shards = []
+  let hitTarget = false
   for (const shard of run.shards) {
     const next = { ...shard, x: shard.x + shard.vx * deltaSeconds, y: shard.y + shard.vy * deltaSeconds }
     const box = { x: next.x - 4, y: next.y - 4, width: 8, height: 8 }
@@ -386,11 +406,13 @@ export function updateShards(run, deltaSeconds, solids = []) {
       if (!isTargetable(target) || !overlaps(box, getTargetBox(target))) continue
       targets[index] = damageTarget(target, effect?.shardDamage ?? 0)
       hit = true
+      hitTarget = hitTarget || Boolean(effect)
     }
     const blocked = solids.some((solid) => overlaps(box, solid))
     if (!hit && !blocked && !isOutOfRoom(next)) shards.push(next)
   }
-  return { ...run, targets, shards }
+  const next = { ...run, targets, shards }
+  return hitTarget ? appendItemAudioEvent(next, 'parmesao-curado', 'impacto') : next
 }
 
 // ---------- poças da Concha ----------
@@ -433,7 +455,11 @@ export function onKills(run, kills) {
   const tooth = getEffect(run, 'dente-de-tubarao')
   if (kills === 0 || !tooth?.bonusDurationMs) return run
   const frenzyStacks = Math.min(tooth.maxStacks ?? 1, run.effects.frenzyStacks + kills)
-  return { ...run, effects: { ...run.effects, frenzyStacks, frenzyMs: tooth.bonusDurationMs } }
+  return appendItemAudioEvent(
+    { ...run, effects: { ...run.effects, frenzyStacks, frenzyMs: tooth.bonusDurationMs } },
+    'dente-de-tubarao',
+    'frenesi',
+  )
 }
 
 // Rolo de Bronze: o impacto aparece onde o alvo empurrado bateu (targets.js marca bumped)

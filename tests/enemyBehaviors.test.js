@@ -26,13 +26,14 @@ function spawn(id, col = 6, row = 3) {
 // Roda `ms` de um inimigo sozinho na sala, com o Tung parado em `player`. Devolve o inimigo e o que ele fez
 // (hits, flashes e floor somados de todos os quadros). until(enemy) para antes, se der true.
 function simulate(enemy, player, ms, until = () => false, solids = ROOM_WALLS) {
-  const done = { hits: [], flashes: [], floor: [] }
+  const done = { hits: [], flashes: [], floor: [], mobEvents: [] }
   for (let time = 0; time < ms; time += STEP_MS) {
     const world = { player, solids, deltaSeconds: STEP, hits: [], flashes: [], floor: [] }
     enemy = updateEnemies([enemy], world)[0]
     done.hits.push(...world.hits)
     done.flashes.push(...world.flashes)
     done.floor.push(...world.floor)
+    done.mobEvents.push(...world.mobEvents)
     if (until(enemy)) break
   }
   return { enemy, ...done }
@@ -75,6 +76,9 @@ describe('Formaggino Saltellino', () => {
     assert.ok(Math.abs(distance(enemy, before) - FORMAGGINO.jumpDistance) < 10, `saltou ${distance(enemy, before)}`)
     assert.equal(enemy.animation, 'parado')
     assert.equal(enemy.waitMs, FORMAGGINO.restMs)
+    const attack = simulate({ ...enemy, waitMs: 0 }, player, 2000)
+    assert.ok(attack.mobEvents.some(({ cue }) => cue === 'mordida'))
+    assert.ok(attack.mobEvents.some(({ cue }) => cue === 'pouso'))
   })
 })
 
@@ -86,7 +90,8 @@ describe('Cannolo Carica', () => {
     assert.ok(enemy.side && enemy.facingLeft, 'de lado, virado para a esquerda')
     assert.equal(getEnemyPose(enemy).animation, 'preparando-lado')
     const standing = enemy.x
-    enemy = simulate(enemy, player, 590).enemy
+    const windup = simulate(enemy, player, 590)
+    enemy = windup.enemy
     assert.equal(enemy.x, standing, 'raspando o pé, não sai do lugar')
 
     const charge = simulate(enemy, player, 3000, (one) => one.animation === 'atordoado')
@@ -94,6 +99,7 @@ describe('Cannolo Carica', () => {
     assert.ok(charge.enemy.x < 200, `foi até a parede (${charge.enemy.x})`)
     assert.ok(charge.flashes.some((flash) => flash.effect === 'impacto'))
     assert.ok(charge.flashes.some((flash) => flash.effect === 'estrela-atordoado' && flash.loop))
+    assert.deepEqual([...windup.mobEvents, ...charge.mobEvents].map(({ cue }) => cue), ['investida', 'impacto'])
 
     const after = simulate(charge.enemy, player, CANNOLO.stunnedMs + 40).enemy
     assert.equal(after.animation, 'parado')
@@ -114,6 +120,9 @@ describe('Polpetta Sotterranea', () => {
     assert.equal(enemy.animation, 'emergindo')
     assert.ok(distance(enemy, player) <= POLPETTA.emergeRange + 5, 'emergiu embaixo do Tung')
     assert.notEqual(damageTarget(enemy, 3), enemy, 'emergindo, o golpe acerta')
+    const attack = simulate(enemy, player, 2000)
+    assert.ok(attack.mobEvents.some(({ cue }) => cue === 'mordida'))
+    assert.ok(attack.mobEvents.some(({ cue }) => cue === 'afundar'))
   })
 
   test('sem alcançar o Tung, emerge depois de hiddenMs', () => {
@@ -133,6 +142,7 @@ describe('Peperoncino Kamikaze', () => {
     const boom = simulate(enemy, player, 3000, (one) => one.dead)
     assert.deepEqual(boom.hits, [{ damage: 2, cause: 'peperoncino-kamikaze' }])
     assert.equal(boom.flashes.filter((flash) => flash.effect === 'explosao').length, 1)
+    assert.ok(boom.mobEvents.some(({ cue }) => cue === 'explosao'))
     assert.ok(boom.enemy.dead && boom.enemy.vanished)
     assert.equal(getEnemyPose(boom.enemy), null, 'a explosão toma o lugar da morte')
   })
@@ -156,11 +166,15 @@ describe('Peperoncino Kamikaze', () => {
 describe('Pinguino Sorbettino', () => {
   test('perto, se joga de barriga e desliza em linha reta deixando gelo; batendo, descansa', () => {
     const player = { x: 500, y: 525 }
-    let { enemy } = simulate(spawn('pinguino-sorbettino', 8, 3), player, 5000, (one) => one.animation === 'deslizando')
+    const windup = simulate(spawn('pinguino-sorbettino', 8, 3), player, 5000, (one) => one.animation === 'deslizando')
+    let { enemy } = windup
     assert.equal(enemy.animation, 'deslizando')
     const slide = simulate(enemy, player, 3000, (one) => one.animation !== 'deslizando')
     assert.ok(slide.floor.length >= 3, `${slide.floor.length} pedaços de gelo`)
     assert.ok(slide.floor.every((trail) => trail.mechanic === 'escorregadio'))
+    assert.ok(windup.mobEvents.some(({ cue }) => cue === 'deslize'))
+    assert.ok(slide.mobEvents.some(({ cue }) => cue === 'gelo'))
+    assert.ok(slide.mobEvents.some(({ cue }) => cue === 'pouso'))
     assert.ok(slide.enemy.x < player.x, 'passou pelo Tung')
     assert.equal(slide.enemy.waitMs, PINGUINO.restMs)
   })
