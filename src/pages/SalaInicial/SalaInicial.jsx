@@ -58,6 +58,7 @@ import { getGameMusicContext, isSameGameMusicContext, notifyGameMusic } from '..
 import { useAudio } from '../../context/useAudio.js'
 import { captureRoomAudioState, getRoomInteractionSounds } from '../../audio/AudioEffects/rooms/roomInteractionEffects.js'
 import { captureMobAudioState, getMobInteractionSounds } from '../../audio/AudioEffects/mobs/mobInteractionEffects.js'
+import { captureCharacterAudioState, getCharacterInteractionSounds } from '../../audio/AudioEffects/Characters/characterInteractionEffects.js'
 
 function normalizePauseItemIcon(image) {
   if (!image?.complete || image.dataset.normalized === 'true') return
@@ -665,6 +666,7 @@ export default function SalaInicial() {
           if (!run.finished && !run.death) elapsedMs += deltaMs
           const previousAudioState = captureRoomAudioState(run)
           const previousMobAudioState = captureMobAudioState(run)
+          const previousCharacterAudioState = captureCharacterAudioState(run)
           run = updateRun(
             run,
             { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
@@ -674,6 +676,9 @@ export default function SalaInicial() {
             playEffect(effect)
           }
           for (const effect of getMobInteractionSounds(previousMobAudioState, captureMobAudioState(run))) {
+            playEffect(effect)
+          }
+          for (const effect of getCharacterInteractionSounds(previousCharacterAudioState, captureCharacterAudioState(run))) {
             playEffect(effect)
           }
         }

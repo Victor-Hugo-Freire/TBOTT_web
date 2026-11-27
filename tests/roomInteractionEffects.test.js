@@ -17,6 +17,7 @@ function createRun({
   unlocking = false,
   plays = 0,
   emptied = [],
+  items = [],
   drops = [],
   obstacles = [],
   transition = null,
@@ -28,6 +29,7 @@ function createRun({
     roomId: 'room-1',
     floor: { rooms: [{ id: 'room-1', type: roomType, hits, cleared, plays, emptied, drops }] },
     obstacles,
+    items,
     unlocking,
     transition,
     arcadeSpin,
@@ -148,6 +150,16 @@ describe('efeitos sonoros das interações da sala', () => {
       'room-rest',
       'room-drum-land',
     ])
+  })
+
+  test('não duplica o som de coleta ao pegar um item da build', () => {
+    const previous = captureRoomAudioState(createRun())
+    const next = captureRoomAudioState(createRun({
+      emptied: ['pedestal-1'],
+      items: ['cafe-duplo'],
+    }))
+
+    assert.deepEqual(getRoomInteractionSounds(previous, next), [])
   })
 
   test('detecta coleta de drops no chão mesmo quando a animação de aparição avança', () => {

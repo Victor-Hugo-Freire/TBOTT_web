@@ -9,6 +9,7 @@ export function captureRoomAudioState(run) {
     cleared: Boolean(room?.cleared),
     plays: room?.plays ?? 0,
     emptied: room ? [...room.emptied] : [],
+    itemCount: run.items?.length ?? 0,
     drops: room ? room.drops.map(({ kind, amount, x, y }) => ({ kind, amount, x, y })) : [],
     obstacles: run.obstacles.map(({ id, kind, mechanic, removed, rolling }) => ({
       id,
@@ -52,7 +53,8 @@ export function getRoomInteractionSounds(previous, next) {
     if (!previous.cleared && next.cleared) sounds.push('room-door-open')
     if (!previous.unlocking && next.unlocking) sounds.push('room-door-unlock')
     if (next.plays > previous.plays) sounds.push('room-arcade-spin')
-    if (next.emptied.some((id) => !previous.emptied.includes(id))) sounds.push('room-pickup')
+    if (next.itemCount === previous.itemCount &&
+      next.emptied.some((id) => !previous.emptied.includes(id))) sounds.push('room-pickup')
     if (hasCollectedDrop(previous.drops, next.drops)) sounds.push('room-pickup')
     if (previous.arcadeSpinning && !next.arcadeSpinning) sounds.push('room-arcade-result')
     if (!previous.sleeping && next.sleeping) sounds.push('room-rest')
