@@ -132,13 +132,13 @@ A tela `/opcoes`, acessível pelo item **Options** do menu principal, permite aj
 - **Controls:** abre a lista de comandos usados na sala: **W/A/S/D** para mover, **setas** para atacar, **R** (segurando) para recomeçar a run e **Esc** para voltar ao menu.
 - **Teclado:** **W/S** ou **↑/↓** percorrem os itens; **Enter** ativa botões; **←/→** ajustam o volume quando o controle deslizante está selecionado. **A/←** seleciona o botão de voltar e **D/→** seleciona o cartão do usuário. Também é possível operar a tela com mouse ou outro dispositivo apontador.
 
-Os volumes ficam salvos localmente e são aplicados ao sistema central de áudio em tempo real. A infraestrutura usa Web Audio API nativa e fica disponível globalmente pela tela inicial até o término do jogo. Nesta issue não foram registrados efeitos específicos nem músicas de andares ou chefes.
+Os volumes ficam salvos localmente e são aplicados ao sistema central de áudio em tempo real. A infraestrutura usa Web Audio API nativa e fica disponível globalmente pela tela inicial até o término do jogo.
 
 ## Sistema de áudio
 
 A implementação central fica em `src/audio/AudioManager.js`, com o provedor React em `src/context/AudioManagerContext.jsx` e o hook público em `src/context/useAudio.js`. O gerenciador mantém um único `AudioContext`, controla volumes independentes, mute, registro por nome e interrupção de fontes. O provedor desbloqueia o contexto na primeira interação válida do jogador, por teclado ou ponteiro, em qualquer rota; o sistema não reproduz automaticamente nenhuma música ou efeito.
 
-Não há música da sala inicial restaurada. Sons de inimigos, chefes, personagens, andares e interface devem ser registrados pelas issues responsáveis, sem acoplar o gameplay ao `AudioContext`.
+Os efeitos curtos das interações da sala usam síntese própria com osciladores suaves, ruído filtrado e reflexões breves para um timbre mais orgânico e menos retrô. Cada som tem um módulo próprio em `src/audio/AudioEffects/rooms/` e é registrado no `AudioManager`. A tela do jogo compara o estado da sala antes e depois de cada atualização para tocar sons de objetos quebrados, rolando e colidindo, batidas no tambor e na parede secreta, portas, coletas em pedestais e no chão, roleta do fliperama e rede. Os resultados da roleta também têm som, e cada evento é detectado sem repetir o áudio a cada quadro. A reprodução continua sujeita aos volumes e ao mute existentes. Os efeitos de inimigos, chefes, personagens, andares e interface ficam a cargo das issues responsáveis, sem acoplar o gameplay ao `AudioContext`.
 
 ### Músicas do chefe e do palco
 

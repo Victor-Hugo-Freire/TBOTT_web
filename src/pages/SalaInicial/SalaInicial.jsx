@@ -55,6 +55,8 @@ import { ITEM_SPRITES } from '../../data/itemSprites.js'
 import { getMenuNavigationAction } from '../../utils/menuKeyboard.js'
 import { canPauseRun } from '../../utils/pause.js'
 import { getGameMusicContext, isSameGameMusicContext, notifyGameMusic } from '../../audio/music/contextoDoJogo.js'
+import { useAudio } from '../../context/useAudio.js'
+import { captureRoomAudioState, getRoomInteractionSounds } from '../../audio/AudioEffects/rooms/roomInteractionEffects.js'
 
 function normalizePauseItemIcon(image) {
   if (!image?.complete || image.dataset.normalized === 'true') return
@@ -138,6 +140,7 @@ function getEndingMessage(ending) {
 // enquanto o personagem anda. O estado do React só guarda o andar (para o leitor de tela)
 // e o aviso de fim da run.
 export default function SalaInicial() {
+  const { playEffect } = useAudio()
   const navigate = useNavigate()
   const location = useLocation()
   const roomRef = useRef(null)
@@ -659,11 +662,15 @@ export default function SalaInicial() {
           enterMs += stepMs
           // O contador para com a pausa visual, a janela sem foco, a morte e o fim da run
           if (!run.finished && !run.death) elapsedMs += deltaMs
+          const previousAudioState = captureRoomAudioState(run)
           run = updateRun(
             run,
             { movement: getRoomMovement(pressedKeys), attackDirection: getAttackDirection(pressedKeys) },
             stepMs / 1000,
           )
+          for (const effect of getRoomInteractionSounds(previousAudioState, captureRoomAudioState(run))) {
+            playEffect(effect)
+          }
         }
 
         // Segurar R escurece a tela e, ao completar, recomeça a run (não vale na morte nem depois do fim)
@@ -869,7 +876,7 @@ export default function SalaInicial() {
       isCancelled = true
       void saveProgress() // ao sair da sala (depois do fim da run, não salva)
     }
-  }, [navigate, selectedCharacter.id])
+  }, [navigate, playEffect, selectedCharacter.id])
 
   const characterName = selectedCharacter.name || 'Tung Tung Sahur'
 

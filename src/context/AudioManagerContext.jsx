@@ -5,6 +5,7 @@ import { AudioManagerContext } from './useAudio.js'
 import { installAudioUnlock } from './audioUnlock.js'
 import { createAudioLifecycleCleanup } from './audioLifecycle.js'
 import { createVilaEsperaAudioSource, VILA_ESPERA_MUSIC_NAME, VILA_ESPERA_MUSIC_OPTIONS } from '../data/vilaEsperaMusic.js'
+import { registerRoomInteractionEffects, unregisterRoomInteractionEffects } from '../audio/AudioEffects/rooms/index.js'
 
 export function AudioProvider({ children }) {
   const [initialOptions] = useState(readOptions)
@@ -31,11 +32,13 @@ export function AudioProvider({ children }) {
     const cleanupUnlock = installAudioUnlock(window, unlock)
 
     manager.registerMusic(VILA_ESPERA_MUSIC_NAME, createVilaEsperaAudioSource, VILA_ESPERA_MUSIC_OPTIONS)
+    registerRoomInteractionEffects(manager)
 
     return () => {
       mountedRef.current = false
       cleanupUnlock()
       manager.unregisterMusic(VILA_ESPERA_MUSIC_NAME)
+      unregisterRoomInteractionEffects(manager)
       lifecycle.deactivate()
     }
   }, [unlock, lifecycle, manager])
@@ -77,6 +80,10 @@ export function AudioProvider({ children }) {
     setActiveMusicName(null)
   }, [manager])
 
+  const playEffect = useCallback((...args) => manager.playEffect(...args), [manager])
+  const stopEffect = useCallback((...args) => manager.stopEffect(...args), [manager])
+  const stopAllEffects = useCallback((...args) => manager.stopAllEffects(...args), [manager])
+
   const value = useMemo(() => ({
     state,
     muted,
@@ -88,16 +95,16 @@ export function AudioProvider({ children }) {
     registerMusic,
     unregisterEffect,
     unregisterMusic,
-    playEffect: (...args) => manager.playEffect(...args),
-    stopEffect: (...args) => manager.stopEffect(...args),
-    stopAllEffects: (...args) => manager.stopAllEffects(...args),
+    playEffect,
+    stopEffect,
+    stopAllEffects,
     playMusic,
     stopMusic,
     setEffectsVolume,
     setMusicVolume,
     setMuted,
     toggleMute,
-  }), [state, muted, activeMusicName, musicVolume, effectsVolume, unlock, registerEffect, registerMusic, unregisterEffect, unregisterMusic, playMusic, stopMusic, setEffectsVolume, setMusicVolume, setMuted, toggleMute, manager])
+  }), [state, muted, activeMusicName, musicVolume, effectsVolume, unlock, registerEffect, registerMusic, unregisterEffect, unregisterMusic, playEffect, stopEffect, stopAllEffects, playMusic, stopMusic, setEffectsVolume, setMusicVolume, setMuted, toggleMute])
 
   return <AudioManagerContext.Provider value={value}>{children}</AudioManagerContext.Provider>
 }
