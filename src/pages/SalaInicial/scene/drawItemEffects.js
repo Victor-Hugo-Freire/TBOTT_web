@@ -71,6 +71,16 @@ const HOLD_FADE_MS = 400
 
 export function drawFlashes(ctx, flashes) {
   for (const flash of flashes) {
+    // Os dos personagens (luz do cetro do God, respingo do taco do Sabor) são desenhados por código
+    if (flash.drawn === 'luz') {
+      drawLightRing(ctx, flash)
+      continue
+    }
+    if (flash.drawn === 'respingo') {
+      drawSplash(ctx, flash)
+      continue
+    }
+    if (flash.drawn === 'mancha') continue // a mancha é do chão: drawFloorFlashes a desenha antes de todos
     const sprite = getFlashSprite(flash)
     let frame = getEffectSpriteFrame(sprite, flash.elapsedMs, Boolean(flash.loop))
     ctx.save()
@@ -86,6 +96,115 @@ export function drawFlashes(ctx, flashes) {
     drawEffectSpriteFrame(ctx, sprite, frame, flash.x, flash.y, flash.scale, flash.angle)
     ctx.restore()
   }
+}
+
+// Luz do cetro do God: um clarão no alvo e um anel dourado (com um fio branco por dentro) que abre até o alcance do
+// dano (flash.range) e apaga. Centrado nos pés do alvo, como o alcance. progress = 0 (começo) a 1 (fim).
+function drawLightRing(ctx, flash) {
+  const progress = flash.elapsedMs / flash.durationMs
+  const radius = flash.range * (0.2 + 0.8 * progress)
+  ctx.save()
+  ctx.globalAlpha = 1 - progress
+  const glow = ctx.createRadialGradient(flash.x, flash.y, 0, flash.x, flash.y, flash.range * 0.5)
+  glow.addColorStop(0, 'rgba(255, 255, 255, 0.85)')
+  glow.addColorStop(1, 'rgba(255, 214, 102, 0)')
+  ctx.fillStyle = glow
+  ctx.beginPath()
+  ctx.arc(flash.x, flash.y, flash.range * 0.5, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255, 214, 102, 0.95)'
+  ctx.lineWidth = 2 + 5 * (1 - progress)
+  ctx.beginPath()
+  ctx.arc(flash.x, flash.y, radius, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(flash.x, flash.y, radius * 0.82, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+// Respingo de whisky do Sabor: gotas âmbar (com um brilho claro) que saltam do alvo em arco até o alcance do
+// efeito (flash.range) e caem. Centrado no meio do alvo. progress = 0 (começo) a 1 (fim).
+const SPLASH_DROPS = 10
+
+function drawSplash(ctx, flash) {
+  const progress = flash.elapsedMs / flash.durationMs
+  ctx.save()
+  ctx.globalAlpha = 1 - progress * progress
+  for (let i = 0; i < SPLASH_DROPS; i++) {
+    const angle = (i / SPLASH_DROPS) * Math.PI * 2 + 0.3
+    const reach = flash.range * progress * (0.55 + 0.45 * ((i % 3) / 2)) // umas gotas vão mais longe que outras
+    const arc = 28 * Math.sin(Math.PI * progress) * (0.6 + 0.4 * (i % 2)) // o salto: sobem e caem
+    const x = flash.x + Math.cos(angle) * reach
+    const y = flash.y + Math.sin(angle) * reach * 0.6 - arc // 0,6: o chão é visto de cima, achatado
+    const radius = 7 * (1 - progress * 0.5)
+    ctx.fillStyle = 'rgb(214, 132, 34)'
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgb(255, 224, 160)'
+    ctx.beginPath()
+    ctx.arc(x - radius * 0.3, y - radius * 0.3, radius * 0.4, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+// Efeitos que ficam no chão, embaixo de todos (como as poças da Concha): a mancha de whisky do Sabor
+export function drawFloorFlashes(ctx, flashes) {
+  for (const flash of flashes) {
+    if (flash.drawn === 'mancha') drawWhiskyStain(ctx, flash)
+  }
+}
+
+// Mancha de whisky: um círculo âmbar do tamanho do alcance do respingo (flash.range), com pingos em volta. Espalha no
+// primeiro quarto do tempo e apaga até o fim. Centrada nos pés do alvo, como o alcance.
+function drawWhiskyStain(ctx, flash) {
+  const progress = flash.elapsedMs / flash.durationMs
+  const spread = Math.min(1, progress / 0.25)
+  const radius = flash.range * (0.6 + 0.4 * spread)
+  ctx.save()
+  ctx.globalAlpha = 0.45 * (1 - progress)
+  ctx.fillStyle = 'rgb(176, 98, 22)'
+  ctx.beginPath()
+  ctx.arc(flash.x, flash.y, radius, 0, Math.PI * 2)
+  ctx.fill()
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4 + 0.4
+    const distance = radius * (1.05 + 0.1 * (i % 2))
+    ctx.beginPath()
+    ctx.arc(flash.x + Math.cos(angle) * distance, flash.y + Math.sin(angle) * distance, 8 + 4 * (i % 3), 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+// Inimigo respingado pelo Sabor (enemy.whiskyMs > 0): quatro gotas âmbar, com contorno escuro (para ler em qualquer
+// chão), caindo do corpo dele, cada uma num tempo. Com "reduzir movimento", as gotas ficam paradas no meio do caminho.
+const WHISKY_DRIPS = 4
+
+export function drawWhiskyDrips(ctx, enemy, timeMs, reduceMotion) {
+  ctx.save()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = 'rgb(70, 34, 6)'
+  for (let i = 0; i < WHISKY_DRIPS; i++) {
+    const phase = reduceMotion ? 0.5 : ((timeMs + i * 250) % 1000) / 1000
+    const x = enemy.x + (i - 1.5) * enemy.width * 0.22
+    const y = enemy.y - enemy.height * 0.7 + phase * enemy.height * 0.7
+    ctx.globalAlpha = 1 - phase * 0.6
+    ctx.fillStyle = 'rgb(214, 132, 34)'
+    ctx.beginPath()
+    ctx.arc(x, y, 7, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+    ctx.fillStyle = 'rgb(255, 224, 160)'
+    ctx.beginPath()
+    ctx.arc(x - 2, y - 2, 2.5, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
 }
 
 // Lascas do Parmesão voando: uma lasca recortada do quadro 2 da folha "lascas" (a de cima, com a ponta

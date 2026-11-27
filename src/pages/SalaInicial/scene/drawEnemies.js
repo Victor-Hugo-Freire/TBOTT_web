@@ -4,7 +4,7 @@ import { MOKA } from '../../../data/enemyBehavior.js'
 import { getEnemyPose } from '../../../utils/enemies.js'
 import { getEnemySprite, getLayerVariant } from '../../../utils/enemyBehaviors.js'
 import { ROOT_MS, SEED_HEIGHT } from '../../../utils/enemyShots.js'
-import { drawEffectSpriteFrame, getEffectSpriteFrame } from './drawItemEffects.js'
+import { drawEffectSpriteFrame, drawWhiskyDrips, getEffectSpriteFrame } from './drawItemEffects.js'
 import { drawShadow } from './drawShadow.js'
 import { drawFrame } from './drawSprite.js'
 
@@ -29,6 +29,7 @@ const BOSS_HIT_FLASH_MS = 180 // o chefe clareia por este tempo depois de cada g
 const BOSS_HIT_FLASH_STRENGTH = 1 // o quanto ele clareia no instante do golpe (0 a 1)
 const BOSS_HIT_FLASH_PASSES = 2 // quantas vezes o desenho é somado por cima (2 = o dobro de brilho)
 const CLONE_ALPHA = 0.6 // os clones do Cappuccino são cópias meio transparentes dele (como os fantasmas da folha)
+const WHISKY_TINT = 'sepia(0.85) saturate(2.2)' // inimigo respingado de whisky pelo Sabor: tingido de âmbar
 
 // Um inimigo (ou o chefe) na sala: a sombra, as pernas (atrás) e o tronco (na frente), com os pés em (enemy.x, enemy.y).
 // A folha é de frente; virado para a esquerda, o desenho é espelhado em volta dos pés.
@@ -52,6 +53,8 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
   else if (!enemy.hidden) drawShadow(ctx, enemy)
   ctx.translate(enemy.x, enemy.y)
   if (enemy.facingLeft) ctx.scale(-1, 1)
+  const splashed = enemy.whiskyMs > 0 && !enemy.dead // respingado pelo Sabor: tingido de âmbar e pingando (abaixo)
+  if (splashed) ctx.filter = WHISKY_TINT
   drawFrame(ctx, { ...sprite, path: layers.pernas }, row, pose.frame, 0, 0)
   drawFrame(ctx, { ...sprite, path: layers.tronco }, row, pose.frame, 0, 0)
   // O golpe no chefe: o mesmo desenho por cima, somando cor (só onde ele tem pixels), apagando em BOSS_HIT_FLASH_MS
@@ -65,6 +68,7 @@ export function drawEnemy(ctx, enemy, reduceMotion, timeMs) {
     }
   }
   ctx.restore()
+  if (splashed && !enemy.hidden) drawWhiskyDrips(ctx, enemy, timeMs, reduceMotion)
 
   if (enemy.shielded && !enemy.dead) {
     const shield = EFFECT_SPRITES['vapor-escudo']

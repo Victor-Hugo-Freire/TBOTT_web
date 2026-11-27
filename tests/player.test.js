@@ -9,7 +9,10 @@ import {
   DEATH_DURATION_MS,
   getAttackArc,
   getAttackHitbox,
+  getLegSwing,
   getPlayerPose,
+  LEG_SWING_DEGREES,
+  LEG_SWING_MS,
   HURT_DURATION_MS,
   hurtPlayer,
   isAttackHitActive,
@@ -330,28 +333,72 @@ describe('getPlayerPose (o que desenhar)', () => {
     assert.equal(getPlayerPose({ ...player, attack: { direction: 'up', elapsed: 629 } }).frame, 7)
   })
 
-  test('quem voa (o God) bate as asas parado: o quadro do tronco vem do tempo, 50 ms cada, e as pernas ficam paradas', () => {
-    const player = createPlayer(START)
-    assert.deepEqual(getPlayerPose(player, false, true, 0), { sheet: 'walk', direction: 'down', frame: 0, legs: { direction: 'down', frame: 12 } })
-    assert.equal(getPlayerPose(player, false, true, 49).frame, 0)
-    assert.equal(getPlayerPose(player, false, true, 50).frame, 1)
-    assert.equal(getPlayerPose(player, false, true, 11 * 50).frame, 11)
-    assert.equal(getPlayerPose(player, false, true, 600).frame, 0, 'a batida se repete a cada 0,6 s')
-    assert.equal(getPlayerPose(player, false, true, 650).legs.frame, 12)
+  // Personagem com o relógio do voo (flyMs) em `ms`
+  function flyingAt(ms, fields = {}) {
+    return { ...createPlayer(START), flyMs: ms, ...fields }
+  }
+
+  test('quem voa (o God) bate as asas pelo relógio do voo: 50 ms por quadro, uma batida a cada 0,6 s', () => {
+    assert.equal(getPlayerPose(flyingAt(0), false, true).frame, 0)
+    assert.equal(getPlayerPose(flyingAt(49), false, true).frame, 0)
+    assert.equal(getPlayerPose(flyingAt(50), false, true).frame, 1)
+    assert.equal(getPlayerPose(flyingAt(11 * 50), false, true).frame, 11)
+    assert.equal(getPlayerPose(flyingAt(600), false, true).frame, 0, 'a batida se repete a cada 0,6 s')
   })
 
-  test('quem não voa fica no quadro 0 parado, mesmo com o relógio andando', () => {
-    assert.equal(getPlayerPose(createPlayer(START), false, false, 300).frame, 0)
+  test('as pernas de quem voa não dão passo: ficam no quadro parado e balançam como um pêndulo (até 6°)', () => {
+    for (const ms of [0, 77, 300, 900]) assert.equal(getPlayerPose(flyingAt(ms), false, true).legs.frame, 12, `${ms} ms`)
+    assert.equal(getLegSwing(flyingAt(0), true), 0)
+    assert.ok(Math.abs(getLegSwing(flyingAt(LEG_SWING_MS / 4), true) - LEG_SWING_DEGREES) < 1e-9, 'um quarto da volta: para um lado')
+    assert.ok(Math.abs(getLegSwing(flyingAt((3 * LEG_SWING_MS) / 4), true) + LEG_SWING_DEGREES) < 1e-9, 'três quartos: para o outro')
+    for (let ms = 0; ms < 3000; ms += 50) assert.ok(Math.abs(getLegSwing(flyingAt(ms), true)) <= LEG_SWING_DEGREES + 1e-9)
   })
 
-  test('quem voa e anda usa o quadro da distância andada, como os outros', () => {
-    const walking = { ...createPlayer(START), direction: 'left', walkDistance: 22 }
-    assert.equal(getPlayerPose(walking, false, true, 300).frame, 3)
-    assert.equal(getPlayerPose(walking, false, true, 300).legs.frame, 3)
+  test('o balanço das pernas: nada para quem anda, com reduzir movimento ou na morte', () => {
+    assert.equal(getLegSwing(flyingAt(300), false), 0)
+    assert.equal(getLegSwing(flyingAt(300), true, true), 0)
+    assert.equal(getLegSwing(flyingAt(300, { dead: { elapsed: 0 } }), true), 0)
   })
 
-  test('quem voa, com reduzir movimento, fica parado no quadro 0 (sem bater as asas)', () => {
-    assert.equal(getPlayerPose(createPlayer(START), true, true, 300).frame, 0)
+  test('quem não voa fica no quadro 0 parado, mesmo com o relógio do voo andando', () => {
+    assert.equal(getPlayerPose(flyingAt(300), false, false).frame, 0)
+    assert.equal(getPlayerPose(flyingAt(300), false, false).legs.frame, 12)
+  })
+
+  test('quem voa não dá passos: andando, o quadro vem do relógio do voo, e não da distância andada', () => {
+    const walking = flyingAt(300, { direction: 'left', walkDistance: 22 }) // a pé, seria o quadro 3
+    assert.equal(getPlayerPose(walking, false, true).frame, 6) // 300 ms / 50 ms
+    assert.equal(getPlayerPose(walking, false, true).legs.frame, 12, 'voando, as pernas não dão passo')
+    assert.equal(getPlayerPose(walking, false, false).legs.frame, 3, 'quem anda: o passo vem da distância')
+  })
+
+  test('quem voa, com reduzir movimento, fica parado (asas no quadro 0 e pernas no quadro parado)', () => {
+    assert.equal(getPlayerPose(flyingAt(300), true, true).frame, 0)
+    assert.equal(getPlayerPose(flyingAt(300), true, true).legs.frame, 12)
+  })
+
+  test('relógio do voo: anda 1,5x mais rápido em movimento; quem anda não tem relógio do voo', () => {
+    const god = getBaseStats('tung-tung-god')
+    const still = updatePlayer(createPlayer(START), NO_INPUT, 0.05, { stats: god })
+    assert.equal(still.flyMs, 50)
+    const moving = updatePlayer(createPlayer(START), { movement: { x: 1, y: 0 }, attackDirection: null }, 0.05, { stats: god })
+    assert.equal(moving.flyMs, 75)
+    assert.equal(updatePlayer(createPlayer(START), NO_INPUT, 0.05, { stats: TUNG }).flyMs, 0)
+  })
+
+  test('voando para os lados, o God inclina até 8° para a frente, aos poucos, e volta reto ao parar', () => {
+    const god = getBaseStats('tung-tung-god')
+    const right = { movement: { x: 1, y: 0 }, attackDirection: null }
+    let player = updatePlayer(createPlayer(START), right, 0.05, { stats: god })
+    assert.ok(player.lean > 0 && player.lean < 8, `começa a inclinar (${player.lean})`)
+    for (let i = 0; i < 20; i++) player = updatePlayer(player, right, 0.05, { stats: god })
+    assert.equal(player.lean, 8)
+    for (let i = 0; i < 20; i++) player = updatePlayer(player, NO_INPUT, 0.05, { stats: god })
+    assert.equal(player.lean, 0, 'parou: voltou reto')
+    let left = createPlayer(START)
+    for (let i = 0; i < 20; i++) left = updatePlayer(left, { movement: { x: -1, y: 0 }, attackDirection: null }, 0.05, { stats: god })
+    assert.equal(left.lean, -8)
+    assert.equal(updatePlayer(createPlayer(START), right, 0.05, { stats: TUNG }).lean, 0, 'quem anda não inclina')
   })
 
   test('reduzir movimento: o andar fica parado (pernas no quadro parado), mas o golpe anima', () => {

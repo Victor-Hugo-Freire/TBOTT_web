@@ -11,8 +11,14 @@ describe('ficha do personagem', () => {
   })
 
   test('o Sabor (garrafa lenta e resistente) e o God (rápido, frágil e voa) têm a ficha combinada', () => {
-    assert.deepEqual(getBaseStats('tung-tung-sabor'), { name: 'Tung Tung Sabor', damage: 3, moveSpeed: 0.9, attackSpeed: 0.9, maxHealth: 8, invincibilityMs: 1000, attackArea: 1, flying: false })
-    assert.deepEqual(getBaseStats('tung-tung-god'), { name: 'Tung Tung God', damage: 2.5, moveSpeed: 1.1, attackSpeed: 1, maxHealth: 4, invincibilityMs: 1000, attackArea: 1, flying: true })
+    assert.deepEqual(getBaseStats('tung-tung-sabor'), {
+      name: 'Tung Tung Sabor', damage: 3, moveSpeed: 0.9, attackSpeed: 0.9, maxHealth: 8, invincibilityMs: 1000, attackArea: 1, flying: false,
+      splash: { range: 110, speedMultiplier: 0.6, ms: 1500, puddleMultiplier: 0.4 },
+    })
+    assert.deepEqual(getBaseStats('tung-tung-god'), {
+      name: 'Tung Tung God', damage: 2.5, moveSpeed: 1.1, attackSpeed: 1, maxHealth: 4, invincibilityMs: 1000, attackArea: 1, flying: true,
+      lightBurst: { damage: 1, range: 160, stunMs: 500, restunDelayMs: 2000 },
+    })
   })
 
   test('só o God voa, e as fichas dos três ficam dentro dos limites', () => {

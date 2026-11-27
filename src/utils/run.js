@@ -67,6 +67,7 @@ import {
 import { buildRoomObstacles, findFreeCell, getCellPoint, getCellRect, getLayoutPoints } from './roomLayout.js'
 import { getFeetBox, ROOM_PLAYER_BOUNDS, ROOM_PLAYER_START } from './roomMovement.js'
 import {
+  getAirSolids,
   getFloorEffect,
   getRoomSolids,
   getSlipMovement,
@@ -534,18 +535,20 @@ function enterRoom(run, floor, room, position, direction = 'down') {
 }
 
 // A posição salva serve? Precisa estar dentro da área dos pés e não tocar em nada que bloqueia.
-function isFreePosition(position, obstacles) {
+// Quem voa (flying) pode estar em cima de um obstáculo: para ele basta estar dentro da área dos pés.
+function isFreePosition(position, obstacles, flying) {
   if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return false
   const { minX, maxX, minY, maxY } = ROOM_PLAYER_BOUNDS
   if (position.x < minX || position.x > maxX || position.y < minY || position.y > maxY) return false
+  if (flying) return true
   const feet = getFeetBox(position)
   return !getRoomSolids(obstacles).some((solid) => overlaps(feet, solid))
 }
 
 // Onde o jogador começa ao continuar: a posição salva, se servir; senão o centro da sala inicial
 // ou a entrada da primeira porta das outras salas (a entrada sempre tem folga, veja roomLayout.js).
-function getStartPosition(floor, room, position) {
-  if (isFreePosition(position, getRoomObstacles(floor, room))) return { x: position.x, y: position.y }
+function getStartPosition(floor, room, position, flying) {
+  if (isFreePosition(position, getRoomObstacles(floor, room), flying)) return { x: position.x, y: position.y }
   if (room.id === floor.startRoomId) return { ...ROOM_PLAYER_START }
   // A parede secreta ainda fechada não conta: nascer colado nela mostraria a marca de graça
   const door = getRoomDoors(floor, room).find((item) => item.state !== 'hidden' && item.state !== 'cracked')
@@ -696,7 +699,7 @@ export function createRun({
     finished: false,
   }
   start.health = normalizeHealth(health, getRunStats(start).maxHealth)
-  return enterRoom(start, floor, room, getStartPosition(floor, room, position))
+  return enterRoom(start, floor, room, getStartPosition(floor, room, position, getRunStats(start).flying))
 }
 
 // Dados do progresso para salvar (formato de progress.js)
@@ -766,7 +769,8 @@ function updateRoom(run, input, deltaSeconds) {
   // Os pedestais são sólidos, como os obstáculos
   const pedestals = getRoomPedestals(run, room)
   const pedestalBoxes = getPedestalSolids(pedestals)
-  const solids = getRoomSolids(run.obstacles, pedestalBoxes)
+  // Quem voa (o God) passa por cima dos obstáculos: só as paredes e os pedestais o bloqueiam
+  const solids = stats.flying ? getAirSolids(pedestalBoxes) : getRoomSolids(run.obstacles, pedestalBoxes)
 
   let player = updatePlayer(run.player, { movement, attackDirection: input.attackDirection }, deltaSeconds, {
     solids,
@@ -804,8 +808,9 @@ function updateRoom(run, input, deltaSeconds) {
   // - passou perto da barbatana: o Tralalero puxa o Tung para a água;
   // - pisou na poça com a barbatana longe: ele cai sozinho e a barbatana mergulha.
   // death.fin guarda onde a barbatana estava, para a animação começar dali.
+  // Quem voa (o God) sobrevoa a poça e a barbatana não o alcança.
   const finMs = run.finMs + deltaSeconds * 1000
-  if (room.type === 'pacto' && !death) {
+  if (room.type === 'pacto' && !death && !stats.flying) {
     const fin = getSharkFinPosition(finMs)
     let cause = null
     if (isNearFin(player, fin)) cause = TRALALERO_CAUSE

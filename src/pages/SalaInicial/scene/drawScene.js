@@ -3,6 +3,8 @@ import { applyUnlocking, getRoomDoors, SIDE_VECTORS } from '../../../utils/doors
 import { getRoomPedestals } from '../../../utils/pedestals.js'
 import { PUDDLE_FALL_CAUSE, TRALALERO_CAUSE } from '../../../utils/roomInteractions.js'
 import { ROOM_SIZE } from '../../../utils/roomMovement.js'
+import { getFlyingSortY } from '../../../utils/roomObstacles.js'
+import { getBaseStats } from '../../../utils/stats.js'
 import {
   applyStageDoor,
   FLOOR_TRANSITION_MS,
@@ -20,9 +22,9 @@ import { drawCollecting, drawDrops, drawNotice } from './drawDrops.js'
 import { drawEnemy, drawEnemyFloor, drawEnemyShots, drawEnemyShotsFloor } from './drawEnemies.js'
 import { drawDrum, drawDrumDust, drawDrumText } from './drawDrum.js'
 import { drawBreakingObstacles, drawFloorObstacles, drawObstacle } from './drawObstacles.js'
-import { drawFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
+import { drawFlashes, drawFloorFlashes, drawPlayerAuras, drawPuddles, drawShards } from './drawItemEffects.js'
 import { drawHeldItem, drawPedestal } from './drawPedestals.js'
-import { drawPlayer } from './drawPlayer.js'
+import { drawPlayer, getLiftedFeet } from './drawPlayer.js'
 import { drawRoom } from './drawRoom.js'
 import { drawPuddleFall, drawSharkGrab } from './drawShark.js'
 import { drawGodStatue, drawRoomScenery, GOD_STATUE_FEET_Y } from './drawSpecialRooms.js'
@@ -143,6 +145,7 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
   drawRoom(ctx, extraX, theme)
   drawFloorObstacles(ctx, obstacles, timeMs, reduceMotion)
   drawPuddles(ctx, puddles) // poças de molho da Concha, no chão
+  drawFloorFlashes(ctx, flashes) // mancha de whisky do respingo do Sabor, no chão
   drawEnemyFloor(ctx, enemyFloor) // gelo do Pinguino e queijo quente, no chão
   drawEnemyShotsFloor(ctx, enemyShots) // sombras dos projéteis, marca da pizza e anel de vapor, no chão
   const arcadeSpinMs = arcadeSpin?.roomId === room.id ? arcadeSpin.elapsedMs : null
@@ -185,12 +188,15 @@ function drawRoomScene(ctx, floor, room, obstacles, pedestals, player, showSecre
       else {
         // Efeitos dos itens que acompanham o Tung, na frente dele: a bolha do escudo, o vapor e o cacau
         drawPlayer(ctx, sheets, player, reduceMotion, visibleItems, characterId, timeMs)
-        if (effects && !player.dead) drawPlayerAuras(ctx, player, effects, timeMs)
+        // Quem voa (o God) está acima do chão: a bolha e o vapor acompanham o corpo
+        if (effects && !player.dead) drawPlayerAuras(ctx, getLiftedFeet(player, characterId, reduceMotion, timeMs), effects, timeMs)
       }
       // Item que ele acabou de pegar, sobre a cabeça (não aparece na morte)
-      if (pickup && !player.dead) drawHeldItem(ctx, player, pickup)
+      if (pickup && !player.dead) drawHeldItem(ctx, getLiftedFeet(player, characterId, reduceMotion, timeMs), pickup)
     }
-    sprites.push({ feetY: player.y, draw: drawTung })
+    // Quem voa (o God) fica por cima do obstáculo que está sobrevoando
+    const feetY = getBaseStats(characterId).flying ? getFlyingSortY(player, obstacles) : player.y
+    sprites.push({ feetY, draw: drawTung })
   }
   sprites.sort((a, b) => a.feetY - b.feetY).forEach((sprite) => sprite.draw())
   drawEnemyShots(ctx, enemyShots) // o caroço e a pizza voando, na frente de todos
