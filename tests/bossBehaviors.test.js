@@ -25,13 +25,14 @@ function spawn(id) {
 // Roda `ms` do chefe sozinho na sala, com o Tung parado em `player`. Devolve o chefe e o que ele fez (hits e
 // flashes somados de todos os quadros). until(boss) para antes, se der true.
 function simulate(boss, player, ms, until = () => false) {
-  const done = { hits: [], flashes: [], shots: [] }
+  const done = { hits: [], flashes: [], shots: [], bossEvents: [] }
   for (let time = 0; time < ms; time += STEP_MS) {
-    const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], flashes: [], floor: [], shots: [] }
+    const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], flashes: [], floor: [], shots: [], bossEvents: [] }
     boss = updateEnemies([boss], world)[0]
     done.hits.push(...world.hits)
     done.flashes.push(...world.flashes)
     done.shots.push(...world.shots)
+    done.bossEvents.push(...world.bossEvents)
     if (until(boss)) break
   }
   return { boss, ...done }
@@ -49,9 +50,10 @@ describe('Cinquecento Turbo', () => {
   test('perto do Tung, buzina: a onda machuca uma vez, com o dano da buzina do catálogo', () => {
     const car = spawn('cinquecento-turbo')
     const player = { x: car.x + 120, y: car.y }
-    const { boss, hits, flashes } = simulate(car, player, 1200)
+    const { boss, hits, flashes, bossEvents } = simulate(car, player, 1200)
     assert.deepEqual(hits, [{ damage: 1, cause: 'cinquecento-turbo' }])
     assert.ok(flashes.some((flash) => flash.effect === 'buzina'))
+    assert.ok(bossEvents.some(({ cue }) => cue === 'buzina'))
     assert.equal(boss.animation, 'parado', 'descansa depois de buzinar')
   })
 
@@ -159,6 +161,7 @@ describe('Tralalero Tralala', () => {
     let result = simulate(fish, player, STEP_MS)
     assert.equal(result.boss.animation, 'transicao-fase2')
     assert.equal(result.boss.phase, 2)
+    assert.ok(result.bossEvents.some(({ cue }) => cue === 'fase2'))
     result = simulate(result.boss, player, 2000, (one) => one.animation !== 'transicao-fase2')
     assert.deepEqual(result.hits, [])
     assert.equal(result.boss.animation, 'parado-fase2')
@@ -170,15 +173,18 @@ describe('Tralalero Tralala', () => {
     const player = { x: fish.x + 400, y: fish.y }
     const volleyTimes = []
     const shots = []
+    const bossEvents = []
     for (let time = 0; time < 4000 && !(fish.restMs > 0); time += STEP_MS) {
-      const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], flashes: [], floor: [], shots: [] }
+      const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], flashes: [], floor: [], shots: [], bossEvents: [] }
       fish = updateEnemies([fish], world)[0]
       if (world.shots.length > 0) volleyTimes.push(time)
       shots.push(...world.shots)
+      bossEvents.push(...world.bossEvents)
     }
     assert.equal(volleyTimes.length, TRALALERO.songVolleys)
     assert.equal(shots.length, TRALALERO.notes * TRALALERO.songVolleys)
     assert.ok(shots.every((shot) => shot.kind === 'nota'))
+    assert.equal(bossEvents.filter(({ cue }) => cue === 'canto').length, TRALALERO.songVolleys)
     // O intervalo entre as rajadas é o canto inteiro (a animação toca de novo)
     const songMs = BOSS_SPRITES['tralalero-tralala'].animations['canto-tralala'].durations.reduce((sum, ms) => sum + ms, 0)
     for (let k = 1; k < volleyTimes.length; k++) assert.ok(Math.abs(volleyTimes[k] - volleyTimes[k - 1] - songMs) <= STEP_MS)
@@ -321,9 +327,10 @@ describe('Chimpanzini Bananini', () => {
   test('joga duas bananas-bumerangue: cada uma acerta o Tung parado na ida e na volta', () => {
     const chimp = readyToAttack('chimpanzini-bananini', CHIMPANZINI.walkMs)
     const player = { x: chimp.x + 300, y: chimp.y }
-    const { boss, shots } = simulate(chimp, player, 1000, (one) => one.restMs > 0)
+    const { boss, shots, bossEvents } = simulate(chimp, player, 1000, (one) => one.restMs > 0)
     assert.equal(shots.length, 2)
     assert.ok(shots.every((shot) => shot.kind === 'banana'))
+    assert.ok(bossEvents.some(({ cue }) => cue === 'banana'))
     // 2 bananas x (ida + volta); na run, a invencibilidade depois do 1º acerto segura os outros
     assert.equal(flyShots(shots, player, boss).length, 4)
   })
@@ -400,9 +407,10 @@ describe('Chimpanzini Bananini', () => {
 describe('Nonna Lasagnona', () => {
   test('perto, a colherada: a onda de choque machuca uma vez, com o dano da colherada', () => {
     const nonna = spawn('nonna-lasagnona')
-    const { hits, flashes } = simulate(nonna, { x: nonna.x + 120, y: nonna.y }, 800)
+    const { hits, flashes, bossEvents } = simulate(nonna, { x: nonna.x + 120, y: nonna.y }, 800)
     assert.deepEqual(hits, [{ damage: 1, cause: 'nonna-lasagnona' }])
     assert.ok(flashes.some((flash) => flash.effect === 'onda-choque'))
+    assert.ok(bossEvents.some(({ cue }) => cue === 'colherada'))
   })
 
   test('longe, invoca exatamente 2 almôndegas (Polpettas)', () => {
@@ -507,8 +515,9 @@ describe('Brr Brr Patapim', () => {
   test('longe, as raízes brotam em linha até o Tung: na linha, acertam uma vez; fora dela, não', () => {
     const boss = readyToAttack('brr-brr-patapim', PATAPIM.walkMs)
     const player = { x: boss.x + 400, y: boss.y }
-    const { shots } = simulate(boss, player, 1000, (one) => one.animation !== 'raizes' && one.waitMs > 0)
+    const { shots, bossEvents } = simulate(boss, player, 1000, (one) => one.animation !== 'raizes' && one.waitMs > 0)
     assert.equal(shots.length, 1)
+    assert.ok(bossEvents.some(({ cue }) => cue === 'raizes'))
     assert.equal(shots[0].kind, 'raizes')
     assert.deepEqual(flyShots(shots, player, boss), [{ damage: 1, cause: 'brr-brr-patapim' }])
     assert.deepEqual(flyShots(shots, { x: player.x, y: player.y - 150 }, boss), [])
@@ -557,10 +566,12 @@ describe('Ballerina Cappuccina', () => {
   test('a pirueta gira até o Tung, ricocheteia nas paredes e, na última batida, ela fica tonta (VULNERAVEL)', () => {
     const dancer = readyToAttack('ballerina-cappuccina', BALLERINA.walkMs)
     const player = { x: dancer.x + 500, y: dancer.y + 80 }
-    let { boss, flashes } = simulate(dancer, player, 8000, (one) => one.animation === 'tonta')
+    let { boss, flashes, bossEvents } = simulate(dancer, player, 8000, (one) => one.animation === 'tonta')
     assert.equal(boss.animation, 'tonta')
     assert.equal(boss.bounces, BALLERINA.bounces + 1)
     assert.ok(flashes.some((flash) => flash.effect === 'impacto'))
+    assert.ok(bossEvents.some(({ cue }) => cue === 'impacto'))
+    assert.ok(bossEvents.some(({ cue }) => cue === 'vulneravel'))
     assert.equal(getBossBar([boss]).state, 'vulneravel')
     boss = simulate(boss, player, 3000, (one) => one.animation !== 'tonta').boss
     assert.equal(boss.animation, 'parado')
@@ -569,9 +580,10 @@ describe('Ballerina Cappuccina', () => {
   test('as gotas de café saem em círculo; quem está no caminho de uma leva o dano', () => {
     const dancer = { ...readyToAttack('ballerina-cappuccina', BALLERINA.walkMs), attackCount: 1 }
     const player = { x: dancer.x + 150, y: dancer.y }
-    const { boss, shots } = simulate(dancer, player, 1000, (one) => one.animation !== 'atacando' && one.attackCount === 2)
+    const { boss, shots, bossEvents } = simulate(dancer, player, 1000, (one) => one.animation !== 'atacando' && one.attackCount === 2)
     assert.equal(shots.length, BALLERINA.drops)
     assert.ok(shots.every((shot) => shot.kind === 'gota'))
+    assert.ok(bossEvents.some(({ cue }) => cue === 'gotas'))
     assert.deepEqual(flyShots(shots, player, boss), [{ damage: 1, cause: 'ballerina-cappuccina' }])
   })
 
@@ -625,8 +637,9 @@ describe('Bombardiro Crocodilo', () => {
   test('linha: 5 marcas atravessando o Tung; a bomba só explode depois do aviso e só a do meio pega o Tung', () => {
     const plane = spawn('bombardiro-crocodilo')
     const player = { x: plane.x + 200, y: plane.y }
-    const { shots } = bombing('linha', player)
+    const { shots, bossEvents } = bombing('linha', player)
     assert.equal(shots.length, BOMBARDIRO.lineBombs)
+    assert.ok(bossEvents.some(({ cue }) => cue === 'bomba'))
     assert.ok(shots.every((shot) => shot.kind === 'bomba' && shot.y === player.y))
     assert.ok(shots.some((shot) => shot.x === player.x), 'uma marca no Tung')
     const world = { player, solids: ROOM_WALLS, deltaSeconds: STEP, hits: [], floor: [], flashes: [] }
@@ -728,6 +741,7 @@ describe('Cappuccino Assassino', () => {
       'direita, cima, esquerda e baixo',
     )
     assert.ok(flashes.filter((flash) => flash.effect === 'poof').length >= 4)
+    assert.ok(simulate(ninja, player, 1000).bossEvents.some(({ cue }) => cue === 'clones'))
     assert.equal(getBossBar(targets).name, ninja.name.toUpperCase(), 'a barra continua sendo a dele')
   })
 
@@ -826,11 +840,18 @@ describe('Cappuccino Assassino', () => {
       const boss = run.targets.find((target) => target.boss)
       const spot = { x: boss.x + offset, y: boss.y }
       const start = run.health
+      let bossEventSequence = run.bossEventSequence ?? 0
       for (let frame = 0; frame < 500 && !run.death; frame++) {
         run.player = { ...run.player, x: spot.x, y: spot.y }
         run = updateRun(run, { movement: { x: 0, y: 0 }, attackDirection: null }, STEP)
+        if (run.bossEvents.length > 0) {
+          assert.equal(run.bossEvents[0].sequence, bossEventSequence + 1)
+          assert.equal(run.bossEventSequence, bossEventSequence + run.bossEvents.length)
+          bossEventSequence = run.bossEventSequence
+        }
       }
       assert.ok(run.health < start, `Tung parado a ${offset} u: perdeu ${start - run.health} em 10 s`)
+      assert.ok(bossEventSequence > 0, 'os eventos dos ataques foram sequenciados na run')
     }
   })
 })

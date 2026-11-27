@@ -4,7 +4,7 @@ import { FENICOTTERO, MOKA, VESPINA, ZANZARINA } from '../src/data/enemyBehavior
 import { overlaps } from '../src/utils/collision.js'
 import { createEnemy, updateEnemies } from '../src/utils/enemies.js'
 import { getHazardBoxes } from '../src/utils/enemyPath.js'
-import { createHotCheese, createPizza, createSeed, createSteamRing, updateEnemyShots } from '../src/utils/enemyShots.js'
+import { createBomb, createHotCheese, createPizza, createSeed, createSteamRing, updateEnemyShots } from '../src/utils/enemyShots.js'
 import { createPlayer } from '../src/utils/player.js'
 import { getCellPoint, getCellRect } from '../src/utils/roomLayout.js'
 import { ROOM_WALLS } from '../src/utils/roomMovement.js'
@@ -51,13 +51,14 @@ function simulate(enemies, player, ms, until = () => false, solids = ROOM_WALLS)
 
 // Só os projéteis, sem inimigos
 function flyShots(shots, player, ms, solids = ROOM_WALLS) {
-  const done = { hits: [], floor: [], mobEvents: [] }
+  const done = { hits: [], floor: [], mobEvents: [], bossEvents: [] }
   for (let time = 0; time < ms && shots.length > 0; time += STEP_MS) {
-    const world = { player, solids, deltaSeconds: STEP, hits: [], flashes: [], floor: [] }
+    const world = { player, solids, deltaSeconds: STEP, hits: [], flashes: [], floor: [], bossEvents: [] }
     shots = updateEnemyShots(shots, world)
     done.hits.push(...world.hits)
     done.floor.push(...world.floor)
     done.mobEvents.push(...world.mobEvents)
+    done.bossEvents.push(...world.bossEvents)
   }
   return { shots, ...done }
 }
@@ -247,5 +248,16 @@ describe('Zanzarina Tarantella', () => {
     const { enemies, mobEvents } = simulate(flying.enemies, player, 2000, (state) => state.enemies[0].animation !== 'atacando', SOLIDS)
     assert.ok(Math.abs(distance(enemies[0], start) - ZANZARINA.diveDistance) < 10, `mergulhou ${distance(enemies[0], start)}`)
     assert.ok(mobEvents.some(({ cue }) => cue === 'mergulho'))
+  })
+})
+
+describe('Bombardiro Crocodilo', () => {
+  test('a bomba emite o som da explosão mesmo quando não acerta o Tung', () => {
+    const bomb = createBomb(400, 525, 2, 'bombardiro-crocodilo', STEP_MS)
+    const result = flyShots([bomb], { x: 100, y: 100 }, STEP_MS * 2)
+
+    assert.deepEqual(result.hits, [])
+    assert.ok(result.bossEvents.some(({ enemyId, cue }) =>
+      enemyId === 'bombardiro-crocodilo' && cue === 'explosao'))
   })
 })

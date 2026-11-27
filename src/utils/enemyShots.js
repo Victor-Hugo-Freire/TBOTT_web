@@ -40,6 +40,11 @@ function emitMobCue(world, enemyId, cue) {
   world.mobEvents.push({ enemyId, cue })
 }
 
+function emitBossCue(world, enemyId, cue) {
+  world.bossEvents ??= []
+  world.bossEvents.push({ enemyId, cue })
+}
+
 // Caixa de tamanho `size` com o meio em (x, y)
 function boxAround(x, y, size) {
   return { x: x - size.width / 2, y: y - size.height / 2, width: size.width, height: size.height }
@@ -232,6 +237,7 @@ function updateBomb(bomb, world) {
     // O mesmo formato de createEnemyFlash (enemyBehaviors.js, que já importa este arquivo)
     world.flashes.push({ effect: 'explosao', x: bomb.x, y: bomb.y - 30, scale: BOMBARDIRO.blastScale, angle: 0, elapsedMs: 0, durationMs: EXPLOSION_MS, loop: false })
   }
+  emitBossCue(world, bomb.cause, 'explosao')
   return null
 }
 
@@ -289,6 +295,7 @@ function updateRing(ring, world) {
 // Devolve os que continuam voando.
 export function updateEnemyShots(shots, world) {
   world.mobEvents ??= []
+  world.bossEvents ??= []
   const feet = getFeetBox(world.player)
   const next = []
   for (const shot of shots) {

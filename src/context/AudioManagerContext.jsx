@@ -8,6 +8,7 @@ import { createVilaEsperaAudioSource, VILA_ESPERA_MUSIC_NAME, VILA_ESPERA_MUSIC_
 import { registerRoomInteractionEffects, unregisterRoomInteractionEffects } from '../audio/AudioEffects/rooms/index.js'
 import { registerMobEffects, unregisterMobEffects } from '../audio/AudioEffects/mobs/index.js'
 import { registerCharacterEffects, unregisterCharacterEffects } from '../audio/AudioEffects/Characters/index.js'
+import { registerBossEffects, unregisterBossEffects } from '../audio/AudioEffects/Boses/index.js'
 
 export function AudioProvider({ children }) {
   const [initialOptions] = useState(readOptions)
@@ -37,6 +38,7 @@ export function AudioProvider({ children }) {
     registerRoomInteractionEffects(manager)
     registerMobEffects(manager)
     registerCharacterEffects(manager)
+    registerBossEffects(manager)
 
     return () => {
       mountedRef.current = false
@@ -45,6 +47,7 @@ export function AudioProvider({ children }) {
       unregisterRoomInteractionEffects(manager)
       unregisterMobEffects(manager)
       unregisterCharacterEffects(manager)
+      unregisterBossEffects(manager)
       lifecycle.deactivate()
     }
   }, [unlock, lifecycle, manager])

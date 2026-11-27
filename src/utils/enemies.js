@@ -146,6 +146,7 @@ export function areEnemiesDefeated(targets) {
 // world = o que eles enxergam e onde deixam o que fizeram (veja enemyBehaviors.js). O alvo de treino não muda.
 export function updateEnemies(targets, world) {
   world.mobEvents ??= []
+  world.bossEvents ??= []
   const stepMs = world.deltaSeconds * 1000
   // O caminho até o Tung desviando dos obstáculos e dos perigos do chão: um mapa só por quadro, para todos
   world.pathSolids = [...world.solids, ...getHazardBoxes(world.floorObstacles ?? [])]

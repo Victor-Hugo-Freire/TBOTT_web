@@ -869,7 +869,7 @@ function updateRoom(run, input, deltaSeconds) {
   const targetSolids = [...solids, ...Object.values(DOOR_HIT_ZONES)]
   // Os inimigos agem (enemyBehaviors.js) e deixam no "mundo" o que fizeram: dano fora do contato, efeitos, rastros
   // e projéteis novos. Depois os projéteis que já voavam andam (enemyShots.js) e também deixam dano e queijo.
-  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [], mobEvents: [] }
+  const world = { player: { x: player.x, y: player.y }, solids: targetSolids, deltaSeconds, hits: [], flashes: [], floor: [], shots: [], mobEvents: [], bossEvents: [] }
   world.floorObstacles = [...obstacles, ...run.enemyFloor] // o piso vale para os inimigos também
   world.enemyCatalog = run.enemyCatalog // a Nonna chama almôndegas (Polpettas) do catálogo
   // O barril (ou a roda) rolando que encosta num inimigo tira ROLL_DAMAGE dele e quebra ali
@@ -890,6 +890,11 @@ function updateRoom(run, input, deltaSeconds) {
     ...event,
     sequence: previousMobEventSequence + index + 1,
   }))
+  const previousBossEventSequence = run.bossEventSequence ?? 0
+  const bossEvents = world.bossEvents.map((event, index) => ({
+    ...event,
+    sequence: previousBossEventSequence + index + 1,
+  }))
   let next = {
     ...run,
     player,
@@ -905,6 +910,8 @@ function updateRoom(run, input, deltaSeconds) {
     targets,
     mobEvents,
     mobEventSequence: previousMobEventSequence + mobEvents.length,
+    bossEvents,
+    bossEventSequence: previousBossEventSequence + bossEvents.length,
     flashes: [...updateFlashes(run.flashes, stepMs, targets), ...world.flashes], // o efeito em cima de um alvo vai junto com ele
     enemyFloor: [...updateEnemyFloor(run.enemyFloor, stepMs), ...world.floor], // o gelo do Pinguino e o queijo quente
     enemyShots, // caroços, pizzas e anéis de vapor voando
