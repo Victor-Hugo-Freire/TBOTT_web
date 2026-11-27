@@ -44,7 +44,9 @@ export function getAppearanceLayers(visibleItems, pose, characterId) {
     if (!layer) continue // não aparece nessa direção (o Elixir de frente fica escondido pela cabeça)
     const move = getLayerMove(slot, anchors, pose)
     if (!move) continue // escondida neste quadro
-    layers.push({ itemId: id, path: getAppearancePath(layer, item, characterId), position: layer.position, ...move })
+    const shift = layer.shift ?? [0, 0] // lugar da camada, somado ao deslocamento do quadro
+    const offset = [move.offset[0] + shift[0], move.offset[1] + shift[1]]
+    layers.push({ itemId: id, path: getAppearancePath(layer, item, characterId), position: layer.position, ...move, offset })
   }
   return layers
 }

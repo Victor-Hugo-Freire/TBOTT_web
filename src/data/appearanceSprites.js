@@ -8,6 +8,8 @@
 //   desenhada no lugar certo do QUADRO 0 do andar. Só existe esse quadro: nos outros, o jogo soma o deslocamento de APPEARANCE_ANCHORS.
 // - Slots: cabeca, costas, bastao e aura (pés não foi feito). No máximo 1 item por slot; se 2 itens disputam o slot,
 //   fica visível o de maior raridade e, empatando, o mais recente (o efeito do escondido continua valendo).
+// - shift (opcional, na camada de uma direção): [dx, dy] em px da célula, somado ao deslocamento do quadro. Muda o lugar
+//   da camada sem refazer a imagem (o Elixir de lado usa).
 // - position diz quando desenhar a camada:
 //   1) 'aura' (no chão) e 2) 'atras', antes das pernas; 3) pernas; 4) tronco; 5) 'frente', depois do tronco.
 // - Deslocamento por quadro (px da célula, em relação ao quadro 0 do andar):
@@ -70,8 +72,11 @@ export const APPEARANCE_SPRITES = {
     slot: 'costas',
     layers: {
       down: null,
-      left: { path: '/sprites/characters/tung-tung-sahur/aparencia/elixir-eletrico-esquerda.png', position: 'atras' },
-      right: { path: '/sprites/characters/tung-tung-sahur/aparencia/elixir-eletrico-direita.png', position: 'atras' },
+      // De lado, a imagem foi desenhada na nuca (atrás da cabeça). O Victor quis o Elixir nas costas (2026-11-26), então o
+      // jogo desce a camada até o tronco (shift) e a desenha na frente do corpo: atrás do corpo ele sumia no Sabor (preto
+      // sobre preto) e no God (atrás das asas). Para ajustar, mexa só no shift.
+      left: { path: '/sprites/characters/tung-tung-sahur/aparencia/elixir-eletrico-esquerda.png', position: 'frente', shift: [-32, 85] },
+      right: { path: '/sprites/characters/tung-tung-sahur/aparencia/elixir-eletrico-direita.png', position: 'frente', shift: [32, 85] },
       up: { path: '/sprites/characters/tung-tung-sahur/aparencia/elixir-eletrico-cima.png', position: 'frente' },
     },
   },

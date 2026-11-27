@@ -48,10 +48,11 @@ describe('getVisibleItems (1 item por slot)', () => {
 describe('getAppearanceLayers (camadas do quadro atual)', () => {
   const visible = getVisibleItems(ALL_WITH_LOOK, TEST_CATALOG) // chifre, rolo, caldo e elixir
 
-  test('parado, as camadas ficam no lugar do quadro 0 (deslocamento zero)', () => {
+  test('parado, as camadas ficam no lugar do quadro 0 (deslocamento zero, mais o shift da camada, se ela tiver)', () => {
     for (const direction of ['down', 'left', 'right', 'up']) {
       for (const layer of getAppearanceLayers(visible, walkPose(direction, 0))) {
-        assert.deepEqual(layer.offset, [0, 0], `${direction} ${layer.itemId}`)
+        const shift = APPEARANCE_SPRITES[layer.itemId].layers[direction].shift ?? [0, 0]
+        assert.deepEqual(layer.offset, shift, `${direction} ${layer.itemId}`)
         assert.equal(layer.rotation, 0, `${direction} ${layer.itemId}`)
       }
     }
@@ -62,7 +63,18 @@ describe('getAppearanceLayers (camadas do quadro atual)', () => {
     assert.deepEqual(findLayer(layers, 'chifre-da-sorte').offset, APPEARANCE_ANCHORS.down.walk[3].head)
     assert.deepEqual(findLayer(layers, 'caldo-da-mamae').offset, [0, 0])
     const side = getAppearanceLayers(visible, walkPose('left', 9))
-    assert.deepEqual(findLayer(side, 'elixir-eletrico').offset, APPEARANCE_ANCHORS.left.walkBody[9])
+    const [bodyX, bodyY] = APPEARANCE_ANCHORS.left.walkBody[9]
+    const [shiftX, shiftY] = APPEARANCE_SPRITES['elixir-eletrico'].layers.left.shift
+    assert.deepEqual(findLayer(side, 'elixir-eletrico').offset, [bodyX + shiftX, bodyY + shiftY])
+  })
+
+  test('o Elixir de lado fica nas costas (na altura do tronco, na frente do corpo), espelhado nos dois lados', () => {
+    const { left, right } = APPEARANCE_SPRITES['elixir-eletrico'].layers
+    assert.equal(left.position, 'frente')
+    assert.equal(right.position, 'frente')
+    // desceu da nuca até o tronco e foi para dentro, do lado do corpo
+    assert.ok(left.shift[1] > 60 && right.shift[1] === left.shift[1])
+    assert.equal(left.shift[0], -right.shift[0])
   })
 
   test('de costas a cabeça balança para os lados e o corpo não: a Concha acompanha o corpo, sem balançar', () => {
